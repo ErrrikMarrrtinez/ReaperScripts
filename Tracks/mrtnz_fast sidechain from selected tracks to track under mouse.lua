@@ -1,6 +1,26 @@
--- @description Hello world
--- @author cfillion
+-- @description Fast sidechain from selected tracks to track under mouse
+-- @author mrtnz
 -- @version 1.0
+-- @about
+--   This script provides:
+--   
+--   - Quick sidechain routing from selected tracks to the track under the mouse.
+--   - Default setup of a 3/4 sidechain with corresponding 3/4 L\R pins for input.
+--   
+--   Usage:
+--   
+--   1. Select multiple tracks.
+--   2. Hover over a target track.
+--   3. A window will display available plugins.
+--   4. Click "Create New Channel" after selecting a plugin to auto-create the next available send. For instance, if 3/4 is occupied, it will select 5/6, and if 5/6 is occupied, it will select 7/8, and so on.
+--   5. Clicking "Yes" will route the send to the current sidechain pins of the selected plugin.
+--   
+--   Language Support:
+--   
+--   - English and Russian.
+--   - Toggle language by changing "local language = 'eng'" to 'ru' for Russian.
+
+
 
 
 local language = 'eng' --eng or ru
