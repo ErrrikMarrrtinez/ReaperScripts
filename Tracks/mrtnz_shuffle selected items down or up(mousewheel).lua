@@ -1,4 +1,4 @@
--- @description Fast sidechain from selected tracks to track under mouse
+-- @description Shuffle selected items down or up(mousewheel)
 -- @author mrtnz
 -- @version 1.0
 -- @about
