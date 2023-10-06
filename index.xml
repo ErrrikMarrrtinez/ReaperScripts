@@ -2,12 +2,32 @@
 <index version="1" name="ReaperScripts" commit="c63c5c5729b7f4f0f912fefc75a382653f2fe0a8">
   <category name="Tracks">
     <reapack name="mrtnz_fast sidechain from selected tracks to track under mouse.lua" type="script" desc="Fast sidechain from selected tracks to track under mouse">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Fast sidechain from selected tracks to track under mouse.\par}
+}
+]]></description>
+      </metadata>
       <version name="1.0" author="mrtnz" time="2021-01-04T23:30:32Z">
+        <changelog><![CDATA[+ Initial release]]></changelog>
         <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Tracks/mrtnz_fast%20sidechain%20from%20selected%20tracks%20to%20track%20under%20mouse.lua</source>
       </version>
     </reapack>
     <reapack name="mrtnz_shuffle selected items down or up(mousewheel).lua" type="script" desc="Shuffle selected items down or up(mousewheel)">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Shuffle selected items down or up using the mousewheel.\par}
+}
+]]></description>
+      </metadata>
       <version name="1.0" author="mrtnz" time="2021-01-04T23:30:32Z">
+        <changelog><![CDATA[+ Initial release]]></changelog>
         <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Tracks/mrtnz_shuffle%20selected%20items%20down%20or%20up(mousewheel).lua</source>
       </version>
     </reapack>
