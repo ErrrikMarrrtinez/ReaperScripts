@@ -11,7 +11,7 @@
 }
 ]]></description>
       </metadata>
-      <version name="1.0" author="mrtnz" time="2021-01-04T23:30:32Z">
+      <version name="1.0" author="mrtnz" time="2023-10-06T12:30:00Z">
         <changelog><![CDATA[+ Initial release]]></changelog>
         <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Tracks/mrtnz_fast%20sidechain%20from%20selected%20tracks%20to%20track%20under%20mouse.lua</source>
       </version>
@@ -26,7 +26,7 @@
 }
 ]]></description>
       </metadata>
-      <version name="1.0" author="mrtnz" time="2021-01-04T23:30:32Z">
+      <version name="1.0" author="mrtnz" time="2023-10-06T12:30:00Z">
         <changelog><![CDATA[+ Initial release]]></changelog>
         <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Tracks/mrtnz_shuffle%20selected%20items%20down%20or%20up(mousewheel).lua</source>
       </version>
