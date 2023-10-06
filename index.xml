@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="c63c5c5729b7f4f0f912fefc75a382653f2fe0a8">
+<index version="1" name="ReaperScripts" commit="6c6dcc858ca656881d581f231bae20aab7e8d196">
   <category name="Tracks">
     <reapack name="mrtnz_fast sidechain from selected tracks to track under mouse.lua" type="script" desc="Fast sidechain from selected tracks to track under mouse">
       <metadata>
