@@ -1,3 +1,29 @@
+-- @description Arpeggiator(test version)
+-- @author mrtnz
+-- @version 1.0
+-- @about
+--   This script provides:
+--   ..test..
+--   Language Support:
+--   - English and Russian.
+--   - Toggle language by changing "local language = 'eng'" to 'ru' for Russian.
+-- @provides
+-- ../images/*
+-- ../saved notes/*
+-- json.lua
+
+
+
+
+
+
+
+
+
+
+
+
+
 package.path = string.format('%s/Scripts/rtk/1/?.lua;%s?.lua;', reaper.GetResourcePath(), entrypath)
 require 'rtk'
 local resourcePath = reaper.GetResourcePath()
