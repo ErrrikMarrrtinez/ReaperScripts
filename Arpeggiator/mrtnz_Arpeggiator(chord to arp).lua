@@ -7,10 +7,7 @@
 --   Language Support:
 --   - English and Russian.
 --   - Toggle language by changing "local language = 'eng'" to 'ru' for Russian.
--- @provides
--- ../images/*
--- ../saved notes/*
--- json.lua
+
 
 
 
