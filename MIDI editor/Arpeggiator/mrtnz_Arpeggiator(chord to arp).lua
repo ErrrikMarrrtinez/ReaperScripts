@@ -7,6 +7,10 @@
 --   Language Support:
 --   - English and Russian.
 --   - Toggle language by changing "local language = 'eng'" to 'ru' for Russian.
+-- @provides
+--   ../MIDI editor/Arpeggiator/json.lua
+--   ../MIDI editor/Arpeggiator/modify.json
+--   ../MIDI editor/Arpeggiator/original.json
 
 
 
