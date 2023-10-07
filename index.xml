@@ -40,7 +40,7 @@
                 ]]></description>
             </metadata>
             <version name="1.0" author="mrtnz" time="2023-10-06T12:30:00Z">
-                <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
+                <source main="main midi_editor">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
                 <source file="../MIDI Editor/Lib/json.lua">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/Lib/json.lua</source>
                 <source file="../MIDI Editor/Lib/modify.json">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/Lib/modify.json</source>
                 <source file="../MIDI Editor/Lib/original.json">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/Lib/original.json</source>
