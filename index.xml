@@ -32,19 +32,24 @@
       </version>
     </reapack>
   </category>
-  <category name="Arpeggiator">
-    <reapack name="mrtnz_Arpeggiator(Chord to arp).lua" type="script" desc="Arpeggiator">
-      <metadata>
-        <description><![CDATA[
-           This script provides arpeggiation for chords. 
-           Language Support: English and Russian.
-           Toggle language by changing "local language = 'eng'" to 'ru' for Russian.
-        ]]></description>
-      </metadata>
-      <version name="1.0" author="mrtnz" time="2023-10-06T12:30:00Z">
-        <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Arpeggiator/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
-      </version>
-    </reapack>
-  </category>
+  <category name="MIDI Editor">
+    <category name="Arpeggiator">
+        <reapack name="mrtnz_Arpeggiator(Chord to arp).lua" type="script" desc="Arpeggiator">
+            <metadata>
+                <description><![CDATA[
+                   This script provides arpeggiation for chords. 
+                   Language Support: English and Russian.
+                   Toggle language by changing "local language = 'eng'" to 'ru' for Russian.
+                ]]></description>
+            </metadata>
+            <version name="1.0" author="mrtnz" time="2023-10-06T12:30:00Z">
+                <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/Arpeggiator/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
+                <source file="json.lua">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20editor/Arpeggiator/json.lua</source>
+                <source file="modify.json">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/Arpeggiator/modify.json</source>
+                <source file="original.json">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/Arpeggiator/original.json</source>
+            </version>
+        </reapack>
+    </category>
+</category>
 </index>
 
