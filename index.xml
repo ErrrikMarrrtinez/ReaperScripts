@@ -41,7 +41,7 @@
         ]]></description>
       </metadata>
       <version name="1.0" author="mrtnz" time="2023-10-06T12:30:00Z">
-        <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Arpeggiator/mrtnz_Arpeggiator(Chord to arp).lua</source>
+        <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Arpeggiator/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
         <source>https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Arpeggiator/images/*</source>
         <source>https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Arpeggiator/saved notes/*</source>
         <source>https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Arpeggiator/json.lua</source>
