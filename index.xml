@@ -31,5 +31,22 @@
         <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Tracks/mrtnz_shuffle%20selected%20items%20down%20or%20up(mousewheel).lua</source>
       </version>
     </reapack>
+  <category name="Arpeggiator">
+    <reapack name="mrtnz_Arpeggiator(Chord to arp).lua" type="script" desc="Arpeggiator">
+      <metadata>
+        <description><![CDATA[
+           This script provides arpeggiation for chords. 
+           Language Support: English and Russian.
+           Toggle language by changing "local language = 'eng'" to 'ru' for Russian.
+        ]]></description>
+      </metadata>
+      <version name="1.0" author="mrtnz" time="2023-10-06T12:30:00Z">
+        <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Arpeggiator/mrtnz_Arpeggiator(Chord to arp).lua</source>
+        <source>https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Arpeggiator/images/*</source>
+        <source>https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Arpeggiator/saved notes/*</source>
+        <source>https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Arpeggiator/json.lua</source>
+      </version>
+    </reapack>
   </category>
 </index>
+
