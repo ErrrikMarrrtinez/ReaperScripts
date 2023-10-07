@@ -31,6 +31,7 @@
         <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Tracks/mrtnz_shuffle%20selected%20items%20down%20or%20up(mousewheel).lua</source>
       </version>
     </reapack>
+  </category>
   <category name="Arpeggiator">
     <reapack name="mrtnz_Arpeggiator(Chord to arp).lua" type="script" desc="Arpeggiator">
       <metadata>
@@ -42,9 +43,6 @@
       </metadata>
       <version name="1.0" author="mrtnz" time="2023-10-06T12:30:00Z">
         <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Arpeggiator/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
-        <source>https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Arpeggiator/images/*</source>
-        <source>https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Arpeggiator/saved notes/*</source>
-        <source>https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Arpeggiator/json.lua</source>
       </version>
     </reapack>
   </category>
