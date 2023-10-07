@@ -6,7 +6,6 @@
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
-
 {\pard \ql \f0 \sa180 \li0 \fi0 Fast sidechain from selected tracks to track under mouse.\par}
 }
 ]]></description>
@@ -21,7 +20,6 @@
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
-
 {\pard \ql \f0 \sa180 \li0 \fi0 Shuffle selected items down or up using the mousewheel.\par}
 }
 ]]></description>
@@ -33,7 +31,6 @@
     </reapack>
   </category>
   <category name="MIDI Editor">
-    <category name="Arpeggiator">
         <reapack name="mrtnz_Arpeggiator(Chord to arp).lua" type="script" desc="Arpeggiator">
             <metadata>
                 <description><![CDATA[
@@ -43,13 +40,11 @@
                 ]]></description>
             </metadata>
             <version name="1.0" author="mrtnz" time="2023-10-06T12:30:00Z">
-                <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/Arpeggiator/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
-                <source file="json.lua">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/Arpeggiator/json.lua</source>
-                <source file="modify.json">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/Arpeggiator/modify.json</source>
-                <source file="original.json">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/Arpeggiator/original.json</source>
+                <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
+                <source file="../MIDI Editor/Lib/json.lua">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/Lib/json.lua</source>
+                <source file="../MIDI Editor/Lib/modify.json">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/Lib/modify.json</source>
+                <source file="../MIDI Editor/Lib/original.json">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/Lib/original.json</source>
             </version>
         </reapack>
-    </category>
 </category>
 </index>
-
