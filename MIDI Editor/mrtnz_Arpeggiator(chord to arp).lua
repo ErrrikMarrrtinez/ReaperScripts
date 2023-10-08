@@ -54,27 +54,19 @@
 
 
 
-
-
-
-
-
-
-
-
-
-package.path = string.format('%s/Scripts/rtk/1/?.lua;%s?.lua;', reaper.GetResourcePath(), entrypath)
-require 'rtk'
 local resourcePath = reaper.GetResourcePath()
-package.path = package.path .. ";" .. resourcePath .. "/Scripts/?.lua"
-local scriptPath = debug.getinfo(1,"S").source:match[[^@?(.*[\/])[^\/]-$]]
-package.path = package.path .. ";" .. scriptPath .. "?.lua"
+local scriptPath = ({reaper.get_action_context()})[2]
+local scriptDir = scriptPath:match('^(.*[/\\])')
+local rtkPath = resourcePath .. "/Scripts/rtk/1/"
+local imagesPath = scriptDir .. "../images/"
+package.path = package.path .. ";" 
+              .. rtkPath .. "?.lua;" 
+              .. scriptDir .. "?.lua"
+
+require 'rtk'
 local json = require("json")
-
-
-
-
-
+rtk.add_image_search_path(imagesPath, 'dark')
+reaper.GetSetProjectInfo_String(0, "PROJOFFS", "0", true)
 
 font="Trebuchet MS"
 base_color = "#3a3a3a"
@@ -100,6 +92,8 @@ main_background_color = "#1a1a1a"
 
 advanced_color_main_sl_label="orange"
 adv_mode_bg_window = "#242424"
+color_b_hb = "#3a3a3a"
+color_apps_def="#2a2a2a"
 
 adv_mode_x=30
 adv_mode_y=45
@@ -113,11 +107,42 @@ adv_thumbcolor="transparent"
 adv_slider_w=110
 adv_fontsize=16
 
-local sectionID = "_RS7d3c_edbf77beb9fda39fc9347c81c8e4efb1480c3962" 
+bg_all="#262422" --bg advanced wnd
 
+base_w = 35
+base_w_slider=58
+spacing_1 = base_w/base_w
+base_w_for_chord_tabs=54
+big_w_for_chord_tabs = base_w_for_chord_tabs + 10
+base_h_for_chord_tabs=25
+base_color = "#3a3a3a"
+
+pressed_color_tabs = "#6d838f50"
+def_color_tabs = "#70809040"
+
+velocity_color_sliders="#55666f"
+octave_color_sliders="#666f55"
+gate_color_sliders="#6f5e55"
+ratchet_color_sliders="#5e556f"
+rate_color_sliders="#471726"
+v_sliders_modes_pressed_color="#9a9a9a"
+
+modes_button_wight = base_wight_button - 15
+height=30
+sectionID = "" 
 initialW=355
 initialH=400
 local scale_2
+local func_on = true
+
+function p_run()
+  if func_on == true then
+    run()
+  end
+end
+local sectionID = "YourSectionID"
+local savedVisibility = reaper.GetExtState(sectionID, "appVisibility")
+local isAppVisible = (savedVisibility ~= "hidden")
 
 
 local wnd = rtk.Window{
@@ -127,55 +152,37 @@ local wnd = rtk.Window{
     bg = main_background_color,
     resizable=true,
     opacity=0.98,
-    --expand=1,
+    expand=1,
     
 }
 
-height=30
+
 local hbox_app = wnd:add(rtk.HBox{tooltip='click to hide',h=height,y=wnd.h-height},{fillw=true})
 local app = hbox_app:add(rtk.Application())
-local isAppVisible = true  -- Исходное состояние: приложение видимо
 
-hbox_app.onclick = function(self)
-    if isAppVisible then
-        app:hide()
-        hbox_app:attr('tooltip', 'click to show')
-    else
-        app:show()
-        hbox_app:attr('tooltip', 'click to hide')
-    end
-    isAppVisible = not isAppVisible  -- Обновляем состояние переменной
-    return true
-end
-local grid = 3840 --размер основных нот
 
-local mode = "down" --направление
-local grid_step = 240 --размер для шага step
-local step = 3 --шаг для отклонения grid_step, каждая step нота будет иметь длину grid_step
-local octave = 0 --взрыв октав
-local step_mode = 1 --чекснизу
+
+
+local grid = 3840
+
+local mode = "down"
+local grid_step = 240
+local step = 3
+local octave = 0 
+local step_mode = 1 
 local velocity = 100
-local extendNotesFlag = false --легато
+local extendNotesFlag = false 
 local grid_values = {1920, 1280, 960, 640, 480, 320, 240, 160, 120, 80, 60}
---local step_grid = {}
---local step_grid = 420
 --[[
-===step modes===
-     1 - когда используется только grid
-     2 - когда используется grid, step, grid_step
-     3 - когда исполььзуется grid, step, grid_step в множественном числе в виде таблицы или массива
-]]
-
-
 local step_grid = {
-  { -- Для первого аккорда
+  { --frstchord
     mode = "down",
     {step = 1, grid_step = 480, velocity = 100, octave = 0, ratchet = 0, length = 100},
     {step = 2, grid_step = 480, velocity = 100, octave = 0, ratchet = 0, length = 100},
     {step = 3, grid_step = 480, velocity = 100, octave = 0, ratchet = 0, length = 100},
     {step = 4, grid_step = 480, velocity = 100, octave = 0, ratchet = 0, length = 100},
   },
-  { -- Для второго аккорда
+  { --scndchord
     mode = "up",
     {step = 1, grid_step = 480, velocity = 100, octave = 0, ratchet = 0, length = 100},
     {step = 2, grid_step = 480, velocity = 100, octave = 0, ratchet = 0, length = 100},
@@ -183,16 +190,22 @@ local step_grid = {
     {step = 4, grid_step = 480, velocity = 100, octave = 0, ratchet = 0, length = 100},
   },
 }
-
-
-
-
---[[
-===modes===
-- up
-- down
-- random
 ]]
+
+
+local step_grid = {
+  { --frstchord
+    mode = "down",
+    {step = 1, grid_step = 480, velocity = 100, octave = 0, ratchet = 0, length = 100},
+    {step = 2, grid_step = 480, velocity = 100, octave = 0, ratchet = 0, length = 100},
+    {step = 3, grid_step = 480, velocity = 100, octave = 0, ratchet = 0, length = 100},
+    {step = 4, grid_step = 480, velocity = 100, octave = 0, ratchet = 0, length = 100},
+    {step = 5, grid_step = 480, velocity = 100, octave = 0, ratchet = 0, length = 100},
+    {step = 6, grid_step = 480, velocity = 100, octave = 0, ratchet = 0, length = 100},
+    {step = 7, grid_step = 480, velocity = 100, octave = 0, ratchet = 0, length = 100},
+    {step = 8, grid_step = 480, velocity = 100, octave = 0, ratchet = 0, length = 100},
+  }
+}
 
 --[[
 ===grid sizes===
@@ -211,8 +224,6 @@ local step_grid = {
 - 1/64 - 60
 ]]
 
-
-
 function makeDarker(color, amount)
         local r, g, b = color:match("#(%x%x)(%x%x)(%x%x)")
         r = math.floor(math.max(0, tonumber(r, 16) * (1 - amount)))
@@ -221,52 +232,44 @@ function makeDarker(color, amount)
         return string.format("#%02x%02x%02x", r, g, b)
 end
 
-local imagesPath = scriptPath .. "images"
-rtk.add_image_search_path(imagesPath, 'dark')
 
-local up = rtk.Image.icon('up'):scale(120,120,22,7) -- increase the size of the image
-local down = rtk.Image.icon('down'):scale(120,120,22,7) -- increase the size of the image
-local rand = rtk.Image.icon('rand'):scale(120,120,22,7) -- increase the size of the image
-local rnd = rtk.Image.icon('rnd'):scale(120,120,22,7) -- increase the size of the image
-local oct = rtk.Image.icon('oct'):scale(120,120,22,7) -- increase the size of the image
-local leg = rtk.Image.icon('leg'):scale(120,120,22,7) -- increase the size of the image
-local save = rtk.Image.icon('save'):scale(120,120,22,7) -- increase the size of the image
-local delete = rtk.Image.icon('trash'):scale(120,120,22,7) -- increase the size of the image
-local page = rtk.Image.icon('page'):scale(120,120,22,7) -- increase the size of the image
-local bulb = rtk.Image.icon('bulb1'):scale(120,120,22,7) -- increase the size of the image
-local bulb2 = rtk.Image.icon('bulb2'):scale(120,120,22,7) -- increase the size of the image
-local bulb_en = rtk.Image.icon('bulb_en'):scale(120,120,22,7) -- increase the size of the image
-local tab_b = rtk.Image.icon('tab'):scale(120,120,22,7) -- increase the size of the image
+local up = rtk.Image.icon('up'):scale(120,120,22,7)
+local down = rtk.Image.icon('down'):scale(120,120,22,7)
+local rand = rtk.Image.icon('rand'):scale(120,120,22,7)
+local rnd = rtk.Image.icon('rnd'):scale(120,120,22,7)
+local oct = rtk.Image.icon('oct'):scale(120,120,22,7)
+local leg = rtk.Image.icon('leg'):scale(120,120,22,7)
+local save = rtk.Image.icon('save'):scale(120,120,22,7)
+local delete = rtk.Image.icon('trash'):scale(120,120,22,7)
+local page = rtk.Image.icon('page'):scale(120,120,22,7)
+local bulb = rtk.Image.icon('bulb1'):scale(120,120,22,7)
+local bulb2 = rtk.Image.icon('bulb2'):scale(120,120,22,7)
+local bulb_en = rtk.Image.icon('bulb_en'):scale(120,120,22,7)
+local tab_b = rtk.Image.icon('tab'):scale(120,120,22,7)
 local pin = rtk.Image.icon('pin'):scale(120,120,22,7)
 local pinned = rtk.Image.icon('pinned'):scale(120,120,22,7)
 local preset = rtk.Image.icon('preset'):scale(120,120,22,7)
 local add = rtk.Image.icon('add'):scale(120,120,22,6)
-local on = rtk.Image.icon('on'):scale(120,120,22,7) -- increase the size of the image
-local off = rtk.Image.icon('off'):scale(120,120,22,7) -- increase the size of the image
-local onof = rtk.Image.icon('onof'):scale(120,120,22,7) -- increase the size of the image
-local refresh = rtk.Image.icon('refresh'):scale(120,120,22,6.6) -- increase the size of the image
-local loop = rtk.Image.icon('loop'):scale(120,120,22,7) -- increase the size of the image
-local up_and_down = rtk.Image.icon('up-and-down'):scale(120,120,22,7) -- increase the size of the image
+local on = rtk.Image.icon('on'):scale(120,120,22,7)
+local off = rtk.Image.icon('off'):scale(120,120,22,7)
+local onof = rtk.Image.icon('onof'):scale(120,120,22,7)
+local refresh = rtk.Image.icon('refresh'):scale(120,120,22,6.6)
+local loop = rtk.Image.icon('loop'):scale(120,120,22,7)
+local up_and_down = rtk.Image.icon('up-and-down'):scale(120,120,22,7)
 
+
+
+
+local savedState = reaper.GetExtState(sectionID, "pinState")
 local container = wnd:add(rtk.VBox{y=-35})
-
 local vbox2 = container:add(rtk.VBox{y=50,padding=5,x=wnd.w/2-50})
-
 local vbox = container:add(rtk.VBox{spacing=10})
 
 hb_o = vbox:add(rtk.HBox{y=60,x=10,spacing=2,padding=25})
-color_b_hb = "#3a3a3a"
-color_apps_def="#2a2a2a"
-
-
 bt2_btgen = hb_o:add(rtk.HBox{w=base_wight_button})
 app_hbox=wnd:add(rtk.HBox{padding=2,border='#25252580',bg="#22222250"})
 
-
-
-
 local pin_b = app_hbox:add(rtk.Button{border="#3a3a3a35",gradient=3,color=color_apps_def,padding=4,icon=pinned,flat=true})
-local savedState = reaper.GetExtState(sectionID, "pinState")
 
 local function updatePinState(isPressed)
     if isPressed then
@@ -280,13 +283,7 @@ local function updatePinState(isPressed)
     end
 end
 
-pin_b.onclick = function(self)
-    pin_b.pressed = not pin_b.pressed
-    updatePinState(pin_b.pressed)
-    reaper.SetExtState(sectionID, "pinState", tostring(pin_b.pressed), true)
-end
 
--- Устанавливаем начальное состояние кнопки
 if savedState == "true" then
     pin_b.pressed = true
     updatePinState(true)
@@ -299,7 +296,9 @@ end
 app_hbox:add(rtk.Box.FLEXSPACE)
 
 local reset_b = app_hbox:add(rtk.Button{icon=refresh,border="#3a3a3a65", halign='center', padding=4, gradient=3, color=color_apps_def})
+
 local scale_b = app_hbox:add(rtk.Button{border="#3a3a3a65",halign='center',padding=4,gradient=3,color=color_apps_def,tagged=true,'1.0',iconpos='left',icon=loop,})
+
 local function applyScale(scale)
     rtk.scale.user = scale
     scale_b:attr('label', string.format("%.2f", scale))
@@ -308,25 +307,6 @@ local function applyScale(scale)
     wnd:reflow()
 end
 
-wnd.onresize = function(self, w, h)
-    if not w or not h then return end
-
-    local scale = h / initialH
-    rtk.scale.user = scale
-    scale_b:attr('label', string.format("%.2f", scale))
-    
-    -- Сохраняем текущее состояние
-    reaper.SetExtState(sectionID, "windowScale", tostring(scale), true)
-    reaper.SetExtState(sectionID, "windowPosX", tostring(self.x), true)
-    reaper.SetExtState(sectionID, "windowPosY", tostring(self.y), true)
-end
-    
-    
-
-wnd.onclose = function(self)
-    reaper.SetExtState(sectionID, "windowPosX", tostring(self.x), true)
-    reaper.SetExtState(sectionID, "windowPosY", tostring(self.y), true)
-end
 local savedScale = reaper.GetExtState(sectionID, "windowScale")
 local savedPosX = reaper.GetExtState(sectionID, "windowPosX")
 local savedPosY = reaper.GetExtState(sectionID, "windowPosY")
@@ -339,10 +319,6 @@ if savedPosX ~= "" and savedPosY ~= "" then
     wnd:attr('x', tonumber(savedPosX))
     wnd:attr('y', tonumber(savedPosY))
 end
-
-reset_b.onclick = function() applyScale(1.0) end
-
-
 
 
 
@@ -381,19 +357,6 @@ local btn_generate = bt2_btgen:add(rtk.Button{
 })
     
 
-btn_generate.onmouseleave=function(self)
-    self:attr('icon', gen)
-end
-btn_generate.onmousedown=function(self)
-    self:attr('icon', gen_p)
-end
-btn_generate.onmouseup=function(self)
-    self:attr('icon', gen2)
-end
-btn_generate.onclick=function(self)
-    run()
-end
-
 
 
 advanced_slid_b=hb_o:add(rtk.VBox{})
@@ -418,8 +381,6 @@ advanced_slider_slider=advanced_slid_b:add(rtk.VBox{h=1.1})
 local new_color_advanced = makeDarker("#6d694f", -0.5)
 
 
-
-
 local slider_mod_advanced = advanced_slider_slider:add(rtk.Slider{
   w=base_wight_button/10,
   thumbcolor='transparent',
@@ -435,97 +396,9 @@ local slider_mod_advanced = advanced_slider_slider:add(rtk.Slider{
   lhotzone=1,
   --cursor=rtk.mouse.cursors.REAPER_BORDER_RIGHT,
 })
-slider_mod_advanced.onmouseenter=function(self)
-  
-end
-slider_mod_advanced:onblur()
-slider_mod_advanced:hide()
-slider_mod_advanced.onchange = function(self, event)
-    --self:attr('disabled', true)
-end
-
-slider_mod_advanced.onmousewheel = function(self, event)
-    local _, _, _, wheel_y = tostring(event):find("wheel=(%d+.?%d*),(-?%d+.?%d*)")
-    local c_val = tonumber(wheel_y) > 0 and self.value - self.step or self.value + self.step
-    self:attr('value', math.max(self.min, math.min(self.max, c_val)))
-    return true
-end
-
-
-
-
-
-button_adv.state = 1
-button_adv.current_icon = bulb
-
-
-
-button_adv.onmousedown = function(self, event)
-    self:attr('icon', bulb_en)  -- Изменение иконки при нажатии кнопки
-end
-
-button_adv.onmouseup = function(self, event)
-    self:attr('icon', self.current_icon)  -- Восстановление текущей иконки после отпускания кнопки
-end
-
-button_adv.onmouseleave = function(self, event)
-    self:attr('icon', self.current_icon)  -- Восстановление текущей иконки при уходе курсора
-    self:attr("cursor", rtk.mouse.cursors.UNDEFINED)
-end
-
-        
-
 
 btn_generate:hide()
-local func_on = true
-button2.state = "on"
-button2.current_icon = on
-button2.onclick = function(self, event)
-    if self.state == "on" then--выкл
-        self.state = "off"
-        self:attr('color', auto_apply_color_pressed)
-        self:attr('icon', off)
-        self:attr('gradient', 5)
-        self.current_icon = off
-        func_on = false
-        btn_generate:show()
-        btn_generate:animate{'w', dst=71, duration=0.2,"out-bounce"}
-        button2:animate{'w', dst=24, duration=0.2,"out-bounce"}
-        
-    else --вкл
-        self.state = "on"
-        self:attr('color', auto_apply_color_current)
-        self:attr('icon', on)
-        self.current_icon = on
-        func_on = true
-        self:attr('gradient', 3)
-        button2:animate{'w', dst=base_wight_button, duration=0.2,"out-bounce"}
-        btn_generate:animate{'w', dst=15, duration=0.2,"out-bounce"}
-           :after(function()
-               return btn_generate:hide()
-            end)
-    end
-end
 
-function p_run()
-    if func_on == true then
-        run()
-    end
-end
-
-button2.onmousedown = function(self,event)
-  self:attr('icon', onof)
-
-end
-button2.onmouseup = function(self,event)
-  self:attr('icon', self.current_icon)
-
-end
-button2.onmouseleave = function(self, event)
-  self:attr('icon', self.current_icon)
-  self:attr("cursor", rtk.mouse.cursors.UNDEFINED)
-
-end
 
     
 local leg_notes=hb_o:add(rtk.VBox{})
@@ -543,8 +416,7 @@ local button_str = leg_notes:add(rtk.Button{
     h=29,
     z=1,
     })
-    
-    
+
 local new_color = makeDarker("#4a544d", -0.5)
 
 local hb_stac_leg = leg_notes:add(rtk.HBox{h=1.1})
@@ -561,73 +433,10 @@ slid_length = hb_stac_leg:add(rtk.Slider{
   tracksize=2,
   
 })
-    
-    
 
-button_str.onmousewheel = function(self, event)
-    local _, _, _, wheel_y = tostring(event):find("wheel=(%d+.?%d*),(-?%d+.?%d*)")
-    local c_val = tonumber(wheel_y) > 0 and slid_length.value - slid_length.step-7 or slid_length.value + slid_length.step+7
-    slid_length:attr('value', math.max(slid_length.min, math.min(slid_length.max, c_val)))
-    return true
-end
-
-slid_length.onmousewheel = function(self, event)
-    local _, _, _, wheel_y = tostring(event):find("wheel=(%d+.?%d*),(-?%d+.?%d*)")
-    local c_val = tonumber(wheel_y) > 0 and self.value - self.step-7 or self.value + self.step+7
-    self:attr('value', math.max(self.min, math.min(self.max, c_val)))
-    return true
-end
-local globalSliderValue = 100 
-slid_length.onchange = function(self, event)
-  amount = self.value / -120
-  local new_color = makeDarker("#4a544d", amount)
-  self:attr('color', new_color)
-  globalSliderValue = self.value
-
-  -- Изменение имени кнопки в зависимости от значения слайдера
-  if self.value < 35 then
-    button_str:attr('label', 'Staccato')
-  else
-    button_str:attr('label', 'Legato')
-  end
-  
-  p_run()
-end
---slid_length:show()  
-button_str.state = "on"
-button_str.onclick = function(self, event)
-    if self.state == "on" then
-        self.state = "off"
-        self:attr('color', legato_color_pressed)
-        extendNotesFlag = true
-        p_run()
-        slid_length:show() 
-        slid_length:animate{'w', dst=base_wight_button, duration=0.1, easing="in-quad"}
-        
-    else
-        self.state = "on"
-        self:attr('color', legato_color_current)
-        extendNotesFlag = false
-        p_run()
-        slid_length:animate{'w', dst=base_wight_button/10, duration=0.1, easing="out-quad"}
-        :after(function()
-            local function jopa()
-               slid_length:hide()
-            end
-            return jopa()
-         end)
-        
-        
-    end
-end
-
-
-
-    
 
 local all_advanced_mode_container = container:add(rtk.VBox{h=240,bg='#FFDAB96',border='#70809019',y=0,x=10,spacing=2,padding=22})
 local chord_str = all_advanced_mode_container:add(rtk.HBox{border='gray',spacing=5}) --линия тулбара
-
 
 b_create_chord = chord_str:add(rtk.Button{flat=true,font=font,halign='center',w=75,tagged=false,icon=page,padding=3,spacing=5,"Create"})
 b_save_chord = chord_str:add(rtk.Button{disabled=true,flat=true,font=font,halign='center',w=75,tagged=false,icon=save,padding=3,spacing=5,"Save"})
@@ -638,10 +447,6 @@ local chord_b_box = all_advanced_mode_container:add(rtk.HBox{x=10,y=-20,spacing=
 
 
 all_advanced_mode_container:hide()
-
-
-
-
 
 
 
@@ -674,7 +479,6 @@ function SimpleSlider:initialize(attrs, ...)
     rtk.Spacer.initialize(self, attrs, SimpleSlider.attributes.defaults, ...)
 end
 
-rtk.add_image_search_path('../../MrtnzScripts/NotePast/images', 'dark')
 
 function SimpleSlider:set_from_mouse_y(y)
     local h = self.calc.h - (y - self.clienty)
@@ -918,12 +722,6 @@ function SliderGroup:_handle_dragstart(event, x, y, t)
 end
 
 
---[[flag_mouse = false
-function SliderGroup:_handle_mousedown(event, x, y, t)
-    flag_mouse=true
-end]]
-
-
 
 
 local last_created_button_number = 0
@@ -934,22 +732,18 @@ local index_strip = 8
 local next_button_index = 1 
 local buttons = {}  
 local boxes = {}
-
--- Глобальная переменная-флаг для управления режимом defer
 local on_deferred = false
 
 
-
 function all_info_sliders(self, children, event, x, y, t)
-    -- Проверяем значение переменной-флага перед выполнением действий
     if step_mode ~= 3 then
-        return  -- Если step_mode не равно 3, то просто выходим из функции
+        return 
     end
 
-    -- Определите, в каком аккорде мы находимся
+
     local chord_index = active_chord_index
     
-    -- Если аккорда еще нет в step_grid, добавим его
+
     if not step_grid[chord_index] then
         step_grid[chord_index] = {mode = "down"}
     end
@@ -959,19 +753,18 @@ function all_info_sliders(self, children, event, x, y, t)
         if rtk.isa(child, SimpleSlider) then
             local step = child.slider_index
     
-            -- Создадим слот для данного шага, если его еще нет
             if not step_grid[chord_index][step] then
                 step_grid[chord_index][step] = {
                     step = step,
-                    grid_step = 480,   -- Значение по умолчанию для grid_step
-                    velocity = 100,    -- Значение по умолчанию для velocity
-                    octave = 0,        -- Значение по умолчанию для octave
-                    ratchet = 0,       -- Значение по умолчанию для ratchet
-                    length = 0         -- Значение по умолчанию для length
+                    grid_step = 480, 
+                    velocity = 100,    
+                    octave = 0,  
+                    ratchet = 0,  
+                    length = 0 
                 }
             end
     
-            -- Записываем значения в step_grid
+
             if child.name == "rate" then
                 step_grid[chord_index][step].grid_step = tonumber(child:getDisplayValue()) or 480
             elseif child.name == "velocity" then
@@ -1021,7 +814,6 @@ end
 
 
 
-
 function SliderGroup:_handle_mouseup(event, x, y, t)
     all_info_sliders(self, event, x, y, t)
 end
@@ -1064,33 +856,6 @@ end
     
 local slider_mode_win
 --------------------------------------------------------------------------------------------------------
---------------------------------------------------------------------------------------------------------
---------------------------------------------------------------------------------------------------------
---------------------------------------------------------------------------------------------------------
---local step_grid = {}
---------------------------------------------------------------------------------------------------------
---------------------------------------------------------------------------------------------------------
---------------------------------------------------------------------------------------------------------
---------------------------------------------------------------------------------------------------------
-bg_all="#262422"
-
-base_w = 35
-base_w_slider=58
-spacing_1 = base_w/base_w
-base_w_for_chord_tabs=54
-big_w_for_chord_tabs = base_w_for_chord_tabs + 10
-base_h_for_chord_tabs=25
-base_color = "#3a3a3a"
-
-pressed_color_tabs = "#6d838f50"
-def_color_tabs = "#70809040"
-
-velocity_color_sliders="#55666f"
-octave_color_sliders="#666f55"
-gate_color_sliders="#6f5e55"
-ratchet_color_sliders="#5e556f"
-rate_color_sliders="#471726"
-v_sliders_modes_pressed_color="#9a9a9a"
 
 
 local hibox_buttons_browser=all_advanced_mode_container:add(rtk.HBox{expand=1, w=280,y=-50})
@@ -1182,7 +947,9 @@ local function create_new_box()
 end
     
 btn_info = chord_str:add(rtk.Button{flat=true,font=font,halign='center',w=45,padding=3,spacing=5,"Info"})
- 
+btn_info.onclick = function(self)
+    print_slider_info()
+end
 local function animate_button(btn, color, w, h, gradient,tab)
     btn:animate{'color', dst=color, duration=0.15}
     btn:animate{'w', dst=w, duration=0.2, easing="out-back"}
@@ -1293,62 +1060,6 @@ local function create_new_button_and_box(last_created_button_number)
     active_chord_index = last_created_button_number
     return new_button, new_box
 end
-b_create_chord.onclick = function()
-    hide_all_boxes_and_reset_buttons()
-    local last_created_button_number = #buttons + 1
-    create_new_button_and_box(last_created_button_number)
-    --print_slider_info()
-end
-
-b_delete_chord.onclick = function()
-
-
-end
-
-
---[[
-local function collect_slider_info()
-    local step_grid = {}
-    for _, box in ipairs(boxes) do
-        local chord_data = {mode = "down"} 
-        for group_idx, slider_group in ipairs(box.slider_groups) do
-            local group_name = box.button_names[group_idx]
-            for step, slider in ipairs(slider_group.children) do
-                if not chord_data[step] then
-                    chord_data[step] = {step = step}
-                end
-                local value = "No Value!"
-                if slider and slider.getDisplayValue then
-                    value = slider:getDisplayValue()
-                end
-                chord_data[step][group_name] = value
-            end
-        end
-        table.insert(step_grid, chord_data)
-    end
-    return step_grid
-end
-
-local function print_slider_info()
-    local step_grid = collect_slider_info()
-    local msg = "Step Grid Info:\n"
-    for chord_idx, chord_data in ipairs(step_grid) do
-        msg = msg .. "Chord " .. chord_idx .. " (Mode: " .. chord_data.mode .. ")\n"
-        for step, step_data in ipairs(chord_data) do
-            msg = msg .. "  Step " .. step .. ": "
-            for k, v in pairs(step_data) do
-                if k ~= "step" then
-                    msg = msg .. k .. "=" .. tostring(v) .. ", "
-                end
-            end
-            msg = msg:sub(1, -3) 
-            msg = msg .. "\n"
-        end
-    end
-    reaper.ShowConsoleMsg(msg)
-end]]
-
-
 
 
 
@@ -1356,70 +1067,11 @@ end]]
 
 --------------------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------------
---------------------------------------------------------------------------------------------------------
---------------------------------------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
---[[local slider3 = slider_line:add(rtk.Slider{
-tracksize = 10,
-ticksize = 1,
-thumbcolor='#443433',
-thumbsize=8,
-trackcolor = '#b7b7b7',
-color = '#443433',
-step = 1, 
-min = 1,
-max = 11,
-w=250,
-ticks = true,
-
-})
-local function blurSlider()
-  slider3:blur()
-  
-end
-
-slider3.onmouseup = function()
-  blurSlider()
-  slider3:attr("thumbcolor", "#443433" )
-  slider3:attr("cursor", rtk.mouse.cursors.HAND)
-end
-slider3.onmousedown = function(self,event)
-    blurSlider()
-    slider3:attr("thumbcolor","#362a29")
-    slider3:attr("cursor", rtk.mouse.cursors.HAND)
-end
-slider3.onmouseleave = function(self, event)
-  blurSlider()
-end
-
-slider3.onmouseenter = function(self, event)
-  slider3:attr("cursor", rtk.mouse.cursors.HAND)
-end
-]]
 
 local box_second_advanced = vbox:add(rtk.HBox{})
-
 local slider_line = box_second_advanced:add(rtk.VBox{y=27,spacing=2,padding=25})
-
 local sliders_box_v = box_second_advanced:add(rtk.VBox{bg=adv_mode_bg_window,spacing=2,padding=3,x=adv_mode_x,w=adv_mode_w,h=adv_mode_h,y=adv_mode_y})
-
 slider_first=sliders_box_v:add(rtk.HBox{y=10})
-
-
-
-
 local slider_velocity = slider_first:add(rtk.Slider{
     thumbsize=adv_thumb_size,
     tracksize=adv_track_size,
@@ -1431,8 +1083,77 @@ local slider_velocity = slider_first:add(rtk.Slider{
     thumbcolor=adv_thumbcolor,
     value=100,
 })
-
 vel_text=slider_first:add(rtk.Text{fontsize=adv_fontsize,w=28,x=4,"VEL",y=-3})
+sliders_box_v:hide()
+slider_sec=sliders_box_v:add(rtk.HBox{y=14,halign='center'})
+step_text=slider_sec:add(rtk.Text{fontsize=adv_fontsize,w=30,y=7,"STEP"})
+local slider_velocity2 = slider_sec:add(rtk.Slider{
+    thumbsize=adv_thumb_size,
+    tracksize=adv_track_size,
+    color=adv_color,
+    x=-1,
+    w=adv_slider_w,
+    ticksize=2,
+    y=11,
+    step=1,
+    min=2,
+    max=8,
+    ticks=true,
+    thumbcolor=adv_thumbcolor,
+    value=3,
+    
+})
+slider_thr=sliders_box_v:add(rtk.HBox{y=40})
+local slider_velocitythr = slider_thr:add(rtk.Slider{
+    thumbsize=adv_thumb_size,
+    tracksize=adv_track_size,
+    color=adv_color,
+    step=1,
+    min=0,
+    max=110,
+    w=adv_slider_w,
+    thumbcolor=adv_thumbcolor,
+    value=0,
+    
+})
+rate_text=slider_thr:add(rtk.Text{w=28,x=4,fontsize=adv_fontsize,"RATE",y=-3})
+local vert_b = vbox:add(rtk.HBox{x=10,spacing=2,padding=25})
+local b_up = vert_b:add(rtk.Button{flat=true,cursor=rtk.mouse.cursors.HAND,pacing=5,padding=4,font=font,tagged=true,icon=up,halign='center',w=base_wight_button,'Up'})
+local b_down = vert_b:add(rtk.Button{cursor=rtk.mouse.cursors.HAND,spacing=5,padding=4,font=font,tagged=true,icon=down,halign='center',w=base_wight_button,'Down'})
+vert_b_line=vert_b:add(rtk.HBox{})
+local b_rand = vert_b_line:add(rtk.Button{iconpos='left',cursor=rtk.mouse.cursors.HAND,spacing=5,padding=4,font=font,tagged=true,icon=rand,halign='center',w=base_wight_button,'Random'})
+local button = vert_b_line:add(rtk.Button{iconpos='left',color=color_b_hb,gradient=3,spacing=5,padding=4,font=font,tagged=true,icon=oct,w=10,h=26,halign='center',label='0'})
+button:hide()
+
+
+
+
+
+--обработчики
+rtk.tooltip_delay = 0.1
+hbox_app.onclick = function(self)
+    if isAppVisible then
+        
+        app:hide()
+        hbox_app:attr('tooltip', 'click to show')
+        reaper.SetExtState(sectionID, "appVisibility", "hidden", true)  -- Сохраняем состояние видимости
+    else
+        app:show()
+        hbox_app:attr('tooltip', 'click to hide')
+        reaper.SetExtState(sectionID, "appVisibility", "visible", true)  -- Сохраняем состояние видимости
+    end
+
+    isAppVisible = not isAppVisible  -- Обновляем состояние переменной
+    return true
+end
+
+
+
+-- Если приложение было скрыто в предыдущей сессии, скрываем его сейчас
+if savedVisibility == "hidden" then
+    app:hide()
+    hbox_app:attr('tooltip', 'click to show')
+end
 
 slider_velocity.onmousewheel = function(self, event)
     local _, _, _, wheel_y = tostring(event):find("wheel=(%d+.?%d*),(-?%d+.?%d*)")
@@ -1458,30 +1179,6 @@ slider_velocity.onmouseleave = function(self, event)
     vel_text:attr('text', 'VEL')
   end
 end
-
-
-
-
-
-sliders_box_v:hide()
-slider_sec=sliders_box_v:add(rtk.HBox{y=14,halign='center'})
-step_text=slider_sec:add(rtk.Text{fontsize=adv_fontsize,w=30,y=7,"STEP"})
-local slider_velocity2 = slider_sec:add(rtk.Slider{
-    thumbsize=adv_thumb_size,
-    tracksize=adv_track_size,
-    color=adv_color,
-    x=-1,
-    w=adv_slider_w,
-    ticksize=2,
-    y=11,
-    step=1,
-    min=2,
-    max=8,
-    ticks=true,
-    thumbcolor=adv_thumbcolor,
-    value=3,
-    
-})
 slider_velocity2.onchange=function(self, event)
   if step_mode == 2 then  -- Проверяем, установлен ли нужный режим
     step_text:attr('text', self.value)
@@ -1500,33 +1197,12 @@ slider_velocity2.onmousewheel = function(self, event)
 end
 
 
-
-
-
 slider_velocity2.onmouseleave = function(self, event)
   if step_mode == 2 then  -- Проверяем, установлен ли нужный режим
     step_text:attr('text', 'STEP')
   end
 end
 
-
-slider_thr=sliders_box_v:add(rtk.HBox{y=40})
-local slider_velocitythr = slider_thr:add(rtk.Slider{
-    thumbsize=adv_thumb_size,
-    tracksize=adv_track_size,
-    color=adv_color,
-    step=1,
-    min=0,
-    max=110,
-    w=adv_slider_w,
-    thumbcolor=adv_thumbcolor,
-    value=0,
-    
-})
-
-
-
-rate_text=slider_thr:add(rtk.Text{w=28,x=4,fontsize=adv_fontsize,"RATE",y=-3})
 slider_velocitythr.onchange=function(self, event)
   local index = math.floor(self.value / 10 + 0.5) + 1  -- округляем к ближайшему индексу
   if index < 1 then index = 1 end  -- защита от выхода индекса за пределы массива
@@ -1541,22 +1217,221 @@ slider_velocitythr.onmousewheel = function(self, event)
     self:attr('value', math.max(self.min, math.min(self.max, c_val)))
     return true
 end
-local font="Trebuchet MS"
-local vert_b = vbox:add(rtk.HBox{x=10,spacing=2,padding=25})
-modes_button_wight = base_wight_button - 15
 
-local b_up = vert_b:add(rtk.Button{flat=true,cursor=rtk.mouse.cursors.HAND,pacing=5,padding=4,font=font,tagged=true,icon=up,halign='center',w=base_wight_button,'Up'})
-local b_down = vert_b:add(rtk.Button{cursor=rtk.mouse.cursors.HAND,spacing=5,padding=4,font=font,tagged=true,icon=down,halign='center',w=base_wight_button,'Down'})
-vert_b_line=vert_b:add(rtk.HBox{})
-local b_rand = vert_b_line:add(rtk.Button{iconpos='left',cursor=rtk.mouse.cursors.HAND,spacing=5,padding=4,font=font,tagged=true,icon=rand,halign='center',w=base_wight_button,'Random'})
-local button = vert_b_line:add(rtk.Button{iconpos='left',color=color_b_hb,gradient=3,spacing=5,padding=4,font=font,tagged=true,icon=oct,w=10,h=26,halign='center',label='0'})
-button:hide()
 
+pin_b.onclick = function(self)
+    pin_b.pressed = not pin_b.pressed
+    updatePinState(pin_b.pressed)
+    reaper.SetExtState(sectionID, "pinState", tostring(pin_b.pressed), true)
+end
+wnd.onresize = function(self, w, h)
+    if not w or not h then return end
+
+    local scale = h / initialH
+    rtk.scale.user = scale
+    scale_b:attr('label', string.format("%.2f", scale))
+
+    reaper.SetExtState(sectionID, "windowScale", tostring(scale), true)
+    reaper.SetExtState(sectionID, "windowPosX", tostring(self.x), true)
+    reaper.SetExtState(sectionID, "windowPosY", tostring(self.y), true)
+end
     
     
+wnd.onclose = function(self)
+    reaper.SetExtState(sectionID, "windowPosX", tostring(self.x), true)
+    reaper.SetExtState(sectionID, "windowPosY", tostring(self.y), true)
+end
+reset_b.onclick = function() applyScale(1.0) end
+btn_generate.onmouseleave=function(self)
+    self:attr('icon', gen)
+end
+btn_generate.onmousedown=function(self)
+    self:attr('icon', gen_p)
+end
+btn_generate.onmouseup=function(self)
+    self:attr('icon', gen2)
+end
+btn_generate.onclick=function(self)
+    run()
+end
+slider_mod_advanced.onmouseenter=function(self)
+  
+end
+slider_mod_advanced:onblur()
+slider_mod_advanced:hide()
+slider_mod_advanced.onchange = function(self, event)
+    --self:attr('disabled', true)
+end
+
+slider_mod_advanced.onmousewheel = function(self, event)
+    local _, _, _, wheel_y = tostring(event):find("wheel=(%d+.?%d*),(-?%d+.?%d*)")
+    local c_val = tonumber(wheel_y) > 0 and self.value - self.step or self.value + self.step
+    self:attr('value', math.max(self.min, math.min(self.max, c_val)))
+    return true
+end
+
+
+button_adv.state = 1
+button_adv.current_icon = bulb
+button_adv.onmousedown = function(self, event)
+    self:attr('icon', bulb_en)  -- Изменение иконки при нажатии кнопки
+end
+
+button_adv.onmouseup = function(self, event)
+    self:attr('icon', self.current_icon)  -- Восстановление текущей иконки после отпускания кнопки
+end
+
+button_adv.onmouseleave = function(self, event)
+    self:attr('icon', self.current_icon)  -- Восстановление текущей иконки при уходе курсора
+    self:attr("cursor", rtk.mouse.cursors.UNDEFINED)
+end
     
+button2.state = "on"
+button2.current_icon = on
+-- При инициализации вашего скрипта:
+local extState = reaper.GetExtState("MyScriptUniqueName", "button2_state")
+if extState == "off" then
+    button2.state = "off"
+    button2:attr('color', auto_apply_color_pressed)
+    button2:attr('icon', off)
+    button2:attr('gradient', 5)
+    button2.current_icon = off
+    func_on = false
+    btn_generate:show()
+    btn_generate:animate{'w', dst=71, duration=0.2,"out-bounce"}
+    button2:animate{'w', dst=24, duration=0.2,"out-bounce"}
+    
+     
+else
+    button2.state = "on"
+    button2:attr('color', auto_apply_color_current)
+    button2:attr('icon', on)
+    button2.current_icon = on
+    
+    func_on = true
+    btn_generate:hide()
+    button2:animate{'w', dst=base_wight_button, duration=0.2,"out-bounce"}
+    btn_generate:animate{'w', dst=15, duration=0.2,"out-bounce"}
+       :after(function()
+           return btn_generate:hide()
+        end)
+end
+
+button2.onclick = function(self, event)
+    if self.state == "on" then--выкл
+        self.state = "off"
+        self:attr('color', auto_apply_color_pressed)
+        self:attr('icon', off)
+        self:attr('gradient', 5)
+        self.current_icon = off
+        func_on = false
+        btn_generate:show()
+        btn_generate:animate{'w', dst=71, duration=0.2,"out-bounce"}
+        button2:animate{'w', dst=24, duration=0.2,"out-bounce"}
+        
+        reaper.SetExtState("MyScriptUniqueName", "button2_state", "off", true)
+        
+    else --вкл
+        self.state = "on"
+        self:attr('color', auto_apply_color_current)
+        self:attr('icon', on)
+        self.current_icon = on
+        func_on = true
+        self:attr('gradient', 3)
+        button2:animate{'w', dst=base_wight_button, duration=0.2,"out-bounce"}
+        btn_generate:animate{'w', dst=15, duration=0.2,"out-bounce"}
+           :after(function()
+               return btn_generate:hide()
+            end)
+        
+        -- Сохраняем состояние
+        reaper.SetExtState("MyScriptUniqueName", "button2_state", "on", true)
+    end
+end
+
+button2.onmousedown = function(self,event)
+  self:attr('icon', onof)
+
+end
+button2.onmouseup = function(self,event)
+  self:attr('icon', self.current_icon)
+
+end
+button2.onmouseleave = function(self, event)
+  self:attr('icon', self.current_icon)
+  self:attr("cursor", rtk.mouse.cursors.UNDEFINED)
+
+end
+
+button_str.onmousewheel = function(self, event)
+    local _, _, _, wheel_y = tostring(event):find("wheel=(%d+.?%d*),(-?%d+.?%d*)")
+    local c_val = tonumber(wheel_y) > 0 and slid_length.value - slid_length.step-7 or slid_length.value + slid_length.step+7
+    slid_length:attr('value', math.max(slid_length.min, math.min(slid_length.max, c_val)))
+    return true
+end
+
+slid_length.onmousewheel = function(self, event)
+    local _, _, _, wheel_y = tostring(event):find("wheel=(%d+.?%d*),(-?%d+.?%d*)")
+    local c_val = tonumber(wheel_y) > 0 and self.value - self.step-7 or self.value + self.step+7
+    self:attr('value', math.max(self.min, math.min(self.max, c_val)))
+    return true
+end
+local globalSliderValue = 100 
+slid_length.onchange = function(self, event)
+  amount = self.value / -120
+  local new_color = makeDarker("#4a544d", amount)
+  self:attr('color', new_color)
+  globalSliderValue = self.value
+
+  -- Изменение имени кнопки в зависимости от значения слайдера
+  if self.value < 35 then
+    button_str:attr('label', 'Staccato')
+  else
+    button_str:attr('label', 'Legato')
+  end
+  
+  p_run()
+end
+--slid_length:show()  
+button_str.state = "on"
+button_str.onclick = function(self, event)
+    if self.state == "on" then
+        self.state = "off"
+        self:attr('color', legato_color_pressed)
+        extendNotesFlag = true
+        p_run()
+        slid_length:show() 
+        slid_length:animate{'w', dst=base_wight_button, duration=0.1, easing="in-quad"}
+        
+    else
+        self.state = "on"
+        self:attr('color', legato_color_current)
+        extendNotesFlag = false
+        p_run()
+        slid_length:animate{'w', dst=base_wight_button/10, duration=0.1, easing="out-quad"}
+        :after(function()
+            local function jopa()
+               slid_length:hide()
+            end
+            return jopa()
+         end)
+        
+        
+    end
+end
 
 
+b_create_chord.onclick = function()
+    hide_all_boxes_and_reset_buttons()
+    local last_created_button_number = #buttons + 1
+    create_new_button_and_box(last_created_button_number)
+    --print_slider_info()
+end
+
+b_delete_chord.onclick = function()
+
+
+end
 b_rand.onmousedown = function()
   b_rand:attr("icon", rnd)
 end
@@ -1786,6 +1661,9 @@ button.ondragmousemove = function(self, event, dragarg)
         end
     end
 end
+--обработчики
+
+
 
 
 --local grid_values = {1920, 1280, 960, 640, 480, 320, 240, 160, 120, 80, 60}
@@ -1793,24 +1671,7 @@ end
 
 
 
---------------надо добавить инвертировние
---[[
-slider3._previous_value = slider3.value
 
-slider3.onchange = function(self)
-    if self.value == slider3._previous_value then return end
-    local step = self.value - self.min + 1
-    grid = grid_values[step]
-    p_run()
-    slider3._previous_value = self.value
-end
-
-]]
-local scriptPath = debug.getinfo(1,"S").source:match[[^@?(.*[\/])[^\/]-$]]
-package.path = package.path .. ";" .. scriptPath .. "?.lua"
-local json = require("json")
-
-reaper.GetSetProjectInfo_String(0, "PROJOFFS", "0", true)
 
 local function save_notes_to_json(filename)
   local take = reaper.MIDIEditor_GetTake(reaper.MIDIEditor_GetActive())
@@ -1825,7 +1686,7 @@ local function save_notes_to_json(filename)
     end
   end
   local jsonString = json.encode(pattern)
-  local filePath = scriptPath .. filename  -- Изменено здесь
+  local filePath = rtk.script_path .. filename  -- Изменено здесь
   local file = io.open(filePath, "w")
   if file then
     file:write(jsonString)
@@ -1837,7 +1698,7 @@ end
 
 local function load_notes(filename)
   
-  local filePath = scriptPath .. filename  -- Изменено здесь
+  local filePath = rtk.script_path .. filename  -- Изменено здесь
   local file_read = io.open(filePath, "r")
   if file_read then
     local content = file_read:read("*all")
@@ -2558,7 +2419,7 @@ circt1=slider_line:add(CircleWidget{scale=scale_2,radius=50,x=15,ref='circle', w
             descending = "Arpeggio Mode - Descending",
             b_rand = "Arpeggio Mode - Random(With Octave)",
             button = "Octave Explosion (Until 6)",
-            button_str = "Set legato end/bar",
+            button_str = "Set legato end/bar(wheel to change or drag slider)",
             button_adv = "3-mode switch: default, step-mode, advanced",
             button2 = "Auto-mode after change",
             btn_generate = "Generate arpeggios",
