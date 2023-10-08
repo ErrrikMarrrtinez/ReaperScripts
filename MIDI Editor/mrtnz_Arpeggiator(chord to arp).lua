@@ -126,11 +126,27 @@ local wnd = rtk.Window{
     title = 'Midi Arpeggiator',
     bg = main_background_color,
     resizable=true,
-    opacity=0.98
+    opacity=0.98,
+    --expand=1,
     
 }
-local app = wnd:add(rtk.Application())
 
+height=30
+local hbox_app = wnd:add(rtk.HBox{tooltip='click to hide',h=height,y=wnd.h-height},{fillw=true})
+local app = hbox_app:add(rtk.Application())
+local isAppVisible = true  -- Исходное состояние: приложение видимо
+
+hbox_app.onclick = function(self)
+    if isAppVisible then
+        app:hide()
+        hbox_app:attr('tooltip', 'click to show')
+    else
+        app:show()
+        hbox_app:attr('tooltip', 'click to hide')
+    end
+    isAppVisible = not isAppVisible  -- Обновляем состояние переменной
+    return true
+end
 local grid = 3840 --размер основных нот
 
 local mode = "down" --направление
@@ -251,27 +267,34 @@ app_hbox=wnd:add(rtk.HBox{padding=2,border='#25252580',bg="#22222250"})
 
 local pin_b = app_hbox:add(rtk.Button{border="#3a3a3a35",gradient=3,color=color_apps_def,padding=4,icon=pinned,flat=true})
 local savedState = reaper.GetExtState(sectionID, "pinState")
+
+local function updatePinState(isPressed)
+    if isPressed then
+        pin_b:attr('icon', pin)
+        pin_b:attr('flat', false)
+        wnd:attr('pinned', true)
+    else
+        pin_b:attr('icon', pinned)
+        pin_b:attr('flat', true)
+        wnd:attr('pinned', false)
+    end
+end
+
 pin_b.onclick = function(self)
     pin_b.pressed = not pin_b.pressed
-    if pin_b.pressed then
-        self:attr('icon', pin)
-        wnd:attr('pinned', 'true')
-        pin_b:attr('flat', false)
-    else
-        self:attr('icon', pinned)
-        pin_b:attr('flat', true)
-        wnd:attr('pinned', 'false')
-    end
+    updatePinState(pin_b.pressed)
     reaper.SetExtState(sectionID, "pinState", tostring(pin_b.pressed), true)
 end
+
+-- Устанавливаем начальное состояние кнопки
 if savedState == "true" then
     pin_b.pressed = true
-    pin_b:attr('icon', pin)
-    pin_b:attr('flat', false)
-    wnd:attr('pinned', 'true')
+    updatePinState(true)
 else
     pin_b.pressed = false
+    updatePinState(false)
 end
+
 
 app_hbox:add(rtk.Box.FLEXSPACE)
 
@@ -2536,7 +2559,7 @@ circt1=slider_line:add(CircleWidget{scale=scale_2,radius=50,x=15,ref='circle', w
             b_rand = "Arpeggio Mode - Random(With Octave)",
             button = "Octave Explosion (Until 6)",
             button_str = "Set legato end/bar",
-            button_adv = "3-mode switch",
+            button_adv = "3-mode switch: default, step-mode, advanced",
             button2 = "Auto-mode after change",
             btn_generate = "Generate arpeggios",
             pin_b = "Pin window",
@@ -2678,4 +2701,3 @@ function CircleWidget:onchange()
      
 end
 wnd:open()
-
