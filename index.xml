@@ -44,6 +44,44 @@
                 <source file="../MIDI Editor/json.lua">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/json.lua</source>
                 <source file="../MIDI Editor/modify.json">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/modify.json</source>
                 <source file="../MIDI Editor/original.json">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/original.json</source>
+                <source file="../images/Plus.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/Plus.png</source>
+                <source file="../images/add.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/add.png</source>
+                <source file="../images/bulb1.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/bulb1.png</source>
+                <source file="../images/bulb2.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/bulb2.png</source>
+                <source file="../images/bulb_en.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/bulb_en.png</source>
+                <source file="../images/close.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/close.png</source>
+                <source file="../images/down.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/down.png</source>
+                <source file="../images/gear.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/gear.png</source>
+                <source file="../images/gear_l.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/gear_l.png</source>
+                <source file="../images/gen_p.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/gen_p.png</source>
+                <source file="../images/key.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/key.png</source>
+                <source file="../images/kick.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/kick.png</source>
+                <source file="../images/leg.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/leg.png</source>
+                <source file="../images/link.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/link.png</source>
+                <source file="../images/link2.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/link2.png</source>
+                <source file="../images/loop.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/loop.png</source>
+                <source file="../images/oct.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/oct.png</source>
+                <source file="../images/off.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/off.png</source>
+                <source file="../images/on.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/on.png</source>
+                <source file="../images/onm.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/onm.png</source>
+                <source file="../images/onof.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/onof.png</source>
+                <source file="../images/page.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/page.png</source>
+                <source file="../images/past.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/past.png</source>
+                <source file="../images/pin.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/pin.png</source>
+                <source file="../images/pinned.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/pinned.png</source>
+                <source file="../images/preset.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/preset.png</source>
+                <source file="../images/rand.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/rand.png</source>
+                <source file="../images/refresh.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/refresh.png</source>
+                <source file="../images/rnd.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/rnd.png</source>
+                <source file="../images/save.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/save.png</source>
+                <source file="../images/snare.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/snare.png</source>
+                <source file="../images/ss.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/ss.png</source>
+                <source file="../images/tab.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/tab.png</source>
+                <source file="../images/tr.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/tr.png</source>
+                <source file="../images/trash.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/trash.png</source>
+                <source file="../images/up-and-down.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/up-and-down.png</source>
+                <source file="../images/up.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/up.png</source>
+
             </version>
         </reapack>
 </category>
