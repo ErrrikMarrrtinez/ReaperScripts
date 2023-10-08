@@ -11,6 +11,44 @@
 --   ../MIDI editor/json.lua
 --   ../MIDI editor/modify.json
 --   ../MIDI editor/original.json
+--   ../images/Plus.png
+--   ../images/add.png
+--   ../images/bulb1.png
+--   ../images/bulb2.png
+--   ../images/bulb_en.png
+--   ../images/close.png
+--   ../images/down.png
+--   ../images/gear.png
+--   ../images/gear_l.png
+--   ../images/gen_p.png
+--   ../images/key.png
+--   ../images/kick.png
+--   ../images/leg.png
+--   ../images/link.png
+--   ../images/link2.png
+--   ../images/loop.png
+--   ../images/oct.png
+--   ../images/off.png
+--   ../images/on.png
+--   ../images/onm.png
+--   ../images/onof.png
+--   ../images/page.png
+--   ../images/past.png
+--   ../images/pin.png
+--   ../images/pinned.png
+--   ../images/preset.png
+--   ../images/rand.png
+--   ../images/refresh.png
+--   ../images/rnd.png
+--   ../images/save.png
+--   ../images/snare.png
+--   ../images/ss.png
+--   ../images/tab.png
+--   ../images/tr.png
+--   ../images/trash.png
+--   ../images/up-and-down.png
+--   ../images/up.png
+
 
 
 
