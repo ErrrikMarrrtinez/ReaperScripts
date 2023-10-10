@@ -8,9 +8,10 @@
 --   - English and Russian.
 --   - Toggle language by changing "local language = 'eng'" to 'ru' for Russian.
 -- @provides
---   ../MIDI editor/json.lua
 --   ../MIDI editor/modify.json
 --   ../MIDI editor/original.json
+--   ../libs/json.lua
+--   ../libs/rtk.lua
 --   ../images/Plus.png
 --   ../images/add.png
 --   ../images/bulb1.png
@@ -57,16 +58,20 @@
 local resourcePath = reaper.GetResourcePath()
 local scriptPath = ({reaper.get_action_context()})[2]
 local scriptDir = scriptPath:match('^(.*[/\\])')
-local rtkPath = resourcePath .. "/Scripts/rtk/1/"
+local rtkPath = resourcePath .. "../libs/"
 local imagesPath = scriptDir .. "../images/"
+local jsonPath = scriptDir .. "../libs/"  -- Путь к json
+
 package.path = package.path .. ";" 
               .. rtkPath .. "?.lua;" 
+              .. jsonPath .. "?.lua;"  -- Добавляем путь к json
               .. scriptDir .. "?.lua"
 
 require 'rtk'
 local json = require("json")
 rtk.add_image_search_path(imagesPath, 'dark')
 reaper.GetSetProjectInfo_String(0, "PROJOFFS", "0", true)
+
 
 font="Trebuchet MS"
 base_color = "#3a3a3a"
@@ -856,11 +861,28 @@ end
     
 local slider_mode_win
 --------------------------------------------------------------------------------------------------------
-
-
+local function updateActiveChordBorder(color)
+    if active_chord_index and buttons[active_chord_index] then
+        buttons[active_chord_index]:attr('bborder', color)
+        buttons[active_chord_index]:attr('bg', color)
+        buttons[active_chord_index]:attr('tborder', color)
+    end
+end
+local function updateChordColors()
+    for i, btn in ipairs(buttons) do
+        if i == active_chord_index then
+            -- Если это активная кнопка, установите специальный цвет
+            btn:attr('color', "#708090")
+        else
+            -- Иначе установите цвет по умолчанию
+            btn:attr('color', def_color_tabs)
+        end
+    end
+end
 local hibox_buttons_browser=all_advanced_mode_container:add(rtk.HBox{expand=1, w=280,y=-50})
-
+local active_color = '#000000'  -- Изначальный цвет
 local function create_new_box()
+    
 
     local container_advanced_3 = all_advanced_mode_container:add(rtk.VBox{})
     local vbox = container_advanced_3:add(rtk.VBox{z=1,y=-48,w=280, h=100})
@@ -904,15 +926,22 @@ local function create_new_box()
         for i, group in ipairs(slider_groups) do
             if i == active_index then
                 group:show()
-                buttons2[i]:attr('color', slider_colors[i] .. "50")  -- измените цвет активной кнопки на цвет слайдера
+                buttons2[i]:attr('color', slider_colors[i] .. "50")
                 buttons2[i]:attr('gradient', 7)
+                updateActiveChordBorder(slider_colors[i])  -- Обновите цвет bborder у активной кнопки chord
             else
                 group:hide()
-                buttons2[i]:attr('color', '#3a3a3a')  -- верните оригинальный цвет остальным кнопкам
-                buttons2[i]:attr('gradient', 2)  -- верните оригинальный цвет остальным кнопкам
+                buttons2[i]:attr('color', '#3a3a3a')
+                buttons2[i]:attr('gradient', 2)
+                
             end
+            updateChordColors()
         end
+         
     end
+    
+    
+    
     for i, name in ipairs(button_names) do
         local slider_group = vbox:add(SliderGroup{spacing=spacing_1, expand=5})
         slider_group:hide()
@@ -943,6 +972,8 @@ local function create_new_box()
         table.insert(slider_colors, slider_params[name].color)
     end
     slider_groups[1]:show()
+    toggle_groups(1) 
+    
     return container_advanced_3, slider_groups, button_names
 end
     
@@ -950,20 +981,9 @@ btn_info = chord_str:add(rtk.Button{flat=true,font=font,halign='center',w=45,pad
 btn_info.onclick = function(self)
     print_slider_info()
 end
-local function animate_button(btn, color, w, h, gradient,tab)
-    btn:animate{'color', dst=color, duration=0.15}
-    btn:animate{'w', dst=w, duration=0.2, easing="out-back"}
-    btn:animate{'h', dst=h, duration=0.2, easing="out-back"}
-    btn:attr('gradient', gradient)
-    btn:attr('icon', tab)
-end
-
 local function hide_all_boxes_and_reset_buttons()
     for _, box in pairs(boxes) do
         box:hide()
-    end
-    for _, btn in pairs(buttons) do
-        --animate_button(btn, def_color_tabs, base_w_for_chord_tabs, base_h_for_chord_tabs, 2)
     end
 end
 
@@ -985,23 +1005,20 @@ local function create_new_button_and_box(last_created_button_number)
     boxes[last_created_button_number] = new_box
     local new_button = hibox_buttons_browser:add(rtk.Button{
         color=def_color_tabs,
-        gradient=4,
+        gradient=3,
         halign='center',
         spacing=4,
         padding=2,
         h=base_h_for_chord_tabs,
-        --w=base_w_for_chord_tabs+50,
         expand=0.1,
         fillw=true,
-        label="Chord " .. last_created_button_number
+        label="Chord " .. last_created_button_number,
+        bborder=active_color  
     },{fillw=true})
     table.insert(buttons, new_button)
     new_box:show()
-
     new_button.onclick = function(self, event)
-        
         local handle_right_click = function()
-            
             local menu2 = rtk.NativeMenu()
             menu2:set({{"Delete", id='delete'}})
             menu2:open_at_mouse():done(function(item)
@@ -1020,7 +1037,6 @@ local function create_new_button_and_box(last_created_button_number)
                     end
                     
                     table.remove(step_grid, active_chord_index)
-                    --all_info_sliders(self, children, event, x, y, t)
                     update_labels()
                 end
             end)
@@ -1028,10 +1044,10 @@ local function create_new_button_and_box(last_created_button_number)
         end
 
         local handle_left_click = function()
-            hide_all_boxes_and_reset_buttons()
-            new_box:show()
-            --animate_button(new_button, pressed_color_tabs, base_w_for_chord_tabs+20, base_h_for_chord_tabs+2, 3,tab_b)
-        
+                    hide_all_boxes_and_reset_buttons()
+                    new_box:show()
+                    active_chord_index = last_created_button_number  -- обновите индекс активного аккорда
+                    updateChordColors()  -- обновите цвета кнопок chord
         end
 
         if event.button == rtk.mouse.BUTTON_RIGHT then
@@ -1046,18 +1062,21 @@ local function create_new_button_and_box(last_created_button_number)
                     table.remove(buttons, i)
                     table.remove(boxes, i)
                     removeChordFromStepGrid(i) 
-                    
+                    active_chord_index = 1  -- Обновляем active_chord_index
+                    updateChordColors()
                     break
                 end
-            end    
+            end
+            
+            table.remove(step_grid, active_chord_index)
+            update_labels()   
         end
         next_button_index = next_button_index + 1
         active_chord_index = last_created_button_number
     end
-    
-    --animate_button(new_button, pressed_color_tabs, base_w_for_chord_tabs+20, base_h_for_chord_tabs+2, 3,tab_b)
     update_labels()
     active_chord_index = last_created_button_number
+    updateChordColors()
     return new_button, new_box
 end
 
