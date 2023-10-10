@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="7068def43bd156ad7660cf887de48630ae157e23">
+<index version="1" name="ReaperScripts" commit="3d34c2f677c0cc8c2aa03130c25845e8ebeaaad0">
   <category name="MIDI Editor">
     <reapack name="mrtnz_Arpeggiator(Chord to arp).lua" type="script" desc="Arpeggiator">
       <metadata>
