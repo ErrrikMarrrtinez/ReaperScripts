@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="3d34c2f677c0cc8c2aa03130c25845e8ebeaaad0">
+<index version="1" name="ReaperScripts" commit="7068def43bd156ad7660cf887de48630ae157e23">
   <category name="MIDI Editor">
     <reapack name="mrtnz_Arpeggiator(Chord to arp).lua" type="script" desc="Arpeggiator">
       <metadata>
@@ -11,7 +11,8 @@
       </metadata>
       <version name="1.0" author="mrtnz" time="2023-10-06T12:30:00Z">
         <source main="midi_editor">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
-        <source file="../MIDI Editor/json.lua">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/json.lua</source>
+        <source file="../libs/json.lua">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/libs/json.lua</source>
+        <source file="../libs/rtk.lua">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/libs/rtk.lua</source>
         <source file="../MIDI Editor/modify.json">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/modify.json</source>
         <source file="../MIDI Editor/original.json">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/original.json</source>
         <source file="../images/Plus.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/Plus.png</source>
