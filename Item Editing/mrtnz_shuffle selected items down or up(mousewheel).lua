@@ -2,7 +2,7 @@
 -- @author mrtnz
 -- @version 1.0
 -- @about
---   This script
+--   Vertical Shuffle selected items 
 function Msg(param)
   reaper.ShowConsoleMsg(tostring(param).."\n")
 end
