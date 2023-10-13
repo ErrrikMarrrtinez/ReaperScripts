@@ -1,6 +1,6 @@
 -- @description Fast sidechain from selected tracks to track under mouse
 -- @author mrtnz
--- @version 1.0
+-- @version 1.0.1
 -- @about
 --   This script provides:
 --   
@@ -19,7 +19,12 @@
 --   
 --   - English and Russian.
 --   - Toggle language by changing "local language = 'eng'" to 'ru' for Russian.
-
+-- @provides
+--   ../libs/rtk.lua
+-- @changelog
+--   Bug fix: Library search error
+--   Version 1.0 contains a popup window, the new version 1.0.1 works without dialog window:
+--   Left click - use current channel. Left click + shift - create a new channel
 
 
 
@@ -32,10 +37,22 @@ local language = 'eng' --eng or ru
 
 
 
-package.path = string.format('%s/Scripts/rtk/1/?.lua;%s?.lua;', reaper.GetResourcePath(), entrypath)
+local resourcePath = reaper.GetResourcePath()
+local scriptPath = ({reaper.get_action_context()})[2]
+local scriptDir = scriptPath:match('^(.*[/\\])')
+local rtkPath = resourcePath .. "../libs/"
+local imagesPath = scriptDir .. "../images/"
+local jsonPath = scriptDir .. "../libs/"  -- Путь к json
+
+package.path = package.path .. ";" 
+              .. rtkPath .. "?.lua;" 
+              .. jsonPath .. "?.lua;"  -- Добавляем путь к json
+              .. scriptDir .. "?.lua"
+
 require 'rtk'
-
-
+local json = require("json")
+rtk.add_image_search_path(imagesPath, 'dark')
+reaper.GetSetProjectInfo_String(0, "PROJOFFS", "0", true)
 
 
 function main()
@@ -127,9 +144,51 @@ function main()
     if stringLength > 0 then 
        stringValue=stringValue--*3.06
     end
+    
     local mouse_x, mouse_y = reaper.GetMousePosition()
     local track = reaper.BR_TrackAtMouseCursor()
+    
+    if not track then
+        if language == 'ru' then
+            reaper.ShowMessageBox("Нет трека под курсором. Используйте трек под курсором как целевой трек для отправки в него выбранных треков", "Ошибка", 0)
+        else
+            reaper.ShowMessageBox("No track under the cursor. Use the track under the cursor as the target track to send the selected tracks to it.", "Error", 0)
+        end
+        return
+    end
+    
     local color = reaper.GetTrackColor(track) or "#2a2a2a"
+    
+    -- Проверка на наличие выбранных треков
+    local count_sel_tracks = reaper.CountSelectedTracks(0)
+    
+    if count_sel_tracks == 0 then
+        if language == 'ru' then
+            reaper.ShowMessageBox("Нет выбранных треков. Пожалуйста, выберите необходимые треки для отправки в трек под курсором.", "Ошибка", 0)
+        else
+            reaper.ShowMessageBox("No tracks selected. Please select the necessary tracks to send to the track under the cursor.", "Error", 0)
+        end
+        return
+    end
+    
+    -- Проверка, не является ли выбранный трек тем же треком, что и трек под курсором
+    for i = 0, count_sel_tracks - 1 do
+        local sel_track = reaper.GetSelectedTrack(0, i)
+        if sel_track == track then
+            if language == 'ru' then
+                reaper.ShowMessageBox("Выбран тот же трек, что и под курсором!", "Ошибка", 0)
+            else
+                reaper.ShowMessageBox("The same track is selected as the one under the cursor!", "Error", 0)
+            end
+            return
+        end
+    end
+    
+    -- Оставшийся код
+    
+    local color = reaper.GetTrackColor(track) or "#2a2a2a"
+    
+    
     
     local function openRTKWindow(posy, height)
         wnd = rtk.Window{
@@ -214,69 +273,22 @@ function main()
         {fillw = true,fillh = true},
         {}
         )
-        button.onclick = function(self)
+        button.onclick = function(self, event)
             local num_selected_tracks = reaper.CountSelectedTracks(0)
-        
             local currentPin = getCurrentFXPins(track_under_cursor, i - 1)
             local currentChannel = currentPin or findFreeDestChannel(track_under_cursor)
         
-            local box_ox = rtk.VBox{}
-            local popup = rtk.Popup{
-            halign='center',
-            wrap=true,
-            border='#3a3a3a',
-            child=box_ox,
-            padding=2,
-            bg='#1a1a1a',
-            overlay={0, 0, 0, 0.85},
-            autoclose=true,
-            w=initialW-40,
-            h=initialH/1.5,
-            
-            }
-        
-            local lang = os.getenv("LANG") or os.getenv("LANGUAGE") or os.getenv("LC_ALL") or os.getenv("LC_MESSAGES")
-            local isRussian = lang and (lang:find('ru') or lang:find('RU')) -- Улучшенная проверка на русский язык
-            
-            local headingText, yesText, noText, cancelText
-            
-            if language == 'ru' then
-                headingText = "Использовать выход плагина " .. cleaned_fx_name_with_pins .. " " .. tostring(math.floor(currentChannel)) .. "/" .. tostring(math.floor(currentChannel + 1)) .. "?"
-                yesText = 'Да'
-                noText = 'Создать новый канал'
-                cancelText = 'Отмена'
-            elseif language == 'eng' then
-                headingText = "Use plugin output " .. cleaned_fx_name_with_pins .. " " .. tostring(math.floor(currentChannel)) .. "/" .. tostring(math.floor(currentChannel + 1)) .. "?"
-                yesText = 'Yes'
-                noText = 'Create New Channel'
-                cancelText = 'Cancel'
-            end
-            
-            box_ox:add(rtk.Heading {tpadding=35, wrap=true, headingText})
-            local button_hbox = box_ox:add(rtk.HBox{align='center',})
-            
-            local button_yes = button_hbox:add(rtk.Button{yesText})
-            button_yes.onclick = function()
-                local freeChannel = currentChannel - 1
-                createSend(freeChannel, num_selected_tracks, track_under_cursor, i - 1)
-                popup:close()
-            end
-            
-            local button_no = button_hbox:add(rtk.Button{noText})
-            button_no.onclick = function()
+            if event.shift then  -- Если зажат Shift
+                -- Здесь код, который сейчас выполняет button_no.onclick
                 local freeChannel = findFreeDestChannel(track_under_cursor)
                 createSend(freeChannel, num_selected_tracks, track_under_cursor, i - 1)
-                popup:close()
+            else  -- Если Shift не зажат
+                -- Здесь код, который сейчас выполняет button_yes.onclick
+                local freeChannel = currentChannel - 1
+                createSend(freeChannel, num_selected_tracks, track_under_cursor, i - 1)
             end
-            
-            local button_cancel = button_hbox:add(rtk.Button{cancelText})
-            button_cancel.onclick = function()
-                popup:close()
-            end
-            
-            popup:open()
-            
         end
+        
         
         function createSend(freeChannel, num_selected_tracks, track_under_cursor, fx_index)
             for sel_idx = 0, num_selected_tracks - 1 do
@@ -305,6 +317,8 @@ function main()
     end
     wnd:open()
 end
+
+
 local function init(attempts)
     local ok
     ok, rtk = pcall(function() return require('rtk') end)
