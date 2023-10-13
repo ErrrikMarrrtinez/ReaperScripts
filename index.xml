@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="7068def43bd156ad7660cf887de48630ae157e23">
+<index version="1" name="ReaperScripts" commit="9f852cff5237378906e40269f5c9a6b28671c92b">
+  <category name="Item Editing">
+    <reapack name="mrtnz_shuffle selected items down or up(mousewheel).lua" type="script" desc="Shuffle selected items down or up(mousewheel)">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Vertical Shuffle selected items\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0" author="mrtnz" time="2023-10-13T09:11:27Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/9f852cff5237378906e40269f5c9a6b28671c92b/Item%20Editing/mrtnz_shuffle%20selected%20items%20down%20or%20up(mousewheel).lua</source>
+      </version>
+    </reapack>
+  </category>
   <category name="MIDI Editor">
     <reapack name="mrtnz_Arpeggiator(Chord to arp).lua" type="script" desc="Arpeggiator">
       <metadata>
@@ -70,18 +86,20 @@
         <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Tracks/mrtnz_fast%20sidechain%20from%20selected%20tracks%20to%20track%20under%20mouse.lua</source>
       </version>
     </reapack>
-    <reapack name="mrtnz_shuffle selected items down or up(mousewheel).lua" type="script" desc="Shuffle selected items down or up(mousewheel)">
+  </category>
+  <category name="Various">
+    <reapack name="mrtnz_Insert fx and show x parameter creating a pool by razor edit.lua" type="script" desc="Insert fx and show x parameter creating a pool by razor edit">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
-{\pard \ql \f0 \sa180 \li0 \fi0 Shuffle selected items down or up using the mousewheel.\par}
+
+{\pard \ql \f0 \sa180 \li0 \fi0 insert fx and show x parameter creating a pool by razor edit\par}
 }
 ]]></description>
       </metadata>
-      <version name="1.0" author="mrtnz" time="2023-10-06T12:30:00Z">
-        <changelog><![CDATA[+ Initial release]]></changelog>
-        <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Tracks/mrtnz_shuffle%20selected%20items%20down%20or%20up(mousewheel).lua</source>
+      <version name="1.0" author="mrtnz" time="2023-10-13T09:11:27Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/9f852cff5237378906e40269f5c9a6b28671c92b/Various/mrtnz_Insert%20fx%20and%20show%20x%20parameter%20creating%20a%20pool%20by%20razor%20edit.lua</source>
       </version>
     </reapack>
   </category>
