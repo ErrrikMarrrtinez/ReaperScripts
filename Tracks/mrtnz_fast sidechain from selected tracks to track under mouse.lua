@@ -1,6 +1,6 @@
 -- @description Fast sidechain from selected tracks to track under mouse
 -- @author mrtnz
--- @version 1.0.1
+-- @version 1.0.2
 -- @about
 --   This script provides:
 --   
@@ -19,8 +19,6 @@
 --   
 --   - English and Russian.
 --   - Toggle language by changing "local language = 'eng'" to 'ru' for Russian.
--- @provides
---   ../libs/rtk.lua
 -- @changelog
 --   Bug fix: Library search error
 --   Version 1.0 contains a popup window, the new version 1.0.1 works without dialog window:
@@ -35,24 +33,12 @@ local language = 'eng' --eng or ru
 
 
 
+local script_path = string.match(({reaper.get_action_context()})[2], "(.-)([^\\/]-%.?([^%.\\/]*))$")
+package.path = package.path .. ";" .. script_path .. "../libs/?.lua"
+local rtk = require("rtk")
 
 
-local resourcePath = reaper.GetResourcePath()
-local scriptPath = ({reaper.get_action_context()})[2]
-local scriptDir = scriptPath:match('^(.*[/\\])')
-local rtkPath = resourcePath .. "../libs/"
-local imagesPath = scriptDir .. "../images/"
-local jsonPath = scriptDir .. "../libs/"  -- Путь к json
 
-package.path = package.path .. ";" 
-              .. rtkPath .. "?.lua;" 
-              .. jsonPath .. "?.lua;"  -- Добавляем путь к json
-              .. scriptDir .. "?.lua"
-
-require 'rtk'
-local json = require("json")
-rtk.add_image_search_path(imagesPath, 'dark')
-reaper.GetSetProjectInfo_String(0, "PROJOFFS", "0", true)
 
 
 function main()
@@ -362,4 +348,3 @@ local function init(attempts)
         reaper.defer(function() init((attempts or 0) + 1) end)
 end
 init()
-
