@@ -1,6 +1,6 @@
 -- @description Insert fx and show x parameter creating a pool by razor edit
 -- @author mrtnz
--- @version 1.1
+-- @version 1.01
 -- @about
 --   insert fx and show x parameter creating a pool by razor edit
 
@@ -31,7 +31,7 @@ local function processTrack(track)
     local isOpen = reaper.TrackFX_GetOpen(track, fxIdx)
     reaper.TrackFX_SetOpen(track, fxIdx, isOpen == 0 and 1 or 0)
     
-    local paramIdx = 0
+    local paramIdx = TrackIdx
     local envelope = reaper.GetFXEnvelope(track, fxIdx, paramIdx, true)
     if envelope then
         reaper.SetCursorContext(2, envelope)
