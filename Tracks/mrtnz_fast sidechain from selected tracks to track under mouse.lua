@@ -1,6 +1,6 @@
 -- @description Fast sidechain from selected tracks to track under mouse
 -- @author mrtnz
--- @version 1.0.2
+-- @version 1.0.21
 -- @about
 --   This script provides:
 --   
@@ -23,7 +23,8 @@
 --   Bug fix: Library search error
 --   Version 1.0 contains a popup window, the new version 1.0.1 works without dialog window:
 --   Left click - use current channel. Left click + shift - create a new channel
-
+-- @provides
+--   ../libs/rtk.lua
 
 
 local language = 'eng' --eng or ru
