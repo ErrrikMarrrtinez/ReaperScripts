@@ -20,9 +20,7 @@
 --   - English and Russian.
 --   - Toggle language by changing "local language = 'eng'" to 'ru' for Russian.
 -- @changelog
---   Bug fix: Library search error
---   Version 1.0 contains a popup window, the new version 1.0.1 works without dialog window:
---   Left click - use current channel. Left click + shift - create a new channel
+--   Bug fix: Library search error 2
 -- @provides
 --   ../libs/rtk.lua
 
