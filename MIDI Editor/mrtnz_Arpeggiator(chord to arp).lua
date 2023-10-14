@@ -2,11 +2,7 @@
 -- @author mrtnz
 -- @version 1.0
 -- @about
---   This script provides:
---   ..test..
---   Language Support:
---   - English and Russian.
---   - Toggle language by changing "local language = 'eng'" to 'ru' for Russian.
+--   test
 -- @provides
 --   ../MIDI editor/modify.json
 --   ../MIDI editor/original.json
