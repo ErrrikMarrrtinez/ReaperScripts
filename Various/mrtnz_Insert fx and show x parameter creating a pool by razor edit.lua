@@ -1,6 +1,6 @@
 -- @description Insert fx and show x parameter creating a pool by razor edit
 -- @author mrtnz
--- @version 1.0
+-- @version 1.1
 -- @about
 --   insert fx and show x parameter creating a pool by razor edit
 
@@ -9,6 +9,9 @@ local TrackIdx = 0
 local TrackCount = reaper.CountSelectedTracks(0)
 local action_id = 42459
 
+
+
+reaper.PreventUIRefresh(1)
 local function getRazorTracks()
     local tracks = {}
     for i = 0, reaper.CountTracks(0) - 1 do
@@ -41,7 +44,7 @@ local function processTrack(track)
         end
     end
 end
-
+reaper.Undo_BeginBlock()
 local function env_pool()
     if reaper.CountTracks(0) == 0 then return reaper.defer(function() end) end
     local removeRE = 1
@@ -70,10 +73,14 @@ local function env_pool()
     
     local pool_id
     for e = 1, #envs do
-      local id = reaper.InsertAutomationItem(envs[e][1], pool_id or -1, envs[e][2], envs[e][3] - envs[e][2])
-      if not pool_id then
-        pool_id = reaper.GetSetAutomationItemInfo(envs[e][1], id, "D_POOL_ID", 0, false)
-      end
+        local id = reaper.InsertAutomationItem(envs[e][1], pool_id or -1, envs[e][2], envs[e][3] - envs[e][2])
+        if not pool_id then
+            pool_id = reaper.GetSetAutomationItemInfo(envs[e][1], id, "D_POOL_ID", 0, false)
+        end
+        
+        local env = envs[e][1]
+        reaper.GetSetAutomationItemInfo(env, id, "D_BASELINE", 0, true)  
+        reaper.GetSetAutomationItemInfo(env, id, "D_AMPLITUDE", -1, true)  
     end
     if removeRE == 1 then
       for track in pairs(tracks) do
@@ -93,8 +100,6 @@ local function toggleActionAndPool()
         env_pool()
     end
 end
-reaper.Undo_BeginBlock()
-reaper.PreventUIRefresh(1)
 
 getRazorTracks()
 for i = 0, TrackCount - 1 do
@@ -102,9 +107,7 @@ for i = 0, TrackCount - 1 do
     processTrack(track)
 end
 toggleActionAndPool()
-
 reaper.TrackList_AdjustWindows(false)
 reaper.PreventUIRefresh(-1)
 reaper.Undo_EndBlock("s", 1)
 reaper.UpdateArrange()
-
