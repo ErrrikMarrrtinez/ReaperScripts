@@ -1,6 +1,6 @@
 -- @description Arpeggiator(test version)
 -- @author mrtnz
--- @version 1.0
+-- @version 1.0.1
 -- @about
 --   test
 -- @provides
