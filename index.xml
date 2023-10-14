@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="9f852cff5237378906e40269f5c9a6b28671c92b">
+<index version="1" name="ReaperScripts" commit="e5b612d8cb3a73fd592ffe6909d5641ad93ba5bb">
   <category name="Item Editing">
     <reapack name="mrtnz_shuffle selected items down or up(mousewheel).lua" type="script" desc="Shuffle selected items down or up(mousewheel)">
       <metadata>
@@ -77,13 +77,31 @@
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
-{\pard \ql \f0 \sa180 \li0 \fi0 Fast sidechain from selected tracks to track under mouse.\par}
+
+{\pard \ql \f0 \sa180 \li0 \fi0 This script provides:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Quick sidechain routing from selected tracks to the track under the mouse.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Default setup of a 3/4 sidechain with corresponding 3/4 L\\R pins for input.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Usage:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab Select multiple tracks.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab Hover over a target track.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 3.\tx360\tab A window will display available plugins.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 4.\tx360\tab Click "Create New Channel" after selecting a plugin to auto-create the next available send. For instance, if 3/4 is occupied, it will select 5/6, and if 5/6 is occupied, it will select 7/8, and so on.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 5.\tx360\tab Clicking "Yes" will route the send to the current sidechain pins of the selected plugin.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Language Support:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab English and Russian.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Toggle language by changing "local language = 'eng'" to 'ru' for Russian.\sa180\par}
 }
 ]]></description>
       </metadata>
       <version name="1.0" author="mrtnz" time="2023-10-06T12:30:00Z">
         <changelog><![CDATA[+ Initial release]]></changelog>
         <source main="main">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/Tracks/mrtnz_fast%20sidechain%20from%20selected%20tracks%20to%20track%20under%20mouse.lua</source>
+      </version>
+      <version name="1.0.2" author="mrtnz" time="2023-10-14T05:12:22Z">
+        <changelog><![CDATA[Bug fix: Library search error
+Version 1.0 contains a popup window, the new version 1.0.1 works without dialog window:
+Left click - use current channel. Left click + shift - create a new channel]]></changelog>
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/e5b612d8cb3a73fd592ffe6909d5641ad93ba5bb/Tracks/mrtnz_fast%20sidechain%20from%20selected%20tracks%20to%20track%20under%20mouse.lua</source>
       </version>
     </reapack>
   </category>
@@ -100,6 +118,9 @@
       </metadata>
       <version name="1.0" author="mrtnz" time="2023-10-13T09:11:27Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/9f852cff5237378906e40269f5c9a6b28671c92b/Various/mrtnz_Insert%20fx%20and%20show%20x%20parameter%20creating%20a%20pool%20by%20razor%20edit.lua</source>
+      </version>
+      <version name="1.1" author="mrtnz" time="2023-10-14T05:12:22Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/e5b612d8cb3a73fd592ffe6909d5641ad93ba5bb/Various/mrtnz_Insert%20fx%20and%20show%20x%20parameter%20creating%20a%20pool%20by%20razor%20edit.lua</source>
       </version>
     </reapack>
   </category>
