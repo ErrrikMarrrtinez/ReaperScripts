@@ -1,11 +1,9 @@
 -- @description Arpeggiator(test version)
 -- @author mrtnz
--- @version 1.0.26
+-- @version 1.0.28
 -- @about
 --   test
 -- @provides
---   ../MIDI editor/modify.json
---   ../MIDI editor/original.json
 --   ../libs/json.lua
 --   ../libs/rtk.lua
 --   ../images/Plus.png
@@ -46,7 +44,7 @@
 --   ../images/up-and-down.png
 --   ../images/up.png
 -- @changelog
---   Bug fix: fix error 'for'
+--   Bug fix
 
 
 
@@ -57,15 +55,16 @@ local scriptPath = ({reaper.get_action_context()})[2]
 local scriptDir = scriptPath:match('^(.*[/\\])')
 local rtkPath = resourcePath .. "../libs/"
 local imagesPath = scriptDir .. "../images/"
-local jsonPath = scriptDir .. "../libs/"  
+local jsonPath = scriptDir .. "../libs/" 
 
 package.path = package.path .. ";" 
               .. rtkPath .. "?.lua;" 
-              .. jsonPath .. "?.lua;"  
+              .. jsonPath .. "?.lua;" 
               .. scriptDir .. "?.lua"
 
 require 'rtk'
 local json = require("json")
+
 rtk.add_image_search_path(imagesPath, 'dark')
 reaper.GetSetProjectInfo_String(0, "PROJOFFS", "0", true)
 
@@ -263,6 +262,24 @@ local refresh = rtk.Image.icon('refresh'):scale(120,120,22,6.6)
 local loop = rtk.Image.icon('loop'):scale(120,120,22,7)
 local up_and_down = rtk.Image.icon('up-and-down'):scale(120,120,22,7)
 
+local scriptPath = rtk.script_path 
+
+local function checkAndCreateFile(filePath, defaultContent)
+    local file = io.open(filePath, "r")
+    if not file then
+        local newFile = io.open(filePath, "w")
+        if defaultContent then
+            newFile:write(defaultContent)
+        end
+        newFile:close()
+    else
+        file:close()
+    end
+end
+
+local defaultModifyContent = '{"notes":[{"velocity":100,"position":1440,"length":175,"pitch":61}]}'
+checkAndCreateFile(scriptPath .. "/modify.json", defaultModifyContent)
+checkAndCreateFile(scriptPath .. "/original.json")
 
 
 
