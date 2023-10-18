@@ -1,6 +1,6 @@
--- @description Fast sidechain from selected tracks to track under mouse
+-- @description Quick sidechain from selected tracks to track under mouse
 -- @author mrtnz
--- @version 1.0.21
+-- @version 1.0.5
 -- @about
 --   This script provides:
 --   
@@ -21,27 +21,22 @@
 --   - Toggle language by changing "local language = 'eng'" to 'ru' for Russian.
 -- @changelog
 --   Bug fix: Library search error 2
--- @provides
---   ../libs/rtk.lua
+--   Added events:
+--   LMB - current channel, Shift+LMB create a new channel, Alt+LMB - create a new channel, saving the current one'
+--   Tooltip with events
 
 
 local language = 'eng' --eng or ru
 
 
-
-
-
-
+package.path = string.format('%s/Scripts/rtk/1/?.lua;%s?.lua;', reaper.GetResourcePath(), "")
 local script_path = string.match(({reaper.get_action_context()})[2], "(.-)([^\\/]-%.?([^%.\\/]*))$")
 package.path = package.path .. ";" .. script_path .. "../libs/?.lua"
 local rtk = require("rtk")
 
 
-
-
-
 function main()
-    function setSidechainPins(track, fxnumber, value)
+    function setSidechainPins(track, fxnumber, value, mode)
         local numOfChannels = math.min(reaper.GetMediaTrackInfo_Value(track, "I_NCHAN"), 32)
         local retval, inputPins, outputPins = reaper.TrackFX_GetIOSize(track, fxnumber)
         
@@ -49,7 +44,11 @@ function main()
             if pin == 2 or pin == 3 then
                 local low32bits, hi32bits = reaper.TrackFX_GetPinMappings(track, fxnumber, 0, pin)
                 if low32bits ~= 0 then
-                    reaper.TrackFX_SetPinMappings(track, fxnumber, 0, pin, 2^(pin + value), 0)
+                    local newPins = 2^(pin + value)
+                    if mode == "add" then
+                        newPins = low32bits | newPins
+                    end
+                    reaper.TrackFX_SetPinMappings(track, fxnumber, 0, pin, newPins, 0)
                 end
             end
         end
@@ -58,11 +57,17 @@ function main()
             if pin == 2 or pin == 3 then
                 local low32bits, hi32bits = reaper.TrackFX_GetPinMappings(track, fxnumber, 1, pin)
                 if low32bits ~= 0 then
-                    reaper.TrackFX_SetPinMappings(track, fxnumber, 1, pin, 2^(pin + value), 0)
+                    local newPins = 2^(pin + value)
+                    if mode == "add" then
+                        newPins = low32bits | newPins
+                    end
+                    reaper.TrackFX_SetPinMappings(track, fxnumber, 1, pin, newPins, 0)
                 end
             end
         end
     end
+    
+    
     
     function findFreeDestChannel(track)
       local occupiedChannels = {}
@@ -181,7 +186,7 @@ function main()
             y = mouse_y, 
             w = initialW,
             h = initialH,
-            title = 'Fast sidechain',
+            title = 'Quick sidechain',
             bg = color ,
             resizable=true,
             opacity=0.95,
@@ -192,7 +197,7 @@ function main()
             local hbox=v_box:add(rtk.HBox{bg='#2a2a2a'})
             local label_icon = hbox:add(rtk.Text{border='gray',y=5,x=5,font='Arial','⛓',})
             
-            local title_text = (language == 'ru') and 'Быстрый сайдчейн' or 'Fast sidechain'
+            local title_text = (language == 'ru') and 'Быстрый сайдчейн' or 'Quick sidechain'
             
             local label_name = hbox:add(rtk.Text{spacing=25,x=8,tpadding=6,font='Comic Sans MS', title_text})
             
@@ -200,6 +205,11 @@ function main()
             local close_button = hbox:add(rtk.Button{rpadding=2,halign='center',w=30,h=30,flat=true,'✕'})
             close_button.onclick=function()
                 wnd:close()
+            end
+            if language == 'ru' then
+                hbox:attr('tooltip', 'ЛКМ - текущий канал, Shift+ЛКМ создать новый канал, Alt+ЛКМ - создать новый канал, сохранив текущий')
+            else
+                hbox:attr('tooltip', 'LMB - current channel, Shift+LMB create a new channel, Alt+LMB - create a new channel, saving the current one')
             end
         end
     
@@ -225,7 +235,6 @@ function main()
     
     
     tr_undm()
-    
     
     function getCurrentFXPins(track, fxnumber)
         local retval, inputPins, outputPins = reaper.TrackFX_GetIOSize(track, fxnumber)
@@ -263,39 +272,45 @@ function main()
             local currentPin = getCurrentFXPins(track_under_cursor, i - 1)
             local currentChannel = currentPin or findFreeDestChannel(track_under_cursor)
         
-            if event.shift then  -- Если зажат Shift
-                -- Здесь код, который сейчас выполняет button_no.onclick
+            if event.alt then  -- Если зажаты Ctrl и Shift
                 local freeChannel = findFreeDestChannel(track_under_cursor)
                 createSend(freeChannel, num_selected_tracks, track_under_cursor, i - 1)
-            else  -- Если Shift не зажат
-                -- Здесь код, который сейчас выполняет button_yes.onclick
+                setSidechainPins(track_under_cursor, i - 1, freeChannel - 2, "add")
+            elseif event.shift then  -- Если зажат только Shift
+                local freeChannel = findFreeDestChannel(track_under_cursor)
+                createSend(freeChannel, num_selected_tracks, track_under_cursor, i - 1)
+                setSidechainPins(track_under_cursor, i - 1, freeChannel - 2, "replace")
+            else 
                 local freeChannel = currentChannel - 1
                 createSend(freeChannel, num_selected_tracks, track_under_cursor, i - 1)
             end
         end
         
         
-        function createSend(freeChannel, num_selected_tracks, track_under_cursor, fx_index)
+        
+        function createSend(freeChannel, num_selected_tracks, track_under_cursor, fx_index, preservePins)
             for sel_idx = 0, num_selected_tracks - 1 do
                 local selected_track = reaper.GetSelectedTrack(0, sel_idx)
                 if selected_track and selected_track ~= track_under_cursor then
                     reaper.Undo_BeginBlock()
                     local ch_count = reaper.GetMediaTrackInfo_Value(track_under_cursor, 'I_NCHAN')
-                    local send = reaper.CreateTrackSend(selected_track, track_under_cursor)
-                    --reaper.SetMediaTrackInfo_Value(track_under_cursor, 'I_NCHAN', math.max(4, ch_count))
                     reaper.SetMediaTrackInfo_Value(track_under_cursor, 'I_NCHAN', math.max(freeChannel + 1, ch_count))
                     
+                    local send = reaper.CreateTrackSend(selected_track, track_under_cursor)
                     reaper.SetTrackSendInfo_Value(selected_track, 0, send, 'I_SENDMODE', 3)
                     reaper.SetTrackSendInfo_Value(selected_track, 0, send, 'I_DSTCHAN', freeChannel)
                     reaper.SetTrackSendInfo_Value(selected_track, 0, send, 'I_MIDIFLAGS', 4177951)
-        
-                    setSidechainPins(track_under_cursor, fx_index, freeChannel - 2)
-                        
+            --[[
+                    if not preservePins then  -- Если preservePins не true, установите пины как обычно
+                        setSidechainPins(track_under_cursor, fx_index, freeChannel - 2)
+                    end  -- Иначе, не изменяйте текущие пины плагина]]
+                    
                     reaper.Undo_EndBlock("Create send to track under cursor", -1)
                 end
             end
             wnd:close()
         end
+        
             
         
         
