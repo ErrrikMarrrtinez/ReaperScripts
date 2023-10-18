@@ -1,6 +1,6 @@
 -- @description Arpeggiator(test version)
 -- @author mrtnz
--- @version 1.0.29
+-- @version 1.0.30
 -- @about
 --   test
 -- @provides
@@ -43,7 +43,7 @@
 --   ../images/up-and-down.png
 --   ../images/up.png
 -- @changelog
---   Bug fixed 2
+--   Bug fixed 3
 
 
 
