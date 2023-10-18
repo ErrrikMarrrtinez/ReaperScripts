@@ -27,7 +27,6 @@
       </metadata>
       <version name="1.0" author="mrtnz" time="2023-10-06T12:30:00Z">
         <source main="midi_editor">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/MIDI%20Editor/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
-        <source file="../libs/json.lua">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/libs/json.lua</source>
         <source file="../libs/rtk.lua">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/libs/rtk.lua</source>
         <source file="../images/Plus.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/Plus.png</source>
         <source file="../images/add.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/add.png</source>
