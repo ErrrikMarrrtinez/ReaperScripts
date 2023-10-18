@@ -57,11 +57,11 @@ local scriptPath = ({reaper.get_action_context()})[2]
 local scriptDir = scriptPath:match('^(.*[/\\])')
 local rtkPath = resourcePath .. "../libs/"
 local imagesPath = scriptDir .. "../images/"
-local jsonPath = scriptDir .. "../libs/"  -- Путь к json
+local jsonPath = scriptDir .. "../libs/"  
 
 package.path = package.path .. ";" 
               .. rtkPath .. "?.lua;" 
-              .. jsonPath .. "?.lua;"  -- Добавляем путь к json
+              .. jsonPath .. "?.lua;"  
               .. scriptDir .. "?.lua"
 
 require 'rtk'
