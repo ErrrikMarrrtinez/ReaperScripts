@@ -44,7 +44,7 @@
 --   ../images/up-and-down.png
 --   ../images/up.png
 -- @changelog
---   Bug fix
+--   Bug fixed
 
 
 
