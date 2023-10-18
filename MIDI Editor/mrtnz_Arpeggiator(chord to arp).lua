@@ -1,6 +1,6 @@
 -- @description Arpeggiator(test version)
 -- @author mrtnz
--- @version 1.0.1
+-- @version 1.0.25
 -- @about
 --   test
 -- @provides
@@ -45,7 +45,8 @@
 --   ../images/trash.png
 --   ../images/up-and-down.png
 --   ../images/up.png
-
+-- @changelog
+--   Bug fix: fix error 'for'
 
 
 
@@ -151,9 +152,13 @@ local wnd = rtk.Window{
     h = initialH,
     title = 'Midi Arpeggiator',
     bg = main_background_color,
-    resizable=true,
+    resizasble=true,
     opacity=0.98,
     expand=1,
+    minw=100,
+    minh=100,
+    maxh=1000,
+    maxw=1000,
     
 }
 
@@ -358,7 +363,7 @@ local btn_generate = bt2_btgen:add(rtk.Button{
 })
     
 
-
+nw_value = base_wight_button
 
 advanced_slid_b=hb_o:add(rtk.VBox{})
 local button_adv = advanced_slid_b:add(rtk.Button{
@@ -383,7 +388,7 @@ local new_color_advanced = makeDarker("#6d694f", -0.5)
 
 
 local slider_mod_advanced = advanced_slider_slider:add(rtk.Slider{
-  w=base_wight_button/10,
+  w=nw_value,
   thumbcolor='transparent',
   color=new_color_advanced,
   thumsize=0.2,
@@ -420,9 +425,11 @@ local button_str = leg_notes:add(rtk.Button{
 
 local new_color = makeDarker("#4a544d", -0.5)
 
+
+
 local hb_stac_leg = leg_notes:add(rtk.HBox{h=1.1})
 slid_length = hb_stac_leg:add(rtk.Slider{
-  w=base_wight_button/10,
+  w=base_wight_button,
   thumbcolor='transparent',
   color=new_color,
   thumsize=1,
@@ -434,7 +441,7 @@ slid_length = hb_stac_leg:add(rtk.Slider{
   tracksize=2,
   
 })
-
+slid_length:hide()
 
 local all_advanced_mode_container = container:add(rtk.VBox{h=240,bg='#FFDAB96',border='#70809019',y=0,x=10,spacing=2,padding=22})
 local chord_str = all_advanced_mode_container:add(rtk.HBox{border='gray',spacing=5}) --линия тулбара
@@ -1423,7 +1430,7 @@ button_str.onclick = function(self, event)
         self:attr('color', legato_color_current)
         extendNotesFlag = false
         p_run()
-        slid_length:animate{'w', dst=base_wight_button/10, duration=0.1, easing="out-quad"}
+        slid_length:animate{'w', dst=nw_value, duration=0.1, easing="out-quad"}
         :after(function()
             local function jopa()
                slid_length:hide()
@@ -1487,7 +1494,7 @@ button_adv.onclick = function(self, event)
         self:attr('icon', bulb)
         self:attr('color', advanced_color_current)
         self.current_icon = bulb
-        slider_mod_advanced:animate{'w', dst=base_wight_button/10, duration=0.1, easing="out-quad"}
+        slider_mod_advanced:animate{'w', dst=nw_value, duration=0.5, easing="out-quad"}
         :after(function()
             local function jopa2()
                slider_mod_advanced:hide()
