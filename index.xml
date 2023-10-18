@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="e5b612d8cb3a73fd592ffe6909d5641ad93ba5bb">
+<index version="1" name="ReaperScripts" commit="fb768c5f1220b2166f277e103e490c5a17e5903f">
   <category name="Item Editing">
     <reapack name="mrtnz_shuffle selected items down or up(mousewheel).lua" type="script" desc="Shuffle selected items down or up(mousewheel)">
       <metadata>
@@ -72,9 +72,9 @@
     </reapack>
   </category>
   <category name="Tracks">
-    <reapack name="mrtnz_fast sidechain from selected tracks to track under mouse.lua" type="script" desc="Fast sidechain from selected tracks to track under mouse">
+    <reapack name="mrtnz_fast sidechain from selected tracks to track under mouse.lua" type="script" desc="Quick sidechain from selected tracks to track under mouse">
       <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
@@ -103,6 +103,13 @@ Version 1.0 contains a popup window, the new version 1.0.1 works without dialog 
 Left click - use current channel. Left click + shift - create a new channel]]></changelog>
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/e5b612d8cb3a73fd592ffe6909d5641ad93ba5bb/Tracks/mrtnz_fast%20sidechain%20from%20selected%20tracks%20to%20track%20under%20mouse.lua</source>
       </version>
+      <version name="1.0.5" author="mrtnz" time="2023-10-18T08:48:38Z">
+        <changelog><![CDATA[Bug fix: Library search error 2
+Added events:
+LMB - current channel, Shift+LMB create a new channel, Alt+LMB - create a new channel, saving the current one'
+Tooltip with events]]></changelog>
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/fb768c5f1220b2166f277e103e490c5a17e5903f/Tracks/mrtnz_fast%20sidechain%20from%20selected%20tracks%20to%20track%20under%20mouse.lua</source>
+      </version>
     </reapack>
   </category>
   <category name="Various">
@@ -125,7 +132,7 @@ Left click - use current channel. Left click + shift - create a new channel]]></
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
