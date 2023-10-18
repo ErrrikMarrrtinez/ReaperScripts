@@ -4,7 +4,6 @@
 -- @about
 --   test
 -- @provides
---   ../libs/json.lua
 --   ../libs/rtk.lua
 --   ../images/Plus.png
 --   ../images/add.png
