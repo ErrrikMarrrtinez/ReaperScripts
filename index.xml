@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="fb768c5f1220b2166f277e103e490c5a17e5903f">
+<index version="1" name="ReaperScripts" commit="a3fd4e3f210cdce02918fd153aa96b6ec42879e3">
   <category name="Item Editing">
     <reapack name="mrtnz_shuffle selected items down or up(mousewheel).lua" type="script" desc="Shuffle selected items down or up(mousewheel)">
       <metadata>
@@ -67,6 +67,45 @@
         <source file="../images/up.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/up.png</source>
       </version>
     </reapack>
+    <reapack name="mrtnz_MVelocity.lua" type="script" desc="MVelocity Tool">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Introduction:\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The script transforms chords or sequences into arpeggios. This is a 'special' GUI script with community help. Further development is planned.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Main Features:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab Appearance and Animation:\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab RTK library for a visually appealing interface\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab Note: Animation may be awkward when zoomed in.\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab Three Standard Directions:\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab Supports upward, downward, and random arpeggiation.\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 3.\tx360\tab Continuous Modification:\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab Allows for ongoing addition of modifications to notes.\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 4.\tx360\tab Session Memory:\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab Saves the last position, scale, mode, notes, etc.\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 5.\tx360\tab Main Mode:\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab Legato can switch to staccato, affecting note length.\sa180\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 6.\tx360\tab Three Advanced Modes:\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab 6.1 Basic\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab 6.2 Advanced 1\par}
+{\pard \ql \f0 \sa0 \li720 \fi-360 \endash \tx360\tab 6.3 Advanced 2\sa180\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Usage:\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Step-by-step Instructions:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Create a sequence of chords.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Use mouse wheel or main knob to set rate.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Change direction and modify octave burst.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Optionally, use 'Legato' or 'Staccato'.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 GUI instructions provide more details.\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0" author="mrtnz" time="2023-10-19T09:57:34Z">
+        <changelog><![CDATA[- Initial release, version 1.0]]></changelog>
+        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/a3fd4e3f210cdce02918fd153aa96b6ec42879e3/MIDI%20Editor/mrtnz_MVelocity.lua</source>
+      </version>
+    </reapack>
   </category>
   <category name="Tracks">
     <reapack name="mrtnz_fast sidechain from selected tracks to track under mouse.lua" type="script" desc="Quick sidechain from selected tracks to track under mouse">
@@ -129,7 +168,7 @@ Tooltip with events]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
