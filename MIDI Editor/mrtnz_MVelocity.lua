@@ -38,8 +38,7 @@
 --   
 -- @changelog
 --   - Initial release, version 1.0
--- @provides
---   ../libs/rtk.lua
+
 
 
 
