@@ -1,43 +1,10 @@
 -- @description MVelocity Tool
 -- @author mrtnz
--- @version 1.0
+-- @version 1.0.1
 -- @about
---   Introduction:
---   
---   The script transforms chords or sequences into arpeggios. 
---   This is a 'special' GUI script with community help. Further development is planned.
---   
---   Main Features:
---   
---   1. Appearance and Animation:
---      - RTK library for a visually appealing interface
---      - Note: Animation may be awkward when zoomed in.
---   2. Three Standard Directions:
---      - Supports upward, downward, and random arpeggiation.
---   3. Continuous Modification:
---      - Allows for ongoing addition of modifications to notes. 
---   4. Session Memory:
---      - Saves the last position, scale, mode, notes, etc.
---   5. Main Mode:
---      - Legato can switch to staccato, affecting note length.
---   6. Three Advanced Modes:
---      - 6.1 Basic
---      - 6.2 Advanced 1
---      - 6.3 Advanced 2
---   
---   Usage:
---   
---   Step-by-step Instructions:
---   
---      - Create a sequence of chords.
---      - Use mouse wheel or main knob to set rate.
---      - Change direction and modify octave burst.
---      - Optionally, use 'Legato' or 'Staccato'.
---   
---   GUI instructions provide more details.
---   
+--  ...
 -- @changelog
---   - Initial release, version 1.0
+--   - Initial release
 
 
 
