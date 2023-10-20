@@ -543,8 +543,6 @@ local hbox_app = wnd:add(rtk.HBox{tooltip='click to hide',h=height,y=wnd.h-heigh
 local app = hbox_app:add(rtk.Application())
 
 
-
-
 local grid = 3840
 
 local allowRepeat = 1  -- 1 - разрешить повторения, 0 - запретить
