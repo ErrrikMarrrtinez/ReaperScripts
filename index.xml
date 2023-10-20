@@ -67,21 +67,6 @@
         <source file="../images/up.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/up.png</source>
       </version>
     </reapack>
-    <reapack name="mrtnz_MVelocity.lua" type="script" desc="MVelocity Tool">
-      <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
-{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
-\widowctrl\hyphauto
-
-{\pard \ql \f0 \sa180 \li0 \fi0 ...\par}
-}
-]]></description>
-      </metadata>
-      <version name="1.0.1" author="mrtnz" time="2023-10-19T10:05:14Z">
-        <changelog><![CDATA[- Initial release]]></changelog>
-        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/4db86a0a7a7e34c2cadcfd9521e8c8d7fc8e506b/MIDI%20Editor/mrtnz_MVelocity.lua</source>
-      </version>
-    </reapack>
   </category>
   <category name="Tracks">
     <reapack name="mrtnz_fast sidechain from selected tracks to track under mouse.lua" type="script" desc="Quick sidechain from selected tracks to track under mouse">
