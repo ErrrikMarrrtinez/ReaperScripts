@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="4db86a0a7a7e34c2cadcfd9521e8c8d7fc8e506b">
+<index version="1" name="ReaperScripts" commit="ef3d61bac03b61f0c604b12f63e4bde77de967f1">
   <category name="Item Editing">
     <reapack name="mrtnz_shuffle selected items down or up(mousewheel).lua" type="script" desc="Shuffle selected items down or up(mousewheel)">
       <metadata>
@@ -66,7 +66,21 @@
         <source file="../images/adown.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/adown.png</source>
         <source file="../images/chance.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/chance.png</source>
         <source file="../images/on_on.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/on_on.png</source>
+      </version>
+    </reapack>
+    <reapack name="mrtnz_MVelocity.lua" type="script" desc="MVelocity Tool">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
 
+{\pard \ql \f0 \sa180 \li0 \fi0 ...\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.2" author="mrtnz" time="2023-10-20T14:53:37Z">
+        <changelog><![CDATA[- Initial release]]></changelog>
+        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/ef3d61bac03b61f0c604b12f63e4bde77de967f1/MIDI%20Editor/mrtnz_MVelocity.lua</source>
       </version>
     </reapack>
   </category>
