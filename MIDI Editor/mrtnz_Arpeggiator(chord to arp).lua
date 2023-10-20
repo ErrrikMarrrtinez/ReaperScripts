@@ -42,8 +42,6 @@
 --   ../images/aup.png
 --   ../images/adown.png
 --   ../images/chance.png
---   ../images/link.png
---   ../images/link2.png
 --   ../images/on_on.png
 
 
