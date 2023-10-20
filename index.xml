@@ -39,7 +39,6 @@
         <source file="../images/gear_l.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/gear_l.png</source>
         <source file="../images/gen_p.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/gen_p.png</source>
         <source file="../images/key.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/key.png</source>
-        <source file="../images/kick.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/kick.png</source>
         <source file="../images/leg.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/leg.png</source>
         <source file="../images/link.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/link.png</source>
         <source file="../images/link2.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/link2.png</source>
@@ -47,7 +46,6 @@
         <source file="../images/oct.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/oct.png</source>
         <source file="../images/off.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/off.png</source>
         <source file="../images/on.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/on.png</source>
-        <source file="../images/onm.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/onm.png</source>
         <source file="../images/onof.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/onof.png</source>
         <source file="../images/page.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/page.png</source>
         <source file="../images/past.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/past.png</source>
@@ -58,13 +56,17 @@
         <source file="../images/refresh.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/refresh.png</source>
         <source file="../images/rnd.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/rnd.png</source>
         <source file="../images/save.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/save.png</source>
-        <source file="../images/snare.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/snare.png</source>
-        <source file="../images/ss.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/ss.png</source>
         <source file="../images/tab.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/tab.png</source>
         <source file="../images/tr.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/tr.png</source>
-        <source file="../images/trash.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/trash.png</source>
         <source file="../images/up-and-down.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/up-and-down.png</source>
         <source file="../images/up.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/up.png</source>
+        <source file="../images/sawdown.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/sawdown.png</source>
+        <source file="../images/sawup.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/sawup.png</source>
+        <source file="../images/aup.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/aup.png</source>
+        <source file="../images/adown.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/adown.png</source>
+        <source file="../images/chance.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/chance.png</source>
+        <source file="../images/on_on.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/on_on.png</source>
+
       </version>
     </reapack>
   </category>
