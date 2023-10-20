@@ -66,7 +66,6 @@
         <source file="../images/adown.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/adown.png</source>
         <source file="../images/chance.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/chance.png</source>
         <source file="../images/on_on.png">https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/images/on_on.png</source>
-
       </version>
     </reapack>
   </category>
@@ -131,7 +130,7 @@ Tooltip with events]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
