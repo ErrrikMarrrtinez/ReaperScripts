@@ -1,6 +1,6 @@
 -- @description Arpeggiator(test version)
 -- @author mrtnz
--- @version 1.0.30
+-- @version 1.0.35
 -- @about
 --   test
 -- @provides
@@ -24,7 +24,6 @@
 --   ../images/oct.png
 --   ../images/off.png
 --   ../images/on.png
---   ../images/onm.png
 --   ../images/onof.png
 --   ../images/page.png
 --   ../images/past.png
@@ -39,11 +38,34 @@
 --   ../images/ss.png
 --   ../images/tab.png
 --   ../images/tr.png
---   ../images/trash.png
 --   ../images/up-and-down.png
 --   ../images/up.png
+--   ../images/sawdown.png
+--   ../images/sawup.png
+--   ../images/aup.png
+--   ../images/adown.png
+--   ../images/chance.png
+--   ../images/link.png
+--   ../images/link2.png
+--   ../images/on_on.png
+
+
 -- @changelog
---   Bug fixed 3
+--[[
+    
+        1. Minor optimization and a slight visual change.
+        2. Two new canonical modes added - "Saw Up" and "Saw Down".
+        3. For the direction "Random", besides octave bursts, toggling is now available for notes of the same pitch (with the mode turned off, for example, notes of the same pitch will not repeat except for single notes; with the mode turned on, a chance can be set).
+        [img]https://i.imgur.com/nzBK3Tc.png[/img]
+        4. Entering the last "advanced" mode automatically turns off auto apply.
+        5. There's no mode selection for the current chord in the last mode, but I added the ability to change single notes (not chords) in any mode. I tested this on drums, and it's quite an interesting tool, it's quite a surprise for me :D
+        Only "octave" and "gate" tabs don't work for single notes.
+        Quite an interesting result can be achieved with separated single notes.
+        [img]https://i.imgur.com/JhbVWr8.gif[/img]
+        Also:
+        To avoid errors, it's better to first create a pattern, make and apply changes, then if a new pattern is needed, similarly create it and apply changes instead of creating multiple patterns at once (Minor issues).
+
+]]
 
 
 
@@ -530,7 +552,10 @@ local app = hbox_app:add(rtk.Application())
 
 local grid = 3840
 
-local mode = "down"
+local allowRepeat = 1  -- 1 - разрешить повторения, 0 - запретить
+local repeatProb = 0.8  -- вероятность повторения от 0 до 1
+
+local mode = "saw_1" --up or down or saw_1 or saw_2 or random
 local grid_step = 240
 local step = 3
 local octave = 0 
@@ -605,7 +630,6 @@ local rnd = rtk.Image.icon('rnd'):scale(120,120,22,7)
 local oct = rtk.Image.icon('oct'):scale(120,120,22,7)
 local leg = rtk.Image.icon('leg'):scale(120,120,22,7)
 local save = rtk.Image.icon('save'):scale(120,120,22,7)
-local delete = rtk.Image.icon('trash'):scale(120,120,22,7)
 local page = rtk.Image.icon('page'):scale(120,120,22,7)
 local bulb = rtk.Image.icon('bulb1'):scale(120,120,22,7)
 local bulb2 = rtk.Image.icon('bulb2'):scale(120,120,22,7)
@@ -621,6 +645,12 @@ local onof = rtk.Image.icon('onof'):scale(120,120,22,7)
 local refresh = rtk.Image.icon('refresh'):scale(120,120,22,6.6)
 local loop = rtk.Image.icon('loop'):scale(120,120,22,7)
 local up_and_down = rtk.Image.icon('up-and-down'):scale(120,120,22,7)
+local on_on = rtk.Image.icon('on_on', 'light'):scale(120,120,22,7)
+local chance = rtk.Image.icon('chance', 'light'):scale(120,120,22,7)
+local sawup = rtk.Image.icon('sawup', 'light'):scale(120,120,22,7)
+local sawdown = rtk.Image.icon('sawdown', 'light'):scale(120,120,22,7)
+local aup = rtk.Image.icon('aup', 'light'):scale(120,120,22,7)
+local adown = rtk.Image.icon('adown', 'light'):scale(120,120,22,7)
 
 local scriptPath = rtk.script_path 
 
@@ -644,7 +674,7 @@ checkAndCreateFile(scriptPath .. "/original.json")
 
 
 local savedState = reaper.GetExtState(sectionID, "pinState")
-local container = wnd:add(rtk.VBox{y=-35})
+local container = wnd:add(rtk.VBox{expand=1,y=-35})
 local vbox2 = container:add(rtk.VBox{y=50,padding=5,x=wnd.w/2-50})
 local vbox = container:add(rtk.VBox{spacing=10})
 
@@ -1369,7 +1399,7 @@ end
 
 local function update_labels()
     for i, btn in ipairs(buttons) do
-        btn:attr('label', "Chord " .. i)
+        btn:attr('label', "Pattern " .. i)
     end
 end
 active_chord_index = 1 
@@ -1392,7 +1422,7 @@ local function create_new_button_and_box(last_created_button_number)
         h=base_h_for_chord_tabs,
         expand=0.1,
         fillw=true,
-        label="Chord " .. last_created_button_number,
+        label="Pattern " .. last_created_button_number,
         bborder=active_color  
     },{fillw=true})
     table.insert(buttons, new_button)
@@ -1516,13 +1546,215 @@ local slider_velocitythr = slider_thr:add(rtk.Slider{
     
 })
 rate_text=slider_thr:add(rtk.Text{w=28,x=4,fontsize=adv_fontsize,"RATE",y=-3})
-local vert_b = vbox:add(rtk.HBox{x=10,spacing=2,padding=25})
-local b_up = vert_b:add(rtk.Button{flat=true,cursor=rtk.mouse.cursors.HAND,pacing=5,padding=4,font=font,tagged=true,icon=up,halign='center',w=base_wight_button,'Up'})
-local b_down = vert_b:add(rtk.Button{cursor=rtk.mouse.cursors.HAND,spacing=5,padding=4,font=font,tagged=true,icon=down,halign='center',w=base_wight_button,'Down'})
-vert_b_line=vert_b:add(rtk.HBox{})
+
+
+local vertical_modes_b=vbox:add(rtk.VBox{border='#2a2a2a30',h=110,bg="#22222260",y=15,spacing=-20},{fillw=true})
+
+
+
+
+local head_derctions = vertical_modes_b:add(rtk.Heading{x=127,"DIRECTIONS"})
+
+local vert_b = vertical_modes_b:add(rtk.HBox{y=5,x=10,spacing=2,padding=25})
+local b_up = vert_b:add(rtk.Button{
+    cursor=rtk.mouse.cursors.HAND,
+    spacing=5,
+    padding=4,
+    font=font,
+    'Up',
+    icon=aup,
+    halign='center',
+    w=base_wight_button,
+    tagged=true,
+
+})
+
+local b_down = vert_b:add(rtk.Button{
+    cursor=rtk.mouse.cursors.HAND,
+    spacing=5,
+    padding=4,
+    font=font,
+    tagged=true,
+    icon=adown,
+    halign='center'
+    ,w=base_wight_button,
+    'Down',
+    iconpos='right',
+
+})
+
+local vert_b_line=vert_b:add(rtk.HBox{})
 local b_rand = vert_b_line:add(rtk.Button{iconpos='left',cursor=rtk.mouse.cursors.HAND,spacing=5,padding=4,font=font,tagged=true,icon=rand,halign='center',w=base_wight_button,'Random'})
 local button = vert_b_line:add(rtk.Button{iconpos='left',color=color_b_hb,gradient=3,spacing=5,padding=4,font=font,tagged=true,icon=oct,w=10,h=26,halign='center',label='0'})
+
+
+local shelf_w_buttons_modes = vertical_modes_b:add(rtk.HBox{x=35,spacing=2,y=2,})
+local b_up_saw = shelf_w_buttons_modes:add(rtk.Button{
+    flat=false,
+    cursor=rtk.mouse.cursors.HAND,
+    spacing=5,
+    padding=4,
+    font=font,
+    tagged=true,
+    icon=sawup,
+    halign='center',
+    w=base_wight_button*1.5+2,
+    fontsize=16,
+    "Saw Up"
+})
+local b_down_saw = shelf_w_buttons_modes:add(rtk.Button{
+    cursor=rtk.mouse.cursors.HAND,
+    spacing=5,
+    padding=4,
+    font=font,
+    tagged=true,
+    icon=sawdown,
+    halign='center',
+    w=base_wight_button*1.5,
+    tagged=true,
+
+    fontsize=16,
+    "Saw Down"
+
+})
+
+
+
+local buttons_add_random_box = shelf_w_buttons_modes:add(rtk.HBox{spacing=0})
+local b_rand_overl = buttons_add_random_box:add(rtk.Button{
+    cursor=rtk.mouse.cursors.HAND,
+    rpadding=-8,
+    padding=4,
+    font=font,
+    
+    rmargin=1,
+    icon=on_on,
+    halign='center',
+    h=1.1,
+    tagged=true,
+    color=modes_button_color_pressed,
+    w=base_wight_button/1.5-2,
+    'Repeat',
+    fontsize=14,
+    gradient=3,
+})
+local b_rand_chance = buttons_add_random_box:add(rtk.Button{
+    cursor=rtk.mouse.cursors.HAND,
+    padding=4,
+    font=font,
+    icon=chance,
+    iconpos='right',
+    tagged=true,
+    h=1.1,
+    halign='center',
+    color=modes_button_color_pressed,
+    w=base_wight_button/1.5-2,
+    '100%',
+    gradient=3,
+})
 button:hide()
+buttons_add_random_box:hide()
+on_on:recolor("#ECFFDC")
+
+local flag = true  -- Переменная-флаг. True по умолчанию.
+
+b_rand_overl.onclick = function(self, event)
+    if flag then
+        -- Выключаем
+        on_on:recolor(modes_button_color_pressed)
+        
+        allowRepeat = 0
+        b_rand_chance:attr('disabled', true)
+        self:attr('color',modes_button_color_pressed .. "50")
+        self:attr('border',"#1a1a1a")
+    else
+        -- Включаем
+        on_on:recolor('#ECFFDC')
+        allowRepeat = 1
+        b_rand_chance:attr('disabled', false)
+        self:attr('color',modes_button_color_pressed)
+        self:attr('border',false)
+    end
+    flag = not flag  -- Переключаем состояние флага
+    p_run()
+end
+
+
+
+
+local randChanceDragging = false
+local randChancePrevY = nil
+local randChanceDragAccumulatorY = 0
+local randChanceDragThreshold = 0.1
+local randChanceCurrentValue = 100  -- начальное значение от 0 до 100
+local randChanceSensitivity = 1
+local randRepeatProb = randChanceCurrentValue / 100  -- вероятность повторения от 0 до 1
+
+b_rand_chance.onclick = function(self, event)
+    if randChanceCurrentValue == 100 then
+        randChanceCurrentValue = 0
+    else
+        randChanceCurrentValue = 100
+    end
+    self:attr('label', tostring(math.floor(randChanceCurrentValue)).."%")  
+    randRepeatProb = randChanceCurrentValue / 100  -- Обновляем вероятность
+    p_run()
+    return true
+end
+
+b_rand_chance.ondragstart = function(self, event, x, y, t)
+    randChanceDragging = true
+    randChancePrevY = y
+    self:attr("cursor", rtk.mouse.cursors.REAPER_MARKER_VERT)
+    return true
+end
+
+b_rand_chance.ondragend = function(self, event, dragarg)
+    randChanceDragging = false
+    randChancePrevY = nil
+    self:attr("cursor", rtk.mouse.cursors.UNDEFINED)
+    self:attr('icon', chance)
+    randRepeatProb = randChanceCurrentValue / 100  -- Обновляем вероятность
+    p_run()
+    --reaper.ShowConsoleMsg(randRepeatProb)
+end
+
+b_rand_chance.onmousewheel = function(self, event)
+    local _, _, _, wheel_y = tostring(event):find("wheel=(%d+.?%d*),(-?%d+.?%d*)")
+    wheel_y = tonumber(wheel_y)
+    randChanceCurrentValue = math.max(0, math.min(100, randChanceCurrentValue - wheel_y * randChanceSensitivity)) 
+    self:attr('label', tostring(math.floor(randChanceCurrentValue)).."%")  
+    randRepeatProb = randChanceCurrentValue / 100  -- Обновляем вероятность
+    p_run()
+    return true
+end
+
+b_rand_chance.ondragmousemove = function(self, event, dragarg)
+    if randChanceDragging and randChancePrevY then
+        local deltaY = event.y - randChancePrevY
+        randChanceDragAccumulatorY = randChanceDragAccumulatorY + deltaY
+
+        if math.abs(randChanceDragAccumulatorY) > randChanceDragThreshold then
+            randChanceCurrentValue = math.max(0, math.min(100, randChanceCurrentValue - math.floor(randChanceDragAccumulatorY / randChanceSensitivity)))
+            self:attr('label', tostring(math.floor(randChanceCurrentValue)).."%")
+            randChancePrevY = event.y
+            randChanceDragAccumulatorY = 0
+
+            -- Добавление условия для улучшения отображения иконок
+            if deltaY > 1 then
+                self:attr('icon', down)
+            elseif deltaY < -1 then
+                self:attr('icon', up)
+            end
+        end
+    end
+    randRepeatProb = randChanceCurrentValue / 100  -- Обновляем вероятность
+end
+
+
+
+
+
 
 
 
@@ -1687,7 +1919,7 @@ end
     
 button2.state = "on"
 button2.current_icon = on
--- При инициализации вашего скрипта:
+
 local extState = reaper.GetExtState("MyScriptUniqueName", "button2_state")
 if extState == "off" then
     button2.state = "off"
@@ -1747,6 +1979,7 @@ button2.onclick = function(self, event)
         reaper.SetExtState("MyScriptUniqueName", "button2_state", "on", true)
     end
 end
+
 
 button2.onmousedown = function(self,event)
   self:attr('icon', onof)
@@ -1862,8 +2095,14 @@ button_adv.onclick = function(self, event)
         step_mode=3
         sliders_box_v:hide()
         circt1:hide()
-        vert_b:hide()
+        vertical_modes_b:hide()
         all_advanced_mode_container:show()
+        
+        if button2.icon == on then
+            button2:onclick()
+        else
+        
+        end
         
         on_deferred = true
     else  -- третье состояние
@@ -1881,7 +2120,7 @@ button_adv.onclick = function(self, event)
          step_mode=1
          sliders_box_v:hide()
          circt1:show()
-         vert_b:show()
+         vertical_modes_b:show()
          all_advanced_mode_container:hide()
          on_deferred = false
     end
@@ -1890,16 +2129,31 @@ button_adv.onclick = function(self, event)
     p_run()
     
 end
+    b_rand_overl:attr('w', 1.1)
+    b_rand_chance:attr('w', 1.1)
 function reset_button()
     b_up:attr("color", modes_button_color_current)
     b_down:attr("color",modes_button_color_current)
     b_rand:attr("color",modes_button_color_current)
+    b_up_saw:attr("color",modes_button_color_current)
+    b_down_saw:attr("color",modes_button_color_current)
+    b_down_saw:attr("iconpos","right")
+    
+    
     b_up:attr("gradient", gr)
     b_down:attr("gradient",gr)
     b_rand:attr("gradient",gr)
     b_rand:attr("hover",false)
     b_up:attr("hover",false)
     b_down:attr("hover",false)
+    buttons_add_random_box:hide()
+    vert_b_line:attr('lborder', false)
+    vert_b_line:attr('rborder', false)
+    vert_b_line:attr('tborder', false)
+    buttons_add_random_box:attr('lborder', false)
+    buttons_add_random_box:attr('rborder', false)
+    buttons_add_random_box:attr('bborder', false)
+    
 end
 function reset_animate_button()
     local def_dur = 0.3
@@ -1907,6 +2161,9 @@ function reset_animate_button()
     b_down:animate{'w', dst=base_wight_button, duration=def_dur, easing=eas}
     b_up:animate{'w', dst=base_wight_button, duration=def_dur, easing=eas}
     b_rand:animate{'w', dst=base_wight_button, duration=def_dur, easing=eas}
+    
+    
+    
 end
 
 reset_button()
@@ -1931,6 +2188,12 @@ b_up.onclick=function()
            end
            return after_button()
         end)
+        b_up_saw:animate{'w', dst=base_wight_button*1.5+1, duration=def_dur, easing=eas}
+        b_down_saw:animate{'w', dst=base_wight_button*1.5+1, duration=def_dur, easing=eas}
+        
+        b_rand_overl:animate{'h', dst=1.1, duration=def_dur, easing=eas}
+        b_rand_chance:animate{'h', dst=1.1, duration=def_dur, easing=eas}
+        b_down_saw:attr("iconpos","left")
 end
 
 b_down.onclick=function()
@@ -1952,8 +2215,67 @@ b_down.onclick=function()
            end
            return after_button() 
         end)
+        b_up_saw:animate{'w', dst=base_wight_button*1.5+1, duration=def_dur, easing=eas}
+        b_down_saw:animate{'w', dst=base_wight_button*1.5+1, duration=def_dur, easing=eas}
         
+        b_rand_overl:animate{'h', dst=1.1, duration=def_dur, easing=eas}
+        b_rand_chance:animate{'h', dst=1.1, duration=def_dur, easing=eas}
+        b_down_saw:attr("iconpos","left")
 end
+
+b_down_saw.onclick=function(self, event)
+    reset_button()
+    self:attr("color",modes_button_color_pressed)
+    self:attr("gradient", 3)
+    self:attr("hover",true)
+    mode = "saw_1"
+    button:attr('label', '0')
+    octave=0
+    p_run()
+    button:animate{'color', dst="#3a3a3a", duration=0.25}
+    button:animate{'w', dst=10, duration=0.15, easing='in-expo'}  
+       :after(function()
+           local function after_button()
+              button:hide()
+              b_rand:animate{'color', dst="#3a3a3a", duration=0.25}
+              reset_animate_button()
+           end
+           return after_button() 
+        end)
+        b_up_saw:animate{'w', dst=base_wight_button*1.5+2, duration=def_dur, easing=eas}
+        b_down_saw:animate{'w', dst=base_wight_button*1.5+2, duration=def_dur, easing=eas}
+        
+        b_rand_overl:animate{'h', dst=1.1, duration=def_dur, easing=eas}
+        b_rand_chance:animate{'h', dst=1.1, duration=def_dur, easing=eas}
+        b_down_saw:attr("iconpos","left")
+end
+b_up_saw.onclick=function(self, event)
+    reset_button()
+    self:attr("color",modes_button_color_pressed)
+    self:attr("gradient", 3)
+    self:attr("hover",true)
+    mode = "saw_2"
+    button:attr('label', '0')
+    octave=0
+    p_run()
+    button:animate{'color', dst="#3a3a3a", duration=0.25}
+    button:animate{'w', dst=10, duration=0.15, easing='in-expo'}  
+       :after(function()
+           local function after_button()
+              button:hide()
+              b_rand:animate{'color', dst="#3a3a3a", duration=0.25}
+              reset_animate_button()
+           end
+           return after_button() 
+        end)
+        b_up_saw:animate{'w', dst=base_wight_button*1.5+2, duration=def_dur, easing=eas}
+        b_down_saw:animate{'w', dst=base_wight_button*1.5+2, duration=def_dur, easing=eas}
+        
+        b_rand_overl:animate{'h', dst=1.1, duration=def_dur, easing=eas}
+        b_rand_chance:animate{'h', dst=1.1, duration=def_dur, easing=eas}
+        b_down_saw:attr("iconpos","left")
+end
+
 
 
 
@@ -1962,20 +2284,40 @@ b_rand.onclick=function()
     b_rand:attr("color",modes_button_color_pressed)
     b_rand:animate{'color', dst=modes_button_color_pressed, duration=0.25}
     local def_dur = 0.31
+    local h_target_b=26
     local eas="in-out-quad"
+    local eas_2="in-circ"
     b_rand:attr("gradient", 3)
     b_rand:attr("hover",true)
     mode = "random"
     p_run()
     button:show()
+    buttons_add_random_box:show()
     button:animate{'w', dst=45, duration=def_dur, easing=eas}
-    
+    dst_color_borders="#FF000020"
     button:animate{'color', dst=modes_button_color_pressed, duration=0.85}
     button:attr("gradient", 3)
     button:attr("hover",true)
+
     b_down:animate{'w', dst=modes_button_wight, duration=def_dur, easing=eas}
+    b_up_saw:animate{'w', dst=modes_button_wight, duration=def_dur, easing=eas}
+    b_down_saw:animate{'w', dst=modes_button_wight, duration=def_dur, easing=eas}
     b_up:animate{'w', dst=modes_button_wight, duration=def_dur, easing=eas}
     b_rand:animate{'w', dst=modes_button_wight, duration=def_dur, easing=eas}
+     b_rand_overl:animate{'h', dst=h_target_b, duration=0.3, easing=eas}
+     b_rand_overl:animate{'w', dst=62, duration=0.2, easing=eas}
+     
+     b_rand_chance:animate{'h', dst=h_target_b, duration=0.3, easing=eas}
+     b_rand_chance:animate{'w', dst=62, duration=0.2, easing=eas}
+     
+     
+     vert_b_line:attr('lborder', dst_color_borders)
+     vert_b_line:attr('rborder', dst_color_borders)
+     vert_b_line:attr('tborder', dst_color_borders)
+     buttons_add_random_box:attr('lborder', dst_color_borders)
+     buttons_add_random_box:attr('rborder', dst_color_borders)
+     buttons_add_random_box:attr('bborder', dst_color_borders)
+    
     
 end
 
@@ -2255,6 +2597,335 @@ local function splitNote(take, start, endpos, pitch, vel, ratchet)
   end
 end
 
+-- функция для сортировки аккорда
+local function sortChord(chord, current_mode)
+    table.sort(chord, function(a, b)
+        if current_mode == "up" then
+            return a.pitch < b.pitch
+        else
+            return a.pitch > b.pitch
+        end
+    end)
+end
+
+-- функция для сбора аккордов
+local function gatherChords(take, noteCount, hasSelectedNotes)
+    local chords = {}
+    local chord = {}
+    for i = 0, noteCount - 1 do
+        local retval, selected, _, startpos, endpos, _, pitch, velocity = reaper.MIDI_GetNote(take, i)
+
+        local noteLength = endpos - startpos
+        if (not hasSelectedNotes or selected) and noteLength > 120 then
+            if #chord > 0 and startpos - chord[#chord].endpos > 10 then -- You can change this threshold
+                if #chord > 1 then
+                    sortChord(chord, current_mode)
+                    table.insert(chords, chord)
+                else
+                    table.insert(chords, {{startpos = chord[1].startpos, endpos = chord[1].endpos, pitch = chord[1].pitch}})
+                end
+                chord = {}
+            end
+            table.insert(chord, {startpos = startpos, endpos = endpos, pitch = pitch, velocity = velocity})
+        end
+    end
+    if #chord == 1 then
+        table.insert(chords, {{startpos = chord[1].startpos, endpos = chord[1].endpos, pitch = chord[1].pitch}})
+    elseif #chord > 1 then
+        sortChord(chord, current_mode)
+        table.insert(chords, chord)
+    end
+    return chords
+end
+
+-- функция для удаления нот
+local function deleteNotes(take, noteCount, hasSelectedNotes)
+    for i = noteCount - 1, 0, -1 do
+        local _, selected, _, startpos, endpos, _, _, _ = reaper.MIDI_GetNote(take, i)
+        local noteLength = endpos - startpos
+        if (not hasSelectedNotes or selected) and noteLength > 120 then
+            reaper.MIDI_DeleteNote(take, i)
+        end
+    end
+end
+
+local function insertArpeggios(chords, take, g_length, alternateStep, alternateLength)
+    -- 3) Insert arpeggios for each chord
+    local chordZones = {}
+    for chord_index, chord in ipairs(chords) do
+        local insert_position = chord[1].startpos
+        local end_position = chord[#chord].endpos
+    
+        table.insert(chordZones, {start = insert_position, stop = end_position})
+    
+        local current_step_grid = step_grid[(chord_index - 1) % #step_grid + 1]
+        local current_mode
+    
+        if step_mode == 3 then
+            current_mode = current_step_grid.mode or mode
+        else
+            current_mode = mode
+        end
+    
+        if #chord == 1 then  -- Если есть только одна нота
+            local main_count = 0
+            local step_counts = {}
+            for i = 1, #current_step_grid do
+                step_counts[i] = 0
+            end
+            local infiniteLoopProtection = 0  -- счетчик для защиты от бесконечного цикла
+        
+            while insert_position < end_position do
+                local note_length = g_length
+                local current_velocity = 100
+                local current_gate = 1 -- 100% by default
+                local current_ratchet = 1 -- no ratchet by default
+                main_count = main_count + 1
+                infiniteLoopProtection = infiniteLoopProtection + 1
+        
+                if step_mode == 2 and alternateStep and alternateLength then
+                    if main_count % alternateStep == 0 then
+                        note_length = alternateLength
+                    end
+
+                elseif step_mode == 3 then
+                            local matched = false
+                            if current_step_grid then
+                                for i = #current_step_grid, 1, -1 do
+                                    step_counts[i] = step_counts[i] + 1
+                                    local v = current_step_grid[i]
+                
+                                    if step_counts[i] % v.step == 0 then
+                                        note_length = v.grid_step
+                                        current_velocity = v.velocity or 100
+                                        current_gate = v.gate or 1
+                                        current_ratchet = (v.ratchet and v.ratchet > 0) and v.ratchet or 1  -- проверка на nil и 0
+                                        matched = true
+                                        break
+                                    end
+                                end
+                            end
+                            if not matched then
+                                current_velocity = 100
+                            end
+                        end
+                
+                        note_length = note_length * current_gate  -- теперь используем current_gate
+                        local ratchet_length = note_length / current_ratchet
+        
+                if insert_position + note_length > end_position then
+                    note_length = end_position - insert_position
+                end
+        
+                for i = 1, current_ratchet do
+                    if insert_position + ratchet_length > end_position then
+                        ratchet_length = end_position - insert_position
+                    end
+                    reaper.MIDI_InsertNote(take, true, false, insert_position, insert_position + ratchet_length, 0, chord[1].pitch, current_velocity, false)
+                    insert_position = insert_position + ratchet_length
+                end
+        
+                if infiniteLoopProtection > 10000 then  -- простая защита от бесконечного цикла
+                    break
+                end
+            end
+        else
+            local note = 1
+            local last_note = nil
+    
+            local current_step_grid = step_grid[(chord_index - 1) % #step_grid + 1]
+    
+            local main_count = 0 -- Основной счетчик для while цикла
+            local step_counts = {}
+            for i = 1, #current_step_grid do
+                step_counts[i] = 0
+            end
+            
+            local curPitchIdx = -1
+            local inc = true  -- Для режимов saw_1 и saw_2
+            
+            local current_length = 100  -- значение по умолчанию
+            local current_octave = 0 -- Эта переменная будет хранить текущую октаву
+            while insert_position < end_position do
+                local note_length = g_length
+                local current_velocity = velocity -- Будем использовать эту переменную вместо оригинальной
+    
+                main_count = main_count + 1  -- Увеличиваем основной счетчик
+    
+                if step_mode == 2 and alternateStep and alternateLength then
+                    if main_count % alternateStep == 0 then
+                        note_length = alternateLength
+                    end
+                elseif step_mode == 3 then
+                        local matched = false
+                        
+                        if current_step_grid then
+                            for i = #current_step_grid, 1, -1 do
+                                step_counts[i] = step_counts[i] + 1
+                                local v = current_step_grid[i]
+                
+                                if step_counts[i] % v.step == 0 then
+                                    note_length = v.grid_step
+                                    if v.velocity then
+                                        current_velocity = v.velocity
+                                    end
+                                    if v.octave then
+                                        current_octave = v.octave
+                                    end
+                                    if v.ratchet then
+                                        ratchet = v.ratchet
+                                    else
+                                        ratchet = 1
+                                    end
+                                    if v.length then
+                                        current_length = v.length
+                                    end
+                                    matched = true
+                                    break
+                                end
+                            end
+                        end
+    
+                    if not matched and step_mode ~= 3 then
+                        current_velocity = velocity
+                        current_octave = octave
+                    end
+                else
+                    current_velocity = chord[note].velocity
+                end
+                
+            if current_mode == "down" then
+                if curPitchIdx <= 0 or curPitchIdx >= #chord then 
+                    curPitchIdx = 1
+                else
+                    curPitchIdx = curPitchIdx + 1
+                end
+                note = curPitchIdx
+    
+             elseif current_mode == "up" then
+                if curPitchIdx <= 1 then 
+                    curPitchIdx = #chord
+                else
+                    curPitchIdx = curPitchIdx - 1
+                end
+                note = curPitchIdx
+                elseif current_mode == "saw_1" then
+                   if curPitchIdx <= 0 then 
+                       curPitchIdx = 1
+                   elseif curPitchIdx == #chord then
+                       curPitchIdx = curPitchIdx - 1
+                       inc = false
+                   elseif curPitchIdx == 1 then
+                       curPitchIdx = curPitchIdx + 1
+                       inc = true
+                   elseif inc then
+                       curPitchIdx = curPitchIdx + 1
+                   else
+                       curPitchIdx = curPitchIdx - 1
+                   end
+                   note = curPitchIdx
+               elseif current_mode == "saw_2" then
+                   if curPitchIdx <= 0 then 
+                       curPitchIdx = #chord
+                   elseif curPitchIdx == #chord then
+                       curPitchIdx = curPitchIdx - 1
+                       inc = false
+                   elseif curPitchIdx == 1 then
+                       curPitchIdx = curPitchIdx + 1
+                       inc = true
+                   elseif inc then
+                       curPitchIdx = curPitchIdx + 1
+                   else
+                       curPitchIdx = curPitchIdx - 1
+                   end
+                   note = curPitchIdx
+               elseif current_mode == "random" then
+                       local new_note = last_note
+                       repeat
+                           new_note = math.random(#chord)
+                           if allowRepeat == 1 then
+                               if math.random() < repeatProb then
+                                   break  -- разрешаем повторение с заданной вероятностью
+                               end
+                           end
+                       until new_note ~= last_note or #chord == 1
+                       note = new_note
+                       last_note = note
+                      end
+    
+    
+    
+                if insert_position + note_length > end_position then
+                    note_length = end_position - insert_position
+                end
+    
+                -- Взрыв октавы
+                local pitch = chord[note].pitch + (current_octave * 12)
+                local new_note_length = note_length * (current_length / 100)
+                if current_length == 0 then
+                    new_note_length = note_length
+                else
+                    new_note_length = note_length * (current_length / 100)
+                end
+                if octave ~= 0 then
+                    local randomOctaveShift = math.random(-octave, octave) * 12
+                    pitch = pitch + randomOctaveShift -- Смещение на случайное количество октав вверх или вниз, сохраняя тон
+                end
+               if ratchet and ratchet > 1 then
+                   splitNote(take, insert_position, insert_position + new_note_length, pitch, current_velocity, ratchet)
+               else
+                   reaper.MIDI_InsertNote(take, true, false, insert_position, insert_position + new_note_length, 0, pitch, current_velocity, false)
+               end
+                
+                reaper.MIDI_InsertNote(take, true, false, insert_position, insert_position + note_length, 0, pitch, current_velocity, false)
+                insert_position = insert_position + note_length
+                
+                if current_mode ~= "random" then
+                    note = (note % #chord) + 1
+                end
+            end
+        end
+    end
+    if extendNotesFlag then
+        for _, zone in ipairs(chordZones) do
+            extendNotesToEndOfBar(zone.start, zone.stop)
+        end
+    end
+    
+    save_notes_to_json("modify.json")
+end
+
+-- основная функция
+local function createArpeggio(direction, g_length, alternateStep, alternateLength)
+    local take = reaper.MIDIEditor_GetTake(reaper.MIDIEditor_GetActive())
+    if not take then return end
+    local chord_gap_threshold = -1
+    reaper.MIDI_Sort(take)
+    adjustNoteLengths()
+    local _, noteCount = reaper.MIDI_CountEvts(take)
+    
+    -- 1) Gathering notes into chords
+    local hasSelectedNotes = false
+    for i = 0, noteCount - 1 do
+        local retval, selected, _, _, _, _, _, _ = reaper.MIDI_GetNote(take, i)
+        if selected then
+            hasSelectedNotes = true
+            break
+        end
+    end
+    
+    local chords = gatherChords(take, noteCount, hasSelectedNotes)
+    
+    -- 2) Delete all notes
+    deleteNotes(take, noteCount, hasSelectedNotes)
+    
+    -- 3) Insert arpeggios for each chord
+    insertArpeggios(chords, take, g_length, alternateStep, alternateLength)
+end
+
+
+
+--[[
 local function sortChord(chord, current_mode)
   table.sort(chord, function(a, b)
     if current_mode == "up" then
@@ -2454,7 +3125,6 @@ local function createArpeggio(direction, g_length, alternateStep, alternateLengt
     save_notes_to_json("modify.json")
 end
 
---[[
 reaper.Undo_BeginBlock()
 
 reaper.Undo_EndBlock("Create Arpeggio from Chords", -1)]]
