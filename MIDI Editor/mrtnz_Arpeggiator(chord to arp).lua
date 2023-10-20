@@ -33,8 +33,6 @@
 --   ../images/refresh.png
 --   ../images/rnd.png
 --   ../images/save.png
---   ../images/snare.png
---   ../images/ss.png
 --   ../images/tab.png
 --   ../images/tr.png
 --   ../images/up-and-down.png
