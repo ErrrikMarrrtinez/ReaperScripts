@@ -550,7 +550,7 @@ local grid = 3840
 local allowRepeat = 1  -- 1 - разрешить повторения, 0 - запретить
 local repeatProb = 0.8  -- вероятность повторения от 0 до 1
 
-local mode = "saw_1" --up or down or saw_1 or saw_2 or random
+local mode = "down" --up or down or saw_1 or saw_2 or random
 local grid_step = 240
 local step = 3
 local octave = 0 
