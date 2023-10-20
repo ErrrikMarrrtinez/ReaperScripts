@@ -16,7 +16,6 @@
 --   ../images/gear_l.png
 --   ../images/gen_p.png
 --   ../images/key.png
---   ../images/kick.png
 --   ../images/leg.png
 --   ../images/link.png
 --   ../images/link2.png
