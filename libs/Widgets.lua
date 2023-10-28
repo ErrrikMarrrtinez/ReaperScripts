@@ -3,9 +3,7 @@
 -- @noindex  
 
 widg = {}
---[[
-package.path = string.format('%s/Scripts/rtk/1/?.lua;%s?.lua;', reaper.GetResourcePath(), entrypath)
-require 'rtk']]
+
 
 
 
