@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="e6c4e360b3a9fde26767f20e3c086533a7a5fc0e">
+<index version="1" name="ReaperScripts" commit="eb65acb087865084aeb939568c7c422746eeb3c9">
   <category name="Item Editing">
     <reapack name="mrtnz_shuffle selected items down or up(mousewheel).lua" type="script" desc="Shuffle selected items down or up(mousewheel)">
       <metadata>
@@ -108,6 +108,10 @@
         <source file="../images/on_on.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/54fd3af52a7c8c29fdba57b2c42ba2c0df05295c/images/on_on.png</source>
         <source file="../images/new.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/54fd3af52a7c8c29fdba57b2c42ba2c0df05295c/images/new.png</source>
       </version>
+      <version name="1.0.39" author="mrtnz" time="2023-10-28T07:39:30Z">
+        <changelog><![CDATA[Split functions]]></changelog>
+        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/eb65acb087865084aeb939568c7c422746eeb3c9/MIDI%20Editor/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
+      </version>
     </reapack>
     <reapack name="mrtnz_MVelocity.lua" type="script" desc="MVelocity Tool">
       <metadata>
@@ -199,7 +203,7 @@ Tooltip with events]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
