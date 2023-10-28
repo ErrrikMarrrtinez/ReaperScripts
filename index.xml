@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="b4dc8b654b663f147c1b4aa812920e850468e4da">
+<index version="1" name="ReaperScripts" commit="25f2c29ca79873c3d279a197bff69016703a45c2">
   <category name="Item Editing">
     <reapack name="mrtnz_shuffle selected items down or up(mousewheel).lua" type="script" desc="Shuffle selected items down or up(mousewheel)">
       <metadata>
@@ -45,6 +45,10 @@
       <version name="1.0.23" author="mrtnz" time="2023-10-20T15:05:00Z">
         <changelog><![CDATA[- Initial release]]></changelog>
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/b4dc8b654b663f147c1b4aa812920e850468e4da/MIDI%20Editor/mrtnz_MVelocity.lua</source>
+      </version>
+      <version name="1.0.24" author="mrtnz" time="2023-10-28T06:41:38Z">
+        <changelog><![CDATA[- Initial release]]></changelog>
+        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/25f2c29ca79873c3d279a197bff69016703a45c2/MIDI%20Editor/mrtnz_MVelocity.lua</source>
       </version>
     </reapack>
   </category>
