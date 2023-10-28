@@ -1,4 +1,4 @@
--- @description MArpeggiator(Chord to arp)
+-- @description MArpeggiator(chord to arp)
 -- @author mrtnz
 -- @version 1.0.38
 -- @changelog
