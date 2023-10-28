@@ -1,8 +1,14 @@
 -- @description Arpeggiator(test version)
 -- @author mrtnz
--- @version 1.0.36
--- @about
---   test
+-- @version 1.0.37
+-- @changelog
+--        1. Minor optimization and a slight visual change.
+--        2. Two new canonical modes added - "Saw Up" and "Saw Down".
+--        3. For the direction "Random", besides octave bursts, toggling is now available for notes of the same pitch (with the mode turned off, for example, notes of the same pitch will not repeat except for single notes; with the mode turned on, a chance can be set).
+--        [img]https://i.imgur.com/nzBK3Tc.png[/img]
+--        4. Entering the last "advanced" mode automatically turns off auto apply.
+--        5. There's no mode selection for the current chord in the last mode, but I added the ability to change single notes (not chords) in any mode. I tested this on drums, and it's quite an interesting tool, it's quite a surprise for me :D
+--        [img]https://i.imgur.com/JhbVWr8.gif[/img]
 -- @provides
 --   ../libs/rtk.lua
 --   ../images/Plus.png
@@ -43,41 +49,26 @@
 --   ../images/adown.png
 --   ../images/chance.png
 --   ../images/on_on.png
+--   ../images/new.png
 
-
--- @changelog
---[[
-    
-        1. Minor optimization and a slight visual change.
-        2. Two new canonical modes added - "Saw Up" and "Saw Down".
-        3. For the direction "Random", besides octave bursts, toggling is now available for notes of the same pitch (with the mode turned off, for example, notes of the same pitch will not repeat except for single notes; with the mode turned on, a chance can be set).
-        [img]https://i.imgur.com/nzBK3Tc.png[/img]
-        4. Entering the last "advanced" mode automatically turns off auto apply.
-        5. There's no mode selection for the current chord in the last mode, but I added the ability to change single notes (not chords) in any mode. I tested this on drums, and it's quite an interesting tool, it's quite a surprise for me :D
-        Only "octave" and "gate" tabs don't work for single notes.
-        Quite an interesting result can be achieved with separated single notes.
-        [img]https://i.imgur.com/JhbVWr8.gif[/img]
-        Also:
-        To avoid errors, it's better to first create a pattern, make and apply changes, then if a new pattern is needed, similarly create it and apply changes instead of creating multiple patterns at once (Minor issues).
-
-]]
 
 
 
 
 
 local resourcePath = reaper.GetResourcePath()
+local script_path = (select(2, reaper.get_action_context())):match('^(.*[/\\])')
 local scriptPath = ({reaper.get_action_context()})[2]
 local scriptDir = scriptPath:match('^(.*[/\\])')
 local rtkPath = resourcePath .. "../libs/"
 local imagesPath = scriptDir .. "../images/"
 local jsonPath = scriptDir .. "../libs/" 
-
+local window_path = script_path .. "../libs/Window.lua"
 package.path = package.path .. ";" 
               .. rtkPath .. "?.lua;" 
               .. jsonPath .. "?.lua;" 
               .. scriptDir .. "?.lua"
-
+local via = dofile(window_path)
 require 'rtk'
 local json = {}--require("json"
 local json = { _version = "0.1.2" }
@@ -538,8 +529,25 @@ local wnd = rtk.Window{
     
 }
 
+wnd.onkeypress = via.onkeypressHandler(via, func, "midi")
+local all_container_boxes = wnd:add(rtk.Container{})
 
-local hbox_app = wnd:add(rtk.HBox{tooltip='click to hide',h=height,y=wnd.h-height},{fillw=true})
+local keepRunning = true
+
+function defer_f()
+    if not keepRunning then return end  -- Если флаг сброшен, прекращаем выполнение
+    all_container_boxes:focus()
+    reaper.defer(defer_f)
+end
+    
+wnd.onclose = function(self, event)
+    keepRunning = false  -- Сбрасываем флаг, чтобы defer_f() прекратил выполнение
+    -- Дополнительный код для закрытия окна
+end
+
+defer_f()
+
+local hbox_app = all_container_boxes:add(rtk.HBox{tooltip='click to hide',h=height,y=wnd.h-height},{fillw=true})
 local app = hbox_app:add(rtk.Application())
 
 
@@ -615,7 +623,6 @@ function makeDarker(color, amount)
         return string.format("#%02x%02x%02x", r, g, b)
 end
 
-
 local up = rtk.Image.icon('up'):scale(120,120,22,7)
 local down = rtk.Image.icon('down'):scale(120,120,22,7)
 local rand = rtk.Image.icon('rand'):scale(120,120,22,7)
@@ -667,13 +674,13 @@ checkAndCreateFile(scriptPath .. "/original.json")
 
 
 local savedState = reaper.GetExtState(sectionID, "pinState")
-local container = wnd:add(rtk.VBox{expand=1,y=-35})
+local container = all_container_boxes:add(rtk.VBox{expand=1,y=-35})
 local vbox2 = container:add(rtk.VBox{y=50,padding=5,x=wnd.w/2-50})
 local vbox = container:add(rtk.VBox{spacing=10})
 
 hb_o = vbox:add(rtk.HBox{y=60,x=10,spacing=2,padding=25})
 bt2_btgen = hb_o:add(rtk.HBox{w=base_wight_button})
-app_hbox=wnd:add(rtk.HBox{padding=2,border='#25252580',bg="#22222250"})
+app_hbox=all_container_boxes:add(rtk.HBox{padding=2,border='#25252580',bg="#22222250"})
 
 local pin_b = app_hbox:add(rtk.Button{border="#3a3a3a35",gradient=3,color=color_apps_def,padding=4,icon=pinned,flat=true})
 
