@@ -1,5 +1,3 @@
--- @description Widgets
--- @author mrtnz
 -- @noindex  
 
 widg = {}

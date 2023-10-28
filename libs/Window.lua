@@ -1,5 +1,3 @@
--- @description Window
--- @author mrtnz
 -- @noindex  
 
 local via = {}
