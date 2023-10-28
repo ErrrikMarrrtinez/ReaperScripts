@@ -1,8 +1,8 @@
--- @description Arpeggiator(test version)
+-- @description MArpeggiator(Chord to arp)
 -- @author mrtnz
--- @version 1.0.37
+-- @version 1.0.38
 -- @changelog
---        test
+--        test44
 -- @provides
 --   ../libs/rtk.lua
 --   ../images/Plus.png
