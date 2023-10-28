@@ -2,13 +2,7 @@
 -- @author mrtnz
 -- @version 1.0.37
 -- @changelog
---        1. Minor optimization and a slight visual change.
---        2. Two new canonical modes added - "Saw Up" and "Saw Down".
---        3. For the direction "Random", besides octave bursts, toggling is now available for notes of the same pitch (with the mode turned off, for example, notes of the same pitch will not repeat except for single notes; with the mode turned on, a chance can be set).
---        [img]https://i.imgur.com/nzBK3Tc.png[/img]
---        4. Entering the last "advanced" mode automatically turns off auto apply.
---        5. There's no mode selection for the current chord in the last mode, but I added the ability to change single notes (not chords) in any mode. I tested this on drums, and it's quite an interesting tool, it's quite a surprise for me :D
---        [img]https://i.imgur.com/JhbVWr8.gif[/img]
+--        test
 -- @provides
 --   ../libs/rtk.lua
 --   ../images/Plus.png
