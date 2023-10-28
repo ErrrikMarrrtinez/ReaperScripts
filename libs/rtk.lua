@@ -1,5 +1,3 @@
--- @description rtk
--- @author mrtnz
 -- @noindex  
 
 
