@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="f66b83f062f175fca87f8db452d8581b29c655fd">
+<index version="1" name="ReaperScripts" commit="e6c4e360b3a9fde26767f20e3c086533a7a5fc0e">
   <category name="Item Editing">
     <reapack name="mrtnz_shuffle selected items down or up(mousewheel).lua" type="script" desc="Shuffle selected items down or up(mousewheel)">
       <metadata>
@@ -171,6 +171,11 @@ Added events:
 LMB - current channel, Shift+LMB create a new channel, Alt+LMB - create a new channel, saving the current one'
 Tooltip with events]]></changelog>
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/fb768c5f1220b2166f277e103e490c5a17e5903f/Tracks/mrtnz_fast%20sidechain%20from%20selected%20tracks%20to%20track%20under%20mouse.lua</source>
+      </version>
+    </reapack>
+    <reapack name="mrtnz_mini fx list.lua" type="script" desc="mrtnz_Mini FX LIST(for track under mouse)">
+      <version name="1.0beta1.0" author="mrtnz" time="2023-10-28T07:27:21Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/e6c4e360b3a9fde26767f20e3c086533a7a5fc0e/Tracks/mrtnz_mini%20fx%20list.lua</source>
       </version>
     </reapack>
   </category>
