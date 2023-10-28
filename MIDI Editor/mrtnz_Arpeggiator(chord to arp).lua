@@ -1,8 +1,8 @@
 -- @description MArpeggiator(chord to arp)
 -- @author mrtnz
--- @version 1.0.38
+-- @version 1.0.39
 -- @changelog
---        test44
+--        Split functions
 
 
 
