@@ -20,7 +20,11 @@
     <reapack name="Functions.lua" type="script" desc="MVarious">
       <metadata> HEAD
         
+ HEAD
       <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+=======
+      <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+>>>>>>> 37e4de3567393151f1ec8c0bba7f046138849074
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
