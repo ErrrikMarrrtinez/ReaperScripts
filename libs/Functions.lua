@@ -1,7 +1,7 @@
 -- @description MVarious
 -- @author mrtnz
 -- @about Functions and various for my scripts.
--- @version 1.0
+-- @version 1.1
 -- @provides
 --    rtk.lua
 --    Widgets.lua
