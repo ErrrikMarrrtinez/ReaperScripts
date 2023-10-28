@@ -18,15 +18,18 @@
   </category>
   <category name="libs">
     <reapack name="Functions.lua" type="script" desc="MVarious">
-      <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+      <metadata> HEAD
+        
+      <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+=======
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+>>>>>>> dc6038d45417514a32f7c57468dc61c1ffd2c6a7
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
 {\pard \ql \f0 \sa180 \li0 \fi0 Functions and various for my scripts.\par}
 }
-]]></description>
-      </metadata>
+]]></description></metadata>
       <version name="1.1" author="mrtnz" time="2023-10-28T07:45:25Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/165ac866c9ec51f7440962d7755eb0ee86f4e100/libs/Functions.lua</source>
         <source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/165ac866c9ec51f7440962d7755eb0ee86f4e100/libs/rtk.lua</source>
@@ -144,7 +147,7 @@
       </metadata>
       <version name="1.0.2" author="mrtnz" time="2023-10-20T14:53:37Z">
 =======
-&gt;&gt;&gt;&gt;&gt;&gt;&gt; 12b787eea33f08598856f4c18a7194957d02f291
+ 12b787eea33f08598856f4c18a7194957d02f291
       <changelog><![CDATA[- Initial release]]></changelog><source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/ef3d61bac03b61f0c604b12f63e4bde77de967f1/MIDI%20Editor/mrtnz_MVelocity.lua</source></version>
       <version name="1.0.23" author="mrtnz" time="2023-10-20T15:05:00Z">
         <changelog><![CDATA[- Initial release]]></changelog>
