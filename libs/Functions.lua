@@ -157,6 +157,20 @@ function M.getFirstTCPTrackBinary()
   end
   return nil, -1
 end
+
+function M.getLastTCPTrackLinear(tcpheight, firsttrack)
+  local numtracks = rpr.CountTracks(CURR_PROJ)
+  if numtracks == 0 then return nil, 0 end
+  local track = rpr.GetTrack(CURR_PROJ, numtracks-1)
+  local posy, _ = M.getTrackPosAndHeight(track)
+  if posy < tcpheight then return track, numtracks end
+  for i = firsttrack, numtracks do
+    local track = rpr.GetTrack(CURR_PROJ, i-1)
+    local posy, height = M.getTrackPosAndHeight(track)
+    if posy + height > tcpheight then return track, i end
+  end
+end
+
 function M.collectVisibleTracks()
     local _, y, _, h = M.getMainWndDimensions()
     local new_y = y/2 + h
@@ -188,10 +202,17 @@ function M.collectVisibleTracks()
     end
     return vistracks
 end
+
+
+
 function M.setTrackHeight(track, height)
   reaper.SetMediaTrackInfo_Value(track, "I_HEIGHTOVERRIDE", height)
   reaper.TrackList_AdjustWindows(false) -- обновляем окно с треками
 end
+
+
+
+
 
 
 function M.updateButtonIndices(vbox, fx_count)
@@ -260,6 +281,14 @@ function M.msg(message)
   reaper.ClearConsole()
   reaper.ShowConsoleMsg(tostring(message) .. "\n")
 end
-
+function M.cursor_checker(window, focusObject)
+  keepRunning = window.in_window 
+  if keepRunning then 
+      focusObject:focus()
+      reaper.defer(function() defer(window, focusObject) end)
+  else return
+  end
+  --window.onclose = function(self, event) keepRunning = false return end
+end
 
 return M
