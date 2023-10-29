@@ -1,10 +1,10 @@
 -- @description MVelocity Tool
 -- @author mrtnz
--- @version 1.0.24
+-- @version 1.0.25
 -- @about
 --  ...
 -- @changelog
---   - Initial release
+--   - Fix font size for vertical sliders (overlap)
 
 
 
@@ -479,6 +479,7 @@ local slider_params = {
     halign = 'left',
     w = base_w,
     lhotzone = 5,
+    fontsize=14,
     rhotzone = 5,
 }
 
