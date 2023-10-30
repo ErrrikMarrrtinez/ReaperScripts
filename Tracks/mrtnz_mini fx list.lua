@@ -1,6 +1,6 @@
 -- @description mrtnz_Mini FX LIST(for track under mouse)
 -- @author mrtnz
--- @version 1.0beta1.0
+-- @version 1.0beta1.01
 
 local script_path = (select(2, reaper.get_action_context())):match('^(.*[/\\])')
 
@@ -20,10 +20,6 @@ rtk.add_image_search_path(images_path, 'dark')
 local enable = rtk.Image.icon('on_on'):scale(120,120,22,7)
 
 
-
-
-
-
 reaper.BR_GetMouseCursorContext()
 local track_under_cursor = reaper.BR_GetMouseCursorContext_Track()
 
@@ -40,106 +36,6 @@ if track_under_cursor == nil then
   reaper.ShowMessageBox("No track available!", "Error", 0)
   return
 end
---[[
-
-local function get_receive_info(target_track)
-    local target_track_idx = reaper.GetMediaTrackInfo_Value(target_track, "IP_TRACKNUMBER")
-    local num_tracks = reaper.CountTracks(0)
-    local info_str = ""
-
-    for i = 0, num_tracks - 1 do
-        local track = reaper.GetTrack(0, i)
-        local num_sends = reaper.GetTrackNumSends(track, 0)
-
-        for j = 0, num_sends - 1 do
-            local dest_track = reaper.BR_GetMediaTrackSendInfo_Track(track, 0, j, 1)
-            local dest_track_idx = reaper.GetMediaTrackInfo_Value(dest_track, "IP_TRACKNUMBER")
-
-            if dest_track_idx == target_track_idx then
-                -- Этот трек посылает сигнал в целевой трек
-                local src_chan = reaper.GetTrackSendInfo_Value(track, 0, j, "I_SRCCHAN") + 1
-                local dest_chan = reaper.GetTrackSendInfo_Value(track, 0, j, "I_DSTCHAN") + 1
-                local volume = reaper.GetTrackSendInfo_Value(track, 0, j, "D_VOL")
-                local volume_dB = 20 * math.log(volume, 10)
-                local pan = reaper.GetTrackSendInfo_Value(track, 0, j, "D_PAN")
-                
-                info_str = info_str .. string.format("From Track %d: audio: %d/%d > %d/%d Pre-Fader(Post-fx), value %.2f dB, pan value %.2f%% L\n",
-                                                     i+1, src_chan, dest_chan, src_chan, dest_chan, volume_dB, pan*100)
-            end
-        end
-    end
-
-    return info_str1
-end
-
-local function get_send_info(track)
-    local num_sends = reaper.GetTrackNumSends(track, 0)
-    if num_sends == 0 then return "No sends found for this track." end
-    
-    local info_str = ""
-    
-    for i = 0, num_sends - 1 do
-        local dest_track = reaper.BR_GetMediaTrackSendInfo_Track(track, 0, i, 1)  -- получаем трек-получатель
-        local dest_track_idx = reaper.GetMediaTrackInfo_Value(dest_track, "IP_TRACKNUMBER")
-        
-        local src_chan = reaper.GetTrackSendInfo_Value(track, 0, i, "I_SRCCHAN") + 1
-        local dest_chan = reaper.GetTrackSendInfo_Value(track, 0, i, "I_DSTCHAN") + 1
-        
-        local volume = reaper.GetTrackSendInfo_Value(track, 0, i, "D_VOL")
-        local volume_dB = 20 * math.log(volume, 10)
-        
-        local pan = reaper.GetTrackSendInfo_Value(track, 0, i, "D_PAN")
-        
-        local midi_src_chan = reaper.GetTrackSendInfo_Value(track, 0, i, "I_MIDIFLAGS") & 0x0F
-        local midi_dest_chan = (reaper.GetTrackSendInfo_Value(track, 0, i, "I_MIDIFLAGS") & 0xF0) >> 4
-        
-        info_str = info_str .. string.format("Track %d: audio: %d/%d > %d/%d Pre-Fader(Post-fx), value %.2f dB, pan value %.2f%% L midi > %d/%d\n",
-                                             dest_track_idx, src_chan, dest_chan, src_chan, dest_chan, volume_dB, pan*100, midi_src_chan, midi_dest_chan)
-    end
-    
-    return info_str
-end
-local function modify_send_params(track, send_idx, param, value)
-    if param == "volume" then
-        local volume = math.exp(value / 20 * math.log(10))
-        reaper.SetTrackSendInfo_Value(track, 0, send_idx, "D_VOL", volume)
-    elseif param == "pan" then
-        reaper.SetTrackSendInfo_Value(track, 0, send_idx, "D_PAN", value / 100)
-    elseif param == "src_chan" then
-        reaper.SetTrackSendInfo_Value(track, 0, send_idx, "I_SRCCHAN", value - 1)
-    elseif param == "dest_chan" then
-        reaper.SetTrackSendInfo_Value(track, 0, send_idx, "I_DSTCHAN", value - 1)
-    elseif param == "midi_src_chan" then
-        local flags = reaper.GetTrackSendInfo_Value(track, 0, send_idx, "I_MIDIFLAGS")
-        flags = (flags & 0xF0) | (value & 0x0F)
-        reaper.SetTrackSendInfo_Value(track, 0, send_idx, "I_MIDIFLAGS", flags)
-    elseif param == "midi_dest_chan" then
-        local flags = reaper.GetTrackSendInfo_Value(track, 0, send_idx, "I_MIDIFLAGS")
-        flags = (flags & 0x0F) | ((value << 4) & 0xF0)
-        reaper.SetTrackSendInfo_Value(track, 0, send_idx, "I_MIDIFLAGS", flags)
-    end
-end
-
-local send_idx = 2 -- индекс send (начиная с 0)
-local param = "pan" -- какой параметр изменить ("volume", "pan", "src_chan", "dest_chan", "midi_src_chan", "midi_dest_chan")
-local value = -20 -- на какое значение изменить параметр
-
-modify_send_params(track_under_cursor, send_idx, "src_chan", 1)  -- 1/2 канал источника
-modify_send_params(track_under_cursor, send_idx, "dest_chan", 3)  -- 3/4 канал назначения
-
-
-
-local send_info = get_send_info(track_under_cursor)
-]]
---[[
-func.msg(send_info)
-local receive_info = get_receive_info(track_under_cursor)
-
-func.msg("Receives:\n" .. receive_info)]]
-
-
-
-
 
 
 local original_height = 0
@@ -201,7 +97,7 @@ local function update_proportion()
 end
 local dragging_2, initialMouseX, initialWidth = false, 0, 0
 local defaultColor, lastWidth = '#6F8FAF60', nil
-local proportion = tonumber(reaper.GetExtState("Your_Section", "proportion")) or 0.5
+local proportion = tonumber(reaper.GetExtState("Your_Section", "proportion")) or 0.99
 vbox:attr('w', tcpWidth * proportion)
 
 local spacer = horisontal_wd:add(rtk.Spacer{
@@ -556,7 +452,6 @@ local function main()
 end
 
 main() -- начальный запуск
-
 
 
 
