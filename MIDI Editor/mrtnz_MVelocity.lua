@@ -1,19 +1,21 @@
 -- @description MVelocity Tool
 -- @author mrtnz
--- @version 1.0.25
+-- @version 1.0.26
 -- @about
 --  ...
 -- @changelog
---   - Fix font size for vertical sliders (overlap)
-
-
+--   - The keyboard passes through the script window
 
 
 package.path = string.format('%s/Scripts/rtk/1/?.lua;%s?.lua;', reaper.GetResourcePath(), "")
 local script_path = string.match(({reaper.get_action_context()})[2], "(.-)([^\\/]-%.?([^%.\\/]*))$")
 package.path = package.path .. ";" .. script_path .. "../libs/?.lua"
 local rtk = require("rtk")
+local window_path = script_path .. "../libs/Window.lua"
+local functions_path = script_path .. "../libs/Functions.lua"
 
+local func = dofile(functions_path)
+local via = dofile(window_path)
 
 initialW=415
 initialH=400
@@ -29,16 +31,12 @@ local wnd = rtk.Window{
     
 }
 wnd:open()
+
 wnd.onresize=function(self, w, h)
     scale_2 = math.min(w / initialW, h / initialH)
     rtk.scale.user = scale_2
     self:reflow()
 end
-
-
-
-
-
 main_line_color = "#5a5a5a"
 SimpleSlider = rtk.class('SimpleSlider', rtk.Spacer)
 SimpleSlider.register{
@@ -93,7 +91,7 @@ function SimpleSlider:set_from_mouse_y(y)
     self:animate{
         attr = 'value',
         dst = value,
-        duration = 0.0070
+        duration = 0.001
     }
 end
 function adjust_brightness(color, amount)
@@ -286,8 +284,17 @@ local slider22 = shelf_1:add(rtk.Slider{
     trackcolor = '#b7b1b7',
     thumbcolor='transparent',
     color = rand_color_slider,
-    ticks = false
+    ticks = false,
+    step=1,
 })
+
+
+slider22.onmousewheel = function(self, event)
+    return func.mousewheel(self, event, 10)
+end
+
+
+
 local txt_rang = shelf_1:add(rtk.Text{font=font,x=49,padding=5,'RANGE'})
 local shelf_1_1 = shelf_1:add(rtk.HBox{x=-1,spacing=1})
 local min = shelf_1_1:add(rtk.Text{x=5, y=-2, z=1, '25', w=24})
@@ -794,10 +801,6 @@ local function randomizeTargetVelocities()
   end
 end
 local keepRunning = true 
-
-wnd.onclose = function()
-  keepRunning = false 
-end
 
 local function deferFunction()
   if not keepRunning then return end 
@@ -1366,5 +1369,24 @@ function SimpleSlider:_handle_mousedown(event)
     handle_click(self, event)
     
 end
+local keepRunningg = true
 
-reaper.atexit(function() reaper.defer(function() end) end)
+function defer_f()
+    if not keepRunningg then return end 
+    mainhb_b:focus()
+    reaper.defer(defer_f)
+end
+
+
+wnd.onclose = function()
+  keepRunning = false 
+  reaper.atexit(function() keepRunning = false end)
+  keepRunningg = false
+  rtk.quit()
+end
+wnd.onkeypress = via.onkeypressHandler(via, func, "midi")
+
+mainhb_b:focus()
+defer_f()
+
+reaper.atexit(function() keepRunning = false end)
