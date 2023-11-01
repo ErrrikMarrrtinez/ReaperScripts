@@ -1,8 +1,8 @@
--- @description Script: Trim-touch track(focused fx or under mouse or selection or last touched)
+-- @description Trim-touch track(focused fx or under mouse or selection or last touched)
 -- @author mrtnz
--- @version 1.0
+-- @version 1.01
 -- @about
---    trim-touch track focused fx or under mouse or selection or last touched
+--    Trim-touch track focused fx or under mouse or selection or last touched
 
 
 
