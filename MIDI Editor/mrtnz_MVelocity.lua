@@ -1,10 +1,10 @@
 -- @description MVelocity Tool
 -- @author mrtnz
--- @version 1.0.26
+-- @version 1.0.27
 -- @about
 --  ...
 -- @changelog
---   - The keyboard passes through the script window
+--   - fix focus buttons
 
 
 package.path = string.format('%s/Scripts/rtk/1/?.lua;%s?.lua;', reaper.GetResourcePath(), "")
@@ -519,7 +519,7 @@ button_add_sliders.onclick = add_slider
 button_remove_sliders.onclick = remove_slider 
 
 
-
+local keepRunningg = true
 
 
 local add_timer_running = false
@@ -549,6 +549,7 @@ local function start_add_timer()
         end
     end
     timer()  -- Запуск таймера
+    keepRunningg = false
 end
 
 local function start_remove_timer()
@@ -566,17 +567,20 @@ local function start_remove_timer()
         end
     end
     timer()  -- Запуск таймера
+    keepRunningg = false
 end
 
 -- Функции для остановки таймеров
 local function stop_add_timer()
     add_timer_running = false
     add_call_count = 0  -- сброс счетчика вызовов при остановке таймера
+    keepRunningg = true
 end
 
 local function stop_remove_timer()
     remove_timer_running = false
     remove_call_count = 0  -- сброс счетчика вызовов при остановке таймера
+    keepRunningg = true 
 end
 
 -- Определение обработчиков событий для кнопок
@@ -1369,7 +1373,6 @@ function SimpleSlider:_handle_mousedown(event)
     handle_click(self, event)
     
 end
-local keepRunningg = true
 
 function defer_f()
     if not keepRunningg then return end 
