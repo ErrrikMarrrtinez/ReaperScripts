@@ -76,18 +76,7 @@ function widg.CircleWidget2:_drawTriangle(x, y, outerRadius, overlap, triHeight,
     local triX3, triY3 = x, y - triHeight + yOffset
     gfx.triangle(triX1, triY1, triX2, triY2, triX3, triY3)
 end
---[[
-function widg.CircleWidget2:_drawInnerCircleAndText(x, y, innerCircleRadius, percentage)
-    gfx.circle(x, y, innerCircleRadius, 1)
-    local labelText = percentage .. "%"
-    self:setcolor(self.calc.textcolor)
-    rtk.Font:set(self.calc.font, self.calc.fontsize)
-    gfx.x = math.floor(x - gfx.measurestr(labelText) * 0.5 + self.calc.font_x + 0.5)
-    gfx.y = y - 45 + self.calc.font_y
-    gfx.drawstr(labelText)
-end
 
-]]
 function widg.CircleWidget2:_drawInnerCircleAndText(x, y, innerCircleRadius, percentage)
     gfx.circle(x, y, innerCircleRadius, 1)
     local labelText = percentage .. "%"
@@ -271,4 +260,261 @@ end
 
 widg.CircleWidget2._handle_dragend = widg.CircleWidget2._handle_dragend_or_mouseup
 widg.CircleWidget2._handle_mouseup = widg.CircleWidget2._handle_dragend_or_mouseup
+]]
+
+
+--[[
+
+
+
+package.path = string.format('%s/Scripts/rtk/1/?.lua;%s?.lua;', reaper.GetResourcePath(), entrypath)
+require 'rtk'
+
+local script_path = (select(2, reaper.get_action_context())):match('^(.*[/\\])')
+local widg = script_path .. "Widgets.lua"
+
+local widg = dofile(widg)
+
+
+
+SimpleSlider = rtk.class('SimpleSlider', rtk.Spacer)
+SimpleSlider.register{
+    value = rtk.Attribute{default=0},
+    color = rtk.Attribute{type='color', default='crimson'},
+    minw = 5,
+    roundrad = rtk.Attribute{default=5},
+    h = 1.0,
+    autofocus = true,
+    ttype = rtk.Attribute{default=1},
+    onchange = rtk.Attribute{default=nil},
+    textcolor = rtk.Attribute{type='color', default='#ffffff'},
+    fontsize = rtk.Attribute{default=16},
+    font_x = rtk.Attribute{default=2},
+    font_y = rtk.Attribute{default=0},
+}
+
+function SimpleSlider:initialize(attrs, ...)
+    rtk.Spacer.initialize(self, attrs, SimpleSlider.attributes.defaults, ...)
+end
+
+
+
+function SimpleSlider:_handle_draw(offx, offy, alpha, event)
+    local calc = self.calc
+    local x = math.floor(offx + calc.x)
+    local y = math.floor(offy + calc.y)
+    local w = math.floor(calc.w)
+    local h = math.floor(calc.h)
+    local round_radius = calc.roundrad
+    local thickness = 0.5
+    local aa = true
+
+    -- Задний цвет
+    self:setcolor('#481c24')
+    rtk.gfx.roundrect(x, y, w, h, round_radius, thickness, aa)
+    
+    -- Передний цвет
+    if calc.value < 0.02 then
+        self:setcolor('transparent')
+    else
+        self:setcolor('#e0143c')
+    end
+
+    if calc.ttype == 1 then
+        local slider_h = math.floor(h * calc.value)
+        rtk.gfx.roundrect(x, y + h - slider_h, w, slider_h, round_radius, thickness, aa)
+    else
+        local slider_w = math.floor(w * calc.value)
+        if slider_w < round_radius * 2 then
+            round_radius = slider_w / 2
+        end
+        rtk.gfx.roundrect(x, y, slider_w, h, round_radius, thickness, aa)
+    end
+    
+    local displayValue = math.floor(self.calc.value * 100)
+    
+    -- Установка шрифта и цвета текста
+    self:setcolor(self.calc.textcolor)
+    gfx.setfont(1, self.calc.font, self.calc.fontsize)
+    
+    -- Расположение текста внутри слайдера
+    gfx.x = x + (w / 2) - (gfx.measurestr(tostring(displayValue)) / 2) + self.calc.font_x
+    gfx.y = y + self.calc.font_y
+    
+    -- Отображение значения
+    gfx.drawstr(tostring(displayValue))
+end
+
+
+function msg(message)
+  reaper.ClearConsole()
+  reaper.ShowConsoleMsg(tostring(message) .. "\n")
+end
+
+function SimpleSlider:set_from_mouse(y_or_x)
+    local dimension = self.calc.ttype == 1 and self.calc.h or self.calc.w
+    local pos = self.calc.ttype == 1 and (dimension - (y_or_x - self.clienty)) or (y_or_x - self.clientx)
+    local value = rtk.clamp(pos / dimension, 0, 1)
+    self:sync('value', value)
+    self:animate{
+        attr = 'value',
+        dst = value,
+        duration = 25
+    }
+end
+local prevValue = 0 -- Переменная для хранения предыдущего значения
+
+function SimpleSlider:_handle_mousedown(event)
+    prevValue = self.calc.value -- Сохраняем текущее значение
+    self:set_from_mouse(self.calc.ttype == 1 and event.y or event.x)
+end
+
+function SimpleSlider:_handle_mouseup(event)
+    -- Сравниваем текущее значение с предыдущим
+    if self.calc.value ~= prevValue then
+        local displayValue = math.floor(self.calc.value * 100)
+        local callback = self.calc.onchange
+        if callback then
+            callback(displayValue)
+        end
+    end
+end
+
+
+
+function SimpleSlider:_handle_dragstart(event)
+    if event.button == rtk.mouse.BUTTON_LEFT then
+        self:set_from_mouse(self.calc.ttype == 1 and event.y or event.x)
+        return {
+            initial_pos = self.calc.ttype == 1 and event.y or event.x,
+            initial_value = self.calc.value
+        }, false
+    end
+end
+
+function SimpleSlider:_handle_dragmousemove(event, args)
+    local dpos = (self.calc.ttype == 1 and event.y or event.x) - args.initial_pos
+    local dimension = self.calc.ttype == 1 and self.calc.h or self.calc.w
+    local delta_value = dpos / dimension
+    local new_value = self.calc.ttype == 1 and (args.initial_value - delta_value) or (args.initial_value + delta_value)
+    new_value = rtk.clamp(new_value, 0, 1)
+    
+    if new_value ~= self.calc.value then
+        self:animate{
+            attr = 'value',
+            dst = new_value,
+            duration = 0.0001
+        }
+        -- Вычислим displayValue
+        local displayValue = math.floor(new_value * 100)
+        
+        -- Проверка на наличие callback функции onChange
+        local callback = self.calc.onchange
+        if callback then
+            callback(displayValue) -- Передаем displayValue вместо new_value
+        else
+        end
+    end
+end
+
+
+
+
+
+
+
+local function main()
+    local win = rtk.Window{w=600, h=400, padding=20}
+    hbox_2=win:add(rtk.VBox{spacing = 5})
+    
+    local group = hbox_2:add(rtk.HBox{spacing=5,expand=1})
+    
+    local group2 = hbox_2:add(rtk.HBox{z=1,expand=1})
+    
+    group:add(SimpleSlider{roundrad=5,h=120,w=30,ttype=1})
+    group:add(SimpleSlider{roundrad=5,h=120,w=30,ttype=1})
+    group:add(SimpleSlider{roundrad=5,h=120,w=30,ttype=1})
+    group:add(SimpleSlider{roundrad=5,h=120,w=30,ttype=1})
+    group:add(SimpleSlider{roundrad=5,h=120,w=30,ttype=1})
+    round_size2=32
+    
+    local values = {
+        { "1/1", 3840 },
+        { "1/2", 1920 },
+        { "1/3", 1280 },
+        { "1/4", 960 },
+        { "1/6", 640 },
+        { "1/8", 480 },
+        { "1/12", 320 },
+        { "1/16", 240 },
+        { "1/24", 160 },
+        { "1/32", 120 },
+        { "1/48", 80 },
+        { "1/64", 60 },
+        { "1/128", 30 }
+    }
+    
+    local text = rtk.Text{x=10, y=5, size=14}
+    local ar2 = group2:add(SimpleSlider{
+    w=170,h=30,roundrad=2,color="#3a3a3a",lhotzone=5, rhotzone=5, ttype = 2,
+    onchange = function(value)
+        local index = math.floor((value / 100) * #values) + 1
+        local selected_value = values[index]
+    
+        if selected_value then
+            text:attr('text', selected_value[1])
+        end
+    end
+    })
+    
+    local ar = group2:add(SimpleSlider{
+        x=5,
+        w=25,
+        h=30,
+        roundrad=5,
+        color="#3a3a3a",
+        lhotzone=5,
+        rhotzone=5,
+        ttype = 1, 
+        
+    })
+    
+    group2:add(text)
+    win:open()
+    local vabox = hbox_2:add(rtk.Container{})
+    local spacer = rtk.Spacer{w=85,h=30,}
+    -- Add the spacer centered on the window (so now the spacer will be
+    -- half the width/height of the window)
+    vabox:add(spacer, {halign='center', valign='center'})
+    -- Create a custom draw handler that draws a circle centered in the
+    -- spacer's calculated box.
+    spacer.ondraw = function(self, offx, offy, alpha, event)
+        self:setcolor('#231709', alpha)
+        -- Must draw relative to the supplied offx, offy.
+        rtk.gfx.roundrect(
+            offx + self.calc.x-1,
+            offy + self.calc.y-1,
+            self.calc.w+2,
+            self.calc.h+2,
+            8,
+            1, -- fill
+            1  -- antialias
+        )
+        self:setcolor('#964B00', alpha)
+        rtk.gfx.roundrect(
+            offx + self.calc.x,
+            offy + self.calc.y,
+            self.calc.w,
+            self.calc.h,
+            5,
+            0, -- fill
+            1  -- antialias
+        )
+    end
+    spacer.onclick = function(self, event)
+  
+    end
+end
+rtk.call(main)
+
 ]]

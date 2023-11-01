@@ -1,11 +1,11 @@
 -- @description Trim-touch track(focused fx or under mouse or selection or last touched)
 -- @author mrtnz
--- @version 1.01
+-- @version 1.02
 -- @about
 --    Trim-touch track focused fx or under mouse or selection or last touched
 
 
-
+ 
 local start_time = reaper.time_precise()
 local key_state, KEY = reaper.JS_VKeys_GetState(start_time - 2), nil
 

@@ -1,8 +1,10 @@
 -- @description MArpeggiator(chord to arp)
 -- @author mrtnz
--- @version 1.0.39
+-- @version 1.0.40
 -- @changelog
---        Split functions
+--        - keyboard passes through the script window, 
+--        - arpeggio is inserted taking into account the current timebase of the midi item
+--        - (also taking into account the stretch of the item)
 
 
 
@@ -481,25 +483,7 @@ local wnd = rtk.Window{
     maxw=1000,
     
 }
-
-wnd.onkeypress = via.onkeypressHandler(via, func, "midi")
 local all_container_boxes = wnd:add(rtk.Container{})
-
-local keepRunning = true
-
-function defer_f()
-    if not keepRunning then return end  -- Если флаг сброшен, прекращаем выполнение
-    all_container_boxes:focus()
-    reaper.defer(defer_f)
-end
-    
-wnd.onclose = function(self, event)
-    keepRunning = false  -- Сбрасываем флаг, чтобы defer_f() прекратил выполнение
-    -- Дополнительный код для закрытия окна
-end
-
-defer_f()
-
 local hbox_app = all_container_boxes:add(rtk.HBox{tooltip='click to hide',h=height,y=wnd.h-height},{fillw=true})
 local app = hbox_app:add(rtk.Application())
 
@@ -1821,10 +1805,6 @@ wnd.onresize = function(self, w, h)
 end
     
     
-wnd.onclose = function(self)
-    reaper.SetExtState(sectionID, "windowPosX", tostring(self.x), true)
-    reaper.SetExtState(sectionID, "windowPosY", tostring(self.y), true)
-end
 reset_b.onclick = function() applyScale(1.0) end
 btn_generate.onmouseleave=function(self)
     self:attr('icon', gen)
@@ -2363,8 +2343,7 @@ end
 --local grid_values = {1920, 1280, 960, 640, 480, 320, 240, 160, 120, 80, 60}
 
 
-
-
+  
 
 
 local function save_notes_to_json(filename)
@@ -2876,213 +2855,8 @@ local function createArpeggio(direction, g_length, alternateStep, alternateLengt
     insertArpeggios(chords, take, g_length, alternateStep, alternateLength)
 end
 
-
-
---[[
-local function sortChord(chord, current_mode)
-  table.sort(chord, function(a, b)
-    if current_mode == "up" then
-      return a.pitch < b.pitch
-    else
-      return a.pitch > b.pitch
-    end
-  end)
-end
-
-local function createArpeggio(direction, g_length, alternateStep, alternateLength)
-    local take = reaper.MIDIEditor_GetTake(reaper.MIDIEditor_GetActive())
-    if not take then return end
-    local chord_gap_threshold = -1
-    reaper.MIDI_Sort(take)
-    adjustNoteLengths()
-    local _, noteCount = reaper.MIDI_CountEvts(take)
-    local chords = {}
-    local chord = {}
-    local lastEnd = 0
-    -- 1) Gathering notes into chords
-    local hasSelectedNotes = false
-    for i = 0, noteCount - 1 do
-        local retval, selected, _, _, _, _, _, _ = reaper.MIDI_GetNote(take, i)
-        if selected then
-            hasSelectedNotes = true
-            break
-        end
-    end
-
-    for i = 0, noteCount - 1 do
-        local retval, selected, _, startpos, endpos, _, pitch, velocity = reaper.MIDI_GetNote(take, i)
-
-        local noteLength = endpos - startpos
-        if (not hasSelectedNotes or selected) and noteLength > 120 then
-            if #chord > 0 and startpos - chord[#chord].endpos > 10 then -- You can change this threshold
-                if #chord > 1 then
-                    sortChord(chord, current_mode)
-                    table.insert(chords, chord)
-                else
-                    table.insert(chords, {{startpos = chord[1].startpos, endpos = chord[1].endpos, pitch = chord[1].pitch}})
-                end
-                chord = {}
-            end
-            table.insert(chord, {startpos = startpos, endpos = endpos, pitch = pitch, velocity = velocity})
-        end
-    end
-    if #chord == 1 then
-        table.insert(chords, {{startpos = chord[1].startpos, endpos = chord[1].endpos, pitch = chord[1].pitch}})
-    elseif #chord > 1 then
-        sortChord(chord, current_mode)
-        table.insert(chords, chord)
-    end
-
-    -- 2) Delete all notes
-    for i = noteCount - 1, 0, -1 do
-        local _, selected, _, startpos, endpos, _, _, _ = reaper.MIDI_GetNote(take, i)
-        local noteLength = endpos - startpos
-        if (not hasSelectedNotes or selected) and noteLength > 120 then
-            reaper.MIDI_DeleteNote(take, i)
-        end
-    end
-
-    -- 3) Insert arpeggios for each chord
-    local chordZones = {}
-    for chord_index, chord in ipairs(chords) do
-        local insert_position = chord[1].startpos
-        local end_position = chord[#chord].endpos
-
-        table.insert(chordZones, {start = insert_position, stop = end_position})
-
-        local current_step_grid = step_grid[(chord_index - 1) % #step_grid + 1]
-        local current_mode
-
-        if step_mode == 3 then
-            current_mode = current_step_grid.mode or mode
-        else
-            current_mode = mode
-        end
-
-        if #chord == 1 then -- Если есть только одна нота
-            while insert_position < end_position do
-                local note_length = g_length
-                if insert_position + note_length > end_position then
-                    note_length = end_position - insert_position
-                end
-
-                reaper.MIDI_InsertNote(take, true, false, insert_position, insert_position + note_length, 0, chord[1].pitch, 100, false)
-                insert_position = insert_position + note_length
-            end
-        else
-            local note = 1
-            local last_note = nil
-
-            local current_step_grid = step_grid[(chord_index - 1) % #step_grid + 1]
-
-            local main_count = 0 -- Основной счетчик для while цикла
-            local step_counts = {}
-            for i = 1, #current_step_grid do
-                step_counts[i] = 0
-            end
-            local current_length = 100  -- значение по умолчанию
-            local current_octave = 0 -- Эта переменная будет хранить текущую октаву
-            while insert_position < end_position do
-                local note_length = g_length
-                local current_velocity = velocity -- Будем использовать эту переменную вместо оригинальной
-
-                main_count = main_count + 1  -- Увеличиваем основной счетчик
-
-                if step_mode == 2 and alternateStep and alternateLength then
-                    if main_count % alternateStep == 0 then
-                        note_length = alternateLength
-                    end
-                elseif step_mode == 3 then
-                        local matched = false
-                        
-                        if current_step_grid then
-                            for i = #current_step_grid, 1, -1 do
-                                step_counts[i] = step_counts[i] + 1
-                                local v = current_step_grid[i]
-                
-                                if step_counts[i] % v.step == 0 then
-                                    note_length = v.grid_step
-                                    if v.velocity then
-                                        current_velocity = v.velocity
-                                    end
-                                    if v.octave then
-                                        current_octave = v.octave
-                                    end
-                                    if v.ratchet then
-                                        ratchet = v.ratchet
-                                    else
-                                        ratchet = 1
-                                    end
-                                    if v.length then
-                                        current_length = v.length
-                                    end
-                                    matched = true
-                                    break
-                                end
-                            end
-                        end
-
-                    if not matched and step_mode ~= 3 then
-                        current_velocity = velocity
-                        current_octave = octave
-                    end
-                else
-                    current_velocity = chord[note].velocity
-                end
-                sortChord(chord, current_mode)
-                if current_mode == "random" then
-                    repeat
-                        note = math.random(#chord)
-                    until note ~= last_note or #chord == 1
-                end
-
-                last_note = note
-
-                if insert_position + note_length > end_position then
-                    note_length = end_position - insert_position
-                end
-
-                -- Взрыв октавы
-                local pitch = chord[note].pitch + (current_octave * 12)
-                local new_note_length = note_length * (current_length / 100)
-                if current_length == 0 then
-                    new_note_length = note_length
-                else
-                    new_note_length = note_length * (current_length / 100)
-                end
-                if octave ~= 0 then
-                    local randomOctaveShift = math.random(-octave, octave) * 12
-                    pitch = pitch + randomOctaveShift -- Смещение на случайное количество октав вверх или вниз, сохраняя тон
-                end
-               if ratchet and ratchet > 1 then
-                   splitNote(take, insert_position, insert_position + new_note_length, pitch, current_velocity, ratchet)
-               else
-                   reaper.MIDI_InsertNote(take, true, false, insert_position, insert_position + new_note_length, 0, pitch, current_velocity, false)
-               end
-                
-                reaper.MIDI_InsertNote(take, true, false, insert_position, insert_position + note_length, 0, pitch, current_velocity, false)
-                insert_position = insert_position + note_length
-                
-                if current_mode ~= "random" then
-                    note = (note % #chord) + 1
-                end
-            end
-        end
-    end
-    if extendNotesFlag then
-        for _, zone in ipairs(chordZones) do
-            extendNotesToEndOfBar(zone.start, zone.stop)
-        end
-    end
-
-    save_notes_to_json("modify.json")
-end
-
-reaper.Undo_BeginBlock()
-
-reaper.Undo_EndBlock("Create Arpeggio from Chords", -1)]]
-
 local currentValue = 0
+
 CircleWidget = rtk.class('CircleWidget', rtk.Spacer)
 CircleWidget.register{
     radius = rtk.Attribute{default=40},
@@ -3306,6 +3080,8 @@ CircleWidget.ondragmousemove = function(self, event, dragarg)
 end
 
 
+
+
 CircleWidget.onmousewheel = function(self, event)
     local _, _, _, wheel_y = tostring(event):find("wheel=(%d+.?%d*),(-?%d+.?%d*)")
     wheel_y = tonumber(wheel_y)
@@ -3330,8 +3106,7 @@ CircleWidget.onmousewheel = function(self, event)
     return true
 end
 
-
-
+  
 function math.sign(x)
     return x > 0 and 1 or x < 0 and -1 or 0
 end
@@ -3563,24 +3338,52 @@ circt1=slider_line:add(CircleWidget{scale=scale_2,radius=50,x=15,ref='circle', w
     end
     
 
+
 function CircleWidget:onchange()
+    local take = reaper.MIDIEditor_GetTake(reaper.MIDIEditor_GetActive())
+    local QN1 = reaper.MIDI_GetPPQPosFromProjQN(take, 0)
+    local QN2 = reaper.MIDI_GetPPQPosFromProjQN(take, 1)
+    local TIMEBASE = tonumber (string.format('%d', QN2 - QN1))
+    
+    local adapted_grid_values = {}
+    for i = 1, #grid_values do
+        adapted_grid_values[i] = grid_values[i] * (TIMEBASE / 960)
+    end
     if currentValue == 0 then
         original_notes()
     else
-        local step = math.floor(currentValue + 0.5)  -- Округляем до ближайшего целого
+        local step = math.floor(currentValue + 0.5) 
     
-        if lastRoundedValue ~= step then  -- Проверяем, изменилось ли округленное значение
-            lastRoundedValue = step  -- Обновляем последнее округленное значение
+        if lastRoundedValue ~= step then  
+            lastRoundedValue = step 
     
             if step == 0 then
-                -- Твой код для обработки step == 0
+                 --.
             else
-                grid = grid_values[step]
+                grid = adapted_grid_values[step] 
                 p_run()
+
             end
         end
-        --reaper.ShowConsoleMsg("currentValue: " .. tostring(currentValue) .. " Rounded Step: " .. tostring(step) .. "\n")
+        
     end
-     
 end
+local keepRunning = true
+wnd.onclose = function(self)
+    reaper.SetExtState(sectionID, "windowPosX", tostring(self.x), true)
+    reaper.SetExtState(sectionID, "windowPosY", tostring(self.y), true)
+    
+    keepRunning = false
+end
+
+wnd.onkeypress = via.onkeypressHandler(via, func, "midi")
+
+function defer_f()
+    if not keepRunning then return end 
+    all_container_boxes:focus()
+    reaper.defer(defer_f)
+end
+defer_f()
+
+
 wnd:open()

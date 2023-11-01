@@ -1,7 +1,7 @@
 -- @description MVarious
 -- @author mrtnz
 -- @about Functions and various for my scripts.
--- @version 1.21
+-- @version 1.22
 -- @provides
 --   ../images/Plus.png
 --   ../images/add.png
@@ -275,7 +275,12 @@ function M.msg(message)
   reaper.ClearConsole()
   reaper.ShowConsoleMsg(tostring(message) .. "\n")
 end
-
+function M.mousewheel(self, event, mod)
+  local _, _, _, wheel_y = tostring(event):find("wheel=(%d+.?%d*),(-?%d+.?%d*)")
+  local c_val = tonumber(wheel_y) > 0 and self.value - self.step-mod or self.value + self.step+mod
+  self:attr('value', math.max(self.min, math.min(self.max, c_val)))
+  return true
+end
 function M.cursor_checker(window, focusObject)
   keepRunning = window.in_window 
   if keepRunning then 
@@ -381,4 +386,5 @@ func.msg(send_info)
 local receive_info = get_receive_info(track_under_cursor)
 
 func.msg("Receives:\n" .. receive_info)]]
+reaper.atexit(function() reaper.defer(function() end) end)
 return M
