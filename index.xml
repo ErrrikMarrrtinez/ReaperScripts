@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="804547fb9526b9f62cb920b9c05e06ad04b02f73">
+<index version="1" name="ReaperScripts" commit="093e3cd91be2a8a9936e46df0b6e6678b8ac49cd">
   <category name="Item Editing">
     <reapack name="mrtnz_shuffle selected items down or up(mousewheel).lua" type="script" desc="Shuffle selected items down or up(mousewheel)">
       <metadata>
@@ -13,6 +13,20 @@
       </metadata>
       <version name="1.0" author="mrtnz" time="2023-10-13T09:11:27Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/9f852cff5237378906e40269f5c9a6b28671c92b/Item%20Editing/mrtnz_shuffle%20selected%20items%20down%20or%20up(mousewheel).lua</source>
+      </version>
+    </reapack>
+    <reapack name="mrtnz_split item under mouse cursor and remove left or right side.lua" type="script" desc="Split and cut item under mouse cursor and remove left or right side.lua">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 The script allows splitting the item under the cursor, removing the smaller part, while preserving the larger one.\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0" author="mrtnz" time="2023-11-03T09:56:14Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/093e3cd91be2a8a9936e46df0b6e6678b8ac49cd/Item%20Editing/mrtnz_split%20item%20under%20mouse%20cursor%20and%20remove%20left%20or%20right%20side.lua</source>
       </version>
     </reapack>
   </category>
@@ -410,7 +424,7 @@ Tooltip with events]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
