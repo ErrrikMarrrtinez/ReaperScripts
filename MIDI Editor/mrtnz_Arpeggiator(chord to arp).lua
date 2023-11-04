@@ -1,6 +1,6 @@
 -- @description MArpeggiator(chord to arp)
 -- @author mrtnz
--- @version 1.0.41
+-- @version 1.0.42
 -- @changelog
 --        - keyboard passes through the script window, 
 --        - arpeggio is inserted taking into account the current timebase of the midi item
@@ -19,24 +19,23 @@ local rtkPath = resourcePath .. "../libs/"
 local imagesPath = scriptDir .. "../images/"
 local jsonPath = scriptDir .. "../libs/" 
 
--- Добавляем проверку операционной системы
-local os = reaper.GetOS()
-if os:find('Win') then
-    window_path = script_path .. "\\..\\libs\\Window.lua"
-    package.path = package.path .. ";" 
-                  .. rtkPath .. "\\?.lua;" 
-                  .. jsonPath .. "\\?.lua;" 
-                  .. scriptDir .. "\\?.lua"
+-- Определение разделителя пути в зависимости от операционной системы
+local separator = ""
+if reaper.GetOS() == "Win32" or reaper.GetOS() == "Win64" then
+    separator = "\\"
 else
-    window_path = script_path .. "/../libs/Window.lua"
-    package.path = package.path .. ";" 
-                  .. rtkPath .. "/?.lua;" 
-                  .. jsonPath .. "/?.lua;" 
-                  .. scriptDir .. "/?.lua"
+    separator = "/"
 end
+
+window_path = script_path .. separator .. ".." .. separator .. "libs" .. separator .. "Window.lua"
+package.path = package.path .. ";" 
+              .. rtkPath .. separator .. "?.lua;" 
+              .. jsonPath .. separator .. "?.lua;" 
+              .. scriptDir .. separator .. "?.lua"
 
 local via = dofile(window_path)
 require 'rtk'
+
 local json = {}--require("json"
 local json = { _version = "0.1.2" }
 

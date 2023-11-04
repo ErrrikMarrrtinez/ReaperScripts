@@ -1,7 +1,7 @@
 -- @description MVarious
 -- @author mrtnz
 -- @about Functions and various for my scripts.
--- @version 1.22
+-- @version 1.23
 -- @provides
 --   ../images/Plus.png
 --   ../images/add.png
@@ -41,9 +41,9 @@
 --   ../images/adown.png
 --   ../images/chance.png
 --   ../images/on_on.png
---    rtk.lua
---    Widgets.lua
---    Window.lua
+--   rtk.lua
+--   Widgets.lua
+--   Window.lua
 
 local M = {}
 local rpr=reaper
