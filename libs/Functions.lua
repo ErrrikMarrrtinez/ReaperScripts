@@ -1,7 +1,7 @@
 -- @description MVarious
 -- @author mrtnz
 -- @about Functions and various for my scripts.
--- @version 1.23
+-- @version 1.24
 -- @provides
 --   ../images/Plus.png
 --   ../images/add.png
@@ -99,9 +99,12 @@ function M.getMainWndDimensions()
     local hwnd = reaper.GetMainHwnd() 
     return M.getClientBounds(hwnd)  
 end
-
+local MASTER_GAP = MFXlist and MFXlist.MASTER_GAP or 5 
 
 function M.getTrackPosAndHeight(track)
+  if not rpr.ValidatePtr(track, "MediaTrack*") then
+    return nil, nil 
+  end
   local height = rpr.GetMediaTrackInfo_Value(track, "I_WNDH")
   local posy = rpr.GetMediaTrackInfo_Value(track, "I_TCPY")
   return posy, height
@@ -137,7 +140,7 @@ function M.getFirstTCPTrackBinary()
     local master = rpr.GetMasterTrack(CURR_PROJ)
     local posy, height = M.getTrackPosAndHeight(master)
     if height + posy > 0 then return master, 0 end
-    if height + posy + MFXlist.MASTER_GAP >= 0 then fixForMasterTCPgap = true end
+    if height + posy + MASTER_GAP >= 0 then fixForMasterTCPgap = true end
   end
   local numtracks = rpr.CountTracks(CURR_PROJ)
   if numtracks == 0 then return nil, -1 end
@@ -188,6 +191,10 @@ function M.collectVisibleTracks()
         local track = reaper.GetTrack(0, i-1)
         local posy, trackHeight = M.getTrackPosAndHeight(track)
         
+        if not posy or not trackHeight then
+            goto continue 
+        end
+        
         if posy < 0 then
             trackHeight = trackHeight + posy
             posy = 0
@@ -203,9 +210,12 @@ function M.collectVisibleTracks()
             }
             table.insert(vistracks, trinfo)
         end
+        
+        ::continue::
     end
     return vistracks
 end
+
 
 function M.setTrackHeight(track, height)
   reaper.SetMediaTrackInfo_Value(track, "I_HEIGHTOVERRIDE", height)
