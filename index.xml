@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="d14ebb6ddbb1a756441638f55ef298678178e03e">
+<index version="1" name="ReaperScripts" commit="b9416cf23778688ed7c2a820fd82a0724b718a6e">
   <category name="Item Editing">
     <reapack name="mrtnz_shuffle selected items down or up(mousewheel).lua" type="script" desc="Shuffle selected items down or up(mousewheel)">
       <metadata>
@@ -467,6 +467,11 @@ Tooltip with events]]></changelog>
       </version>
       <version name="1.0beta1.01" author="mrtnz" time="2023-10-30T10:57:16Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/587ed5d3ca8a1ea697c351b25801b049172af0b4/Tracks/mrtnz_mini%20fx%20list.lua</source>
+      </version>
+    </reapack>
+    <reapack name="mrtnz_toggle freeze selected tracks(mono,stereo,multi).lua" type="script" desc="Toggle freeze selected tracks(mono, stereo, multi)">
+      <version name="1.0" author="mrtnz" time="2023-11-19T07:33:20Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/b9416cf23778688ed7c2a820fd82a0724b718a6e/Tracks/mrtnz_toggle%20freeze%20selected%20tracks(mono,stereo,multi).lua</source>
       </version>
     </reapack>
   </category>
