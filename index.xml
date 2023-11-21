@@ -1,6 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="aff3bb0e5fa77e2bee6c622a6f275a327406574f">
+<index version="1" name="ReaperScripts" commit="7b9dd24824a842293596735951cd37a12097c7a5">
   <category name="Item Editing">
+    <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 copy fx from selected track to selected item\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.00" author="mrtnz" time="2023-11-21T09:18:35Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7b9dd24824a842293596735951cd37a12097c7a5/Item%20Editing/mrtnz_copy%20fx%20from%20selected%20track%20to%20selected%20item.lua</source>
+      </version>
+    </reapack>
+    <reapack name="mrtnz_move item to closet bar start.lua" type="script" desc="Move item to closet bar start">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Move item to closet bar start\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.00" author="mrtnz" time="2023-11-21T09:18:35Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7b9dd24824a842293596735951cd37a12097c7a5/Item%20Editing/mrtnz_move%20item%20to%20closet%20bar%20start.lua</source>
+      </version>
+    </reapack>
     <reapack name="mrtnz_shuffle selected items down or up(mousewheel).lua" type="script" desc="Shuffle selected items down or up(mousewheel)">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
@@ -27,6 +55,20 @@
       </metadata>
       <version name="1.0" author="mrtnz" time="2023-11-03T09:56:14Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/093e3cd91be2a8a9936e46df0b6e6678b8ac49cd/Item%20Editing/mrtnz_split%20item%20under%20mouse%20cursor%20and%20remove%20left%20or%20right%20side.lua</source>
+      </version>
+    </reapack>
+    <reapack name="mrtnz_tempo detect item.lua" type="script" desc="Tempo detect item">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Cut items and run script\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.00" author="mrtnz" time="2023-11-21T09:18:35Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7b9dd24824a842293596735951cd37a12097c7a5/Item%20Editing/mrtnz_tempo%20detect%20item.lua</source>
       </version>
     </reapack>
   </category>
@@ -422,6 +464,20 @@
     </reapack>
   </category>
   <category name="Tracks">
+    <reapack name="mrtnz_close all fx windows for selected tracks.lua" type="script" desc="Close all fx windows for selected tracks">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Close all fx windows for selected tracks\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.00" author="mrtnz" time="2023-11-21T09:18:35Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7b9dd24824a842293596735951cd37a12097c7a5/Tracks/mrtnz_close%20all%20fx%20windows%20for%20selected%20tracks.lua</source>
+      </version>
+    </reapack>
     <reapack name="mrtnz_fast sidechain from selected tracks to track under mouse.lua" type="script" desc="Quick sidechain from selected tracks to track under mouse">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
@@ -549,7 +605,7 @@ Tooltip with events]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
