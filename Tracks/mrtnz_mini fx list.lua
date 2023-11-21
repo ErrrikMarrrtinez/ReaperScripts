@@ -1,6 +1,6 @@
--- @description mrtnz_Mini FX LIST(for track under mouse)
+-- @description Mini FX LIST(for track under mouse)
 -- @author mrtnz
--- @version 1.0beta1.01
+-- @version 1.0beta1.02
 
 local script_path = (select(2, reaper.get_action_context())):match('^(.*[/\\])')
 
