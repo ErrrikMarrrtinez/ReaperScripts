@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="7b9dd24824a842293596735951cd37a12097c7a5">
+<index version="1" name="ReaperScripts" commit="ae5a155f54ed226251805d7046f0d6eb5ed6e301">
   <category name="Item Editing">
     <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
       <metadata>
@@ -517,12 +517,15 @@ Tooltip with events]]></changelog>
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/fb768c5f1220b2166f277e103e490c5a17e5903f/Tracks/mrtnz_fast%20sidechain%20from%20selected%20tracks%20to%20track%20under%20mouse.lua</source>
       </version>
     </reapack>
-    <reapack name="mrtnz_mini fx list.lua" type="script" desc="mrtnz_Mini FX LIST(for track under mouse)">
+    <reapack name="mrtnz_mini fx list.lua" type="script" desc="Mini FX LIST(for track under mouse)">
       <version name="1.0beta1.0" author="mrtnz" time="2023-10-28T07:27:21Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/e6c4e360b3a9fde26767f20e3c086533a7a5fc0e/Tracks/mrtnz_mini%20fx%20list.lua</source>
       </version>
       <version name="1.0beta1.01" author="mrtnz" time="2023-10-30T10:57:16Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/587ed5d3ca8a1ea697c351b25801b049172af0b4/Tracks/mrtnz_mini%20fx%20list.lua</source>
+      </version>
+      <version name="1.0beta1.02" author="mrtnz" time="2023-11-21T09:22:02Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/ae5a155f54ed226251805d7046f0d6eb5ed6e301/Tracks/mrtnz_mini%20fx%20list.lua</source>
       </version>
     </reapack>
     <reapack name="mrtnz_toggle freeze selected tracks(mono,stereo,multi).lua" type="script" desc="Toggle freeze selected tracks(mono, stereo, multi)">
