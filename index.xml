@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="eee936e3052b57572ce7a4d7bea3206ee639c76c">
+<index version="1" name="ReaperScripts" commit="aff3bb0e5fa77e2bee6c622a6f275a327406574f">
   <category name="Item Editing">
     <reapack name="mrtnz_shuffle selected items down or up(mousewheel).lua" type="script" desc="Shuffle selected items down or up(mousewheel)">
       <metadata>
@@ -523,6 +523,9 @@ Tooltip with events]]></changelog>
       <version name="1.00" author="mrtnz" time="2023-11-21T06:53:07Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/eee936e3052b57572ce7a4d7bea3206ee639c76c/Various/mrtnz_toggle%20open%20and%20hide%20vkb%20(input%20-%20on).lua</source>
       </version>
+      <version name="1.01" author="mrtnz" time="2023-11-21T08:25:33Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/aff3bb0e5fa77e2bee6c622a6f275a327406574f/Various/mrtnz_toggle%20open%20and%20hide%20vkb%20(input%20-%20on).lua</source>
+      </version>
     </reapack>
     <reapack name="mrtnz_trim-touch track(focused fx or under mouse or selection or last touched).lua" type="script" desc="Trim-touch track(focused fx or under mouse or selection or last touched)">
       <metadata>
@@ -546,7 +549,7 @@ Tooltip with events]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
