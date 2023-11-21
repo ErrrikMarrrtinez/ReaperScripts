@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="0aae8796498807660e53d7144812961a8a9abe09">
+<index version="1" name="ReaperScripts" commit="eee936e3052b57572ce7a4d7bea3206ee639c76c">
   <category name="Item Editing">
     <reapack name="mrtnz_shuffle selected items down or up(mousewheel).lua" type="script" desc="Shuffle selected items down or up(mousewheel)">
       <metadata>
@@ -510,6 +510,20 @@ Tooltip with events]]></changelog>
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/587ed5d3ca8a1ea697c351b25801b049172af0b4/Various/mrtnz_solo%20and%20play%20selected%20items(pressed).lua</source>
       </version>
     </reapack>
+    <reapack name="mrtnz_toggle open and hide vkb (input - on).lua" type="script" desc="Toggle open and hide VKB (input - on-off)">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 open or hide vbk\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.00" author="mrtnz" time="2023-11-21T06:53:07Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/eee936e3052b57572ce7a4d7bea3206ee639c76c/Various/mrtnz_toggle%20open%20and%20hide%20vkb%20(input%20-%20on).lua</source>
+      </version>
+    </reapack>
     <reapack name="mrtnz_trim-touch track(focused fx or under mouse or selection or last touched).lua" type="script" desc="Trim-touch track(focused fx or under mouse or selection or last touched)">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
@@ -532,7 +546,7 @@ Tooltip with events]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
