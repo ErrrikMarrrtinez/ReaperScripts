@@ -2,7 +2,7 @@
 -- @author mrtnz
 -- @version 1.0
 -- @about
--- Chopper for MIDI editor 
+--   Chopper for midi editor
 
 midiEditor = reaper.MIDIEditor_GetActive()
 take = reaper.MIDIEditor_GetTake(midiEditor)
