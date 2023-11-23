@@ -427,20 +427,6 @@
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5f2cedefca653c1a2df2dd49cdc44706947cda51/MIDI%20Editor/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
       </version>
     </reapack>
-    <reapack name="mrtnz_MIDI chopper.lua" type="script" desc="MIDI Chopper">
-      <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
-{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
-\widowctrl\hyphauto
-
-{\pard \ql \f0 \sa180 \li0 \fi0 Chopper for midi editor\par}
-}
-]]></description>
-      </metadata>
-      <version name="1.0" author="mrtnz" time="2023-11-23T09:28:47Z">
-        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/9cbf695da2dee08ea9d53d0ae313383a92ec5f8e/MIDI%20Editor/mrtnz_MIDI%20chopper.lua</source>
-      </version>
-    </reapack>
     <reapack name="mrtnz_MVelocity.lua" type="script" desc="MVelocity Tool">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
