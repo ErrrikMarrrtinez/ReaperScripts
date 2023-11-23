@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="533d6b9f7b0210222df081535b50bb12b4f62305">
+<index version="1" name="ReaperScripts" commit="bb1c900f69b104da6e3eb838d20ab3f399ae67f1">
   <category name="Item Editing">
     <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
       <metadata>
@@ -425,6 +425,20 @@
 - arpeggio is inserted taking into account the current timebase of the midi item
 - (also taking into account the stretch of the item)]]></changelog>
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5f2cedefca653c1a2df2dd49cdc44706947cda51/MIDI%20Editor/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
+      </version>
+    </reapack>
+    <reapack name="mrtnz_MIDI chopper.lua" type="script" desc="MIDI Chopper">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Chopper for midi editor\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.1" author="mrtnz" time="2023-11-23T09:32:39Z">
+        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/bb1c900f69b104da6e3eb838d20ab3f399ae67f1/MIDI%20Editor/mrtnz_MIDI%20chopper.lua</source>
       </version>
     </reapack>
     <reapack name="mrtnz_MVelocity.lua" type="script" desc="MVelocity Tool">
