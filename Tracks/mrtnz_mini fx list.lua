@@ -1,6 +1,6 @@
 -- @description mrtnz_Mini FX LIST(for track under mouse)
 -- @author mrtnz
--- @version 1.0beta1.033
+-- @version 1.0beta1.034
 
 local script_path = (select(2, reaper.get_action_context())):match('^(.*[/\\])')
 
@@ -18,6 +18,65 @@ local widg = dofile(widg)
 
 rtk.add_image_search_path(images_path, 'dark')
 local enable = rtk.Image.icon('on_on'):scale(120,120,22,7)
+
+
+
+
+
+--[[
+VolumeMeter = rtk.class('VolumeMeter', rtk.Spacer)
+
+VolumeMeter.register{
+    levels = rtk.Attribute{default={0, 0}},
+    spacing = rtk.Attribute{default=3},
+    mindb = rtk.Attribute{default=-64},
+    color = rtk.Attribute{type='color', default='cornflowerblue'},
+    gutter = rtk.Attribute{default=0.08},
+    h = 1.0,
+}
+
+function VolumeMeter:initialize(attrs, ...)
+    rtk.Spacer.initialize(self, attrs, VolumeMeter.attributes.defaults, ...)
+end
+
+function VolumeMeter:_handle_draw(offx, offy, alpha, event)
+    local calc = self.calc
+    local x, y = offx + calc.x, offy + calc.y
+    local range = math.abs(calc.mindb)
+    local chw = (calc.w - (calc.spacing * (#calc.levels - 1))) / #calc.levels
+
+    self:setcolor(calc.color)
+    gfx.a = calc.gutter
+    gfx.rect(x, y, calc.w, calc.h)
+    gfx.a = 1
+
+    for _, level in ipairs(calc.levels) do
+        local db = 20 * math.log(level, 10)
+        local chh = (rtk.clamp(db, calc.mindb, 0) + range) / range * calc.h
+        gfx.rect(x, y + calc.h - chh, chw, chh)
+        x = x + chw + calc.spacing
+    end
+end
+
+function VolumeMeter:set_from_track(track, maxch)
+    if not reaper.ValidatePtr2(0, track, 'MediaTrack*') then
+        self:attr('levels', {0})
+        return
+    end
+    local levels, nch = {}, rtk.clamp(reaper.GetMediaTrackInfo_Value(track, 'I_NCHAN'), 0, maxch)
+    for i = 0, nch - 1 do
+        levels[#levels+1] = reaper.Track_GetPeakInfo(track, i)
+    end
+    self:attr('levels', levels)
+end
+]]
+
+
+
+
+
+
+
 
 
 reaper.BR_GetMouseCursorContext()
@@ -103,6 +162,8 @@ vbox:attr('w', tcpWidth * proportion)
 local spacer = horisontal_wd:add(rtk.Spacer{
     bg = defaultColor,
     w = 7,
+    x=-1,
+    z=12,
     cursor = rtk.mouse.cursors.SIZE_EW,
     onmouseenter = function(self, event) self:attr('bg', defaultColor:sub(1, -3)); return true end,
     onmouseleave = function(self, event) self:attr('bg', defaultColor); return true end,
@@ -124,7 +185,7 @@ local spacer = horisontal_wd:add(rtk.Spacer{
 }, {fillh = true})
 
 
-
+local vbox_sends = horisontal_wd:add(rtk.VBox{bg='#2a2a2a',padding = 1}, {fillw = true})
 
 function move_button(src_hbox, target, vbox, track_under_cursor)
 
@@ -236,7 +297,7 @@ enable:recolor("#1c2434")
 
 
 
-local disabled_current_color = "#4ac882"
+local disabled_current_color = "#4ac88275"
 local drag_color = 'green'
 local base_button_color = '#345c94'
 local offline_color = '#6E260E'
@@ -295,91 +356,506 @@ function setButtonAttributes(button, button_disable, track, fx_index, hbox)
     hbox:attr('rborder', lborder)
 end
     
-local round_size2=29
+
+
+
+
+function getCurrentFXPins(track, fxnumber)
+    local retval, inputPins, outputPins = reaper.TrackFX_GetIOSize(track, fxnumber)
+    for pin = 2, 3 do
+        local low32bits, _ = reaper.TrackFX_GetPinMappings(track, fxnumber, 0, pin)
+        if low32bits ~= 0 then
+            return (math.log(low32bits) / math.log(2)) + 1
+        end
+    end
+    
+    return nil
+end
+
+function setSidechainPins(track, fxnumber, value, mode)
+    local numOfChannels = math.min(reaper.GetMediaTrackInfo_Value(track, "I_NCHAN"), 32)
+    local retval, inputPins, outputPins = reaper.TrackFX_GetIOSize(track, fxnumber)
+    for pin = 0, inputPins-1 do
+        if pin == 2 or pin == 3 then
+            local low32bits, hi32bits = reaper.TrackFX_GetPinMappings(track, fxnumber, 0, pin)
+            if low32bits ~= 0 then
+                local newPins = 2^(pin + value)
+                if mode == "add" then
+                    newPins = low32bits | newPins
+                end
+                reaper.TrackFX_SetPinMappings(track, fxnumber, 0, pin, newPins, 0)
+            end
+        end
+    end
+    for pin = 0, outputPins-1 do
+        if pin == 2 or pin == 3 then
+            local low32bits, hi32bits = reaper.TrackFX_GetPinMappings(track, fxnumber, 1, pin)
+            if low32bits ~= 0 then
+                local newPins = 2^(pin + value)
+                if mode == "add" then
+                    newPins = low32bits | newPins
+                end
+                reaper.TrackFX_SetPinMappings(track, fxnumber, 1, pin, newPins, 0)
+            end
+        end
+    end
+end
+
+function findFreeDestChannel(track)
+    local occupiedChannels = {}
+    for i = 0, reaper.GetTrackNumSends(track, -1) - 1 do
+      local dst_chan = reaper.GetTrackSendInfo_Value(track, -1, i, "I_DSTCHAN")
+      occupiedChannels[dst_chan] = true
+    end
+    for i = 2, 18, 2 do
+      if not occupiedChannels[i] then
+        return i
+      end
+    end
+    return 2
+end
+    
+    
+function createSend(freeChannel, source_tracks, destination_track, fx_index)
+    for _, selected_track in ipairs(source_tracks) do
+        if selected_track and selected_track ~= destination_track then
+            reaper.Undo_BeginBlock()
+            local ch_count = reaper.GetMediaTrackInfo_Value(destination_track, 'I_NCHAN')
+            reaper.SetMediaTrackInfo_Value(destination_track, 'I_NCHAN', math.max(freeChannel + 1, ch_count))
+    
+            local send = reaper.CreateTrackSend(selected_track, destination_track)
+            reaper.SetTrackSendInfo_Value(selected_track, 0, send, 'I_SENDMODE', 3)
+            reaper.SetTrackSendInfo_Value(selected_track, 0, send, 'I_DSTCHAN', freeChannel)
+            reaper.SetTrackSendInfo_Value(selected_track, 0, send, 'I_MIDIFLAGS', 4177951)
+            reaper.Undo_EndBlock("Create send to track under cursor", -1)
+        end
+    end
+end
+    
+function main_send(mode, source_tracks, destination_track, fx_index)
+    --if mode == 0 then return end
+    local num_selected_tracks = #source_tracks
+    local currentPin = getCurrentFXPins(destination_track, fx_index)
+    local currentChannel = currentPin or findFreeDestChannel(destination_track)
+    
+    if mode == 3 then  -- "new_preserve" теперь становится mode 3
+        local freeChannel = findFreeDestChannel(destination_track)
+        createSend(freeChannel, source_tracks, destination_track, fx_index)
+        setSidechainPins(destination_track, fx_index, freeChannel - 2, "add")
+       reaper.ShowConsoleMsg('третий режим')
+    elseif mode == 2 then  -- "new_replace" теперь становится mode 2
+        local freeChannel = findFreeDestChannel(destination_track)
+        createSend(freeChannel, source_tracks, destination_track, fx_index)
+        setSidechainPins(destination_track, fx_index, freeChannel - 2, "replace")
+        reaper.ShowConsoleMsg('второй режим')
+    elseif mode == 1 then  -- "use_current" теперь становится mode 1
+        local freeChannel = currentChannel - 1
+        createSend(freeChannel, source_tracks, destination_track, fx_index)
+        reaper.ShowConsoleMsg('первый режим')
+    end
+end
+
+local isEnter = false
+local track_under_cursor_at_first_click = nil
+local current_fx_index = nil
+local current_fx_name = nil
+local selected_fx_name = nil
+local current_mode = 0
+local selectedTracks = {}
+
+
+function updateWidgetText(track, isDragging_2)
+    if track and window.in_window then
+        
+        local _, track_name = reaper.GetTrackName(track, "")
+        local text_prefix = isDragging_2 and 'создается посыл с трека ' or 'создался посыл с трека '
+        if not isDragging_2 and current_fx_name then
+            local _, destination_track_name = reaper.GetTrackName(track_under_cursor, "")
+            if track == track_under_cursor then
+            else
+                local selectedTracksText = track_name
+                selectedTracks = {}  -- Очищаем массив перед заполнением
+                if reaper.IsTrackSelected(track) then
+                    local numTracks = reaper.CountSelectedTracks(0)
+                    for j = 0, numTracks - 1 do
+                        local selTrack = reaper.GetSelectedTrack(0, j)
+                        if selTrack ~= track_under_cursor then
+                            table.insert(selectedTracks, selTrack)
+                        end
+                    end
+                else
+                    table.insert(selectedTracks, track)
+                end
+
+                if current_mode == 0 then
+                    reaper.ShowConsoleMsg('мод = 0')
+                    return
+                else
+                    main_send(current_mode, selectedTracks, track_under_cursor, current_fx_index)
+                    update()
+                end
+            end
+        else
+            --text:attr('text', text_prefix .. track_name)
+        end
+        isEnter = isDragging_2
+    end
+    
+end
+
+function checkTrackAndCursor()
+    local mouse_state = reaper.JS_Mouse_GetState(5) 
+    local isDragging_2 = (mouse_state == 5)
+    
+    if isDragging_2 and not track_under_cursor_at_first_click then
+        -- Начало перетаскивания
+        reaper.BR_GetMouseCursorContext()
+        track_under_cursor_at_first_click = reaper.BR_GetMouseCursorContext_Track()
+        
+    elseif not isDragging_2 and track_under_cursor_at_first_click then
+    
+        updateWidgetText(track_under_cursor_at_first_click, false)
+        track_under_cursor_at_first_click = nil
+        
+    end
+    
+    if track_under_cursor_at_first_click and isDragging_2 then
+        updateWidgetText(track_under_cursor_at_first_click, true)
+    end
+    
+    reaper.defer(checkTrackAndCursor) 
+end
+
+checkTrackAndCursor()
+
+function getCurrentFXPins2(track, fxnumber)
+    local retval, inputPins, outputPins = reaper.TrackFX_GetIOSize(track, fxnumber)
+    if inputPins > 4 then  -- Игнорируем FX с большим количеством входных пинов
+        return {}
+    end
+
+    local pinsUsed = {}
+    local pinPairs = {}
+
+    for pin = 2, inputPins - 1 do
+        local low32bits, _ = reaper.TrackFX_GetPinMappings(track, fxnumber, 0, pin)
+        -- Проверяем каждый бит в low32bits
+        for bit = 0, 31 do
+            if (low32bits & (1 << bit)) ~= 0 then
+                local pinIndex = bit + 1
+                if not pinsUsed[pinIndex] then
+                    pinsUsed[pinIndex] = true
+                    if pin % 2 == 0 then
+                        -- Левый пин, ищем его пару (правый пин)
+                        local rightPin = pinIndex + 1
+                        if pinsUsed[rightPin] then
+                            -- Пара найдена
+                            table.insert(pinPairs, {left = pinIndex, right = rightPin})
+                        end
+                    else
+                        -- Правый пин, ищем его пару (левый пин)
+                        local leftPin = pinIndex - 1
+                        if pinsUsed[leftPin] then
+                            -- Пара найдена
+                            table.insert(pinPairs, {left = leftPin, right = pinIndex})
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return pinPairs
+end
+
+
+local round_size2 = 29
+local original_track_color = nil 
+local current_track = nil  
+local selected_fx_index = nil
+local selected_fx_track = nil
+local red_color = reaper.ColorToNative(255, 0, 0)  -- RGB для красного
+local meters = {}
 
 function update()
     vbox:remove_all()
+    vbox_sends:remove_all()
     local fx_count1 = reaper.TrackFX_GetCount(track_under_cursor)
-    
-    
+    meters = {}
     
     for i = 0, fx_count1 - 1 do
-    
+        local initial_value = func.GetWetFx(track_under_cursor, i)
         local retval, fxName = reaper.TrackFX_GetFXName(track_under_cursor, i, "")
         local wid = vbox.w 
+        
+        
+        local pinPairs = getCurrentFXPins2(track_under_cursor, i)
+        local pinStrings = {}
+        for _, pair in ipairs(pinPairs) do
+            table.insert(pinStrings, tostring(pair.left) .. "/" .. tostring(pair.right))
+        end
+        local pinString = #pinStrings > 0 and (" (" .. table.concat(pinStrings , ", ")) .. ")" or ""
+        
         fxName = func.trimFXName(fxName, wid)
         
-        
         local hbox = vbox:add(rtk.HBox{},{fillw=true,fillh=true})
+        local hbox_send = vbox_sends:add(rtk.HBox{}, {fillw = true, fillh = true})
+        
+
+        local button_circ = hbox_send:
+            add(
+                rtk.Button{
+                    color=base_button_color..70,
+                    wrap=true,
+                    --w=15,
+                    flat=false,
+                    halign='center',
+                    tmargin=1,
+                    bmargin=3,
+                    padding=1,
+                    'Curr',
+                    },{
+                    fillh=true
+        })
+        
+        local spacer_box = hbox_send:
+            add(
+                rtk.HBox{
+                    lmargin = 3,
+                    rmargin = 6, 
+                    bborder='#7a7a7a65',
+                    },{
+                    fillw=true, 
+                    fillh=true
+        })
+        
+        local new_free_mode = spacer_box:
+            add(
+                rtk.Button{
+                    padding=1,
+                    'FREE',
+                    },{
+                    fillh=true
+        })
+        
+        new_free_mode:hide()
+        
+        local new_preserve = spacer_box:
+            add(
+                rtk.Button{
+                    padding=1,
+                    'SAVE',
+                    },{
+                    fillh=true
+        })
+        
+        new_preserve:hide()
+        
+        local button_disable = hbox:
+            add(
+                rtk.Button{
+                    icon=enable,
+                    halign='center',
+                    padding=1,
+                    iconpos='right',
+                    border='#ffffff30',
+                    gradient=2,
+                    w=30,
+                    z=4,
+                    },{
+                    fillh=true
+        })
+        
+        local fx_button = hbox:
+            add(
+                rtk.Button{
+                    label=fxName .. pinString,
+                    color=base_button_color..20,
+                    wrap=true,
+                    flat=true,
+                    tpadding=def_tpadding,
+                    halign='center',
+                    bborder='#7a7a7a65',
+                    z=15,
+                    },{
+                    fillw=true,
+                    fillh=true
+        }) -- кнопка fx
+        
+        local circle = hbox:
+            add(
+                widg.CircleWidget2{
+                    sens=0.8,
+                    w=round_size2,
+                    radius=round_size2,
+                    fontsize=10,
+                    font='Geneva',
+                    font_y=40,
+                    textcolor = 'transparent',
+                    y=1,
+                    value=initial_value,
+                        onChange = function(value)
+                            func.SetWetFx(track_under_cursor, i, value)
+                        end
+                    },{
+                    fillh=true
+        })  -- кноб
         
         
-        local button_disable = hbox:add(rtk.Button{
-        icon=enable,
-        halign='center',
-        padding=1,
-        iconpos='right',
-        gradient=3,
-        w=30,
-        z=4,
-        },{fillh=true})
         
-   
-        
-        
-        local fx_button = hbox:add(rtk.Button{
-        label=fxName,
-        color=base_button_color..20,
-        wrap=true,
-        flat=true,
-        tpadding=def_tpadding,
-        halign='center',
-        bborder='#7a7a7a65',
-        
-        z=15,
-        
-        },{fillw=true, fillh=true}) -- кнопка fx
-        --fx_button:hide()
-        
-        local initial_value = func.GetWetFx(track_under_cursor, i)
-        
-        local circle = hbox:add(widg.CircleWidget2{
-            sens=0.8,
-            w=round_size2,
-            radius=round_size2,
-            fontsize=10,
-            font='Geneva',
-            font_y=40,
-            textcolor = 'transparent',
-            y=1,
-            value=initial_value,
-            onChange = function(value)
-                func.SetWetFx(track_under_cursor, i, value)
+        new_free_mode.onmouseenter = function(self, event)
+            if isEnter then
+                isCursorOnNewFreeMode = true
+                self:attr('border', 'red')
+                current_mode = 2
             end
-        },{fillh=true})  -- наш кноб
+            return true
+        end
+        new_preserve.onmouseenter = function(self, event)
+            if isEnter then
+                isCursorOnNewPreserve = true
+                self:attr('border', 'red')
+                current_mode = 3
+            end
+            return true
+        end
+        new_free_mode.onmouseleave = function(self, event)
+            isCursorOnNewFreeMode = false
+            self:attr('border', false)
+            return true
+        end
+        new_preserve.onmouseleave = function(self, event)
+            isCursorOnNewPreserve = false
+            self:attr('border', false)
+            return true
+        end
         
         
         
+        button_circ.onmouseleave = function(self, event)
+            self:attr('border', false)
+            if not isCursorOnNewFreeMode and not isCursorOnNewPreserve then
+                new_free_mode:hide()
+                new_preserve:hide()
+            end
+            return true
+        end
+        
+        button_circ.onmouseenter = function(self, event)
+            if isEnter then
+                self:attr('border', 'red')
+                new_free_mode:show()
+                new_preserve:show()
+                current_fx_index = i
+                current_fx_name = fxName
+                current_track = track_under_cursor
+                current_mode = 1
+            end
+            return true
+        end
+        
+        
+        
+        
+        circle.ondoubleclick = function(self, event)
+            local new_value = self.value == 0 and 100 or 0 
+            self.value = new_value
+            func.SetWetFx(track_under_cursor, i, new_value) 
+            update()
+        end
+        circle.onclick = function(self, event)
+            if event.alt then
+                local new_value = self.value == 0 and 100 or 0  
+                self.value = new_value 
+                func.SetWetFx(track_under_cursor, i, new_value) 
+                update()
+            end
+        end
+        circle.onmousewheel = function(self, event)
+            local delta = event.ctrl and 8 or 25  
+            local new_value = self.value + (event.wheel < 0 and delta or -delta)
+            new_value = math.max(0, math.min(100, new_value))
+        
+            self.value = new_value
+            func.SetWetFx(track_under_cursor, i, new_value)
+            update()
+
+            return true 
+        end
         
         local currentIndex = i
-        
         fx_button.currentIndex = i
         fx_button.onclick = createOnClickHandler(track_under_cursor, fx_button,vbox, hbox, button_disable)
         fx_button.onmousewheel = createOnMouseWheelHandler(track_under_cursor, fx_button, vbox, hbox, height)
         
         fx_button.ondragstart = function(self, event)
-            button_disable:attr('lborder', drag_color)
-            self:attr('rborder', drag_color)
-            dragging = hbox
+            if event.ctrl or event.shift then
+                --self:attr('lborder', 'green')
+                --self:attr('rborder', 'green')
+                selected_fx_index = i  -- Сохраняем индекс FX
+                selected_fx_track = track_under_cursor  -- Сохраняем исходный трек
+                self:attr('cursor', rtk.mouse.cursors.REAPER_DRAGDROP_COPY)
+            else --тут уже моя другая логика
+                dragging = hbox
+                button_disable:attr('lborder', drag_color)
+                self:attr('gradient', 2)
+                self:attr('rborder', drag_color)
+            end
             return true
         end
         
         fx_button.ondragend = function(self, event)
-            button_disable:attr('lborder', nil)
-            self:attr('rborder', nil)
-            dragging = nil
+            if event.ctrl or event.shift then
+                -- Логика завершения перетаскивания
+                self:attr('lborder', nil)
+                self:attr('rborder', nil)
+                if original_track_color and current_track then 
+                    reaper.SetMediaTrackInfo_Value(current_track, "I_CUSTOMCOLOR", original_track_color)
+                end
+                if selected_fx_index ~= nil then
+                    reaper.BR_GetMouseCursorContext()
+                    local track_under_cursor = reaper.BR_GetMouseCursorContext_Track()
+        
+                    if track_under_cursor then
+                        local is_move = event.shift
+                        reaper.TrackFX_CopyToTrack(selected_fx_track, selected_fx_index, track_under_cursor, -1, is_move)
+                    end
+                    self:attr('cursor', rtk.mouse.cursors.UNDEFINED)
+                    original_track_color = nil
+                    current_track = nil
+                    selected_fx_index = nil
+                end
+            else --тут уже моя другая логика
+                button_disable:attr('lborder', nil)
+                self:attr('rborder', nil)
+                dragging = nil
+                update()
+                self:attr('gradient', 1)
+                return true
+            end
             update()
             return true
         end
+        
+        fx_button.ondragmousemove = function(self, event)
+            if selected_fx_index ~= nil and (event.ctrl or event.shift) then
+                -- Логика перемещения с подсветкой трека
+                reaper.BR_GetMouseCursorContext()
+                local track_under_cursor = reaper.BR_GetMouseCursorContext_Track()
+                if track_under_cursor and track_under_cursor ~= current_track then
+                    if original_track_color and current_track then 
+                        reaper.SetMediaTrackInfo_Value(current_track, "I_CUSTOMCOLOR", original_track_color)
+                    end
+                    original_track_color = reaper.GetMediaTrackInfo_Value(track_under_cursor, "I_CUSTOMCOLOR") 
+                    current_track = track_under_cursor  -- обновляем текущий трек
+                end
+                if track_under_cursor then
+                    reaper.SetMediaTrackInfo_Value(track_under_cursor, "I_CUSTOMCOLOR", red_color|0x1000000)
+                end
+                return true
+            end
+        end
+        
         
         fx_button.ondropfocus = function(self, event, _, src_hbox)
             return true
@@ -398,20 +874,20 @@ function update()
             end
             if event.shift then
                 self:attr('rborder', drag_color)
-                --self:attr('color', '#848484')
-            else
-                --self:attr('color', "#6a6a6a")
             end
+            current_mode = 0
             return true
         end
         
         fx_button.onmouseleave = function(self, event)
             self:attr('rborder', false)
-            --self:attr('color', "#3a3a3a")
             return true 
         end
         
-        
+        if #pinPairs == 0 then
+             button_circ:attr('disabled', true)
+         end
+         
         setButtonAttributes(fx_button, button_disable, track_under_cursor, i, hbox)
         
         button_disable.onclick = function(self, event)
@@ -430,7 +906,7 @@ vbox:focus()
 local prevVisibleTracks = nil
 local prevX, prevTcpPanelY, prevTcpWidth = nil, nil, nil
 
-local function main()
+function main()
     local currVisibleTracks = func.collectVisibleTracks()
     
     local _, x, tcpPanelY, tcpWidth, _ = func.getTCPTopPanelProperties()
@@ -451,7 +927,29 @@ local function main()
     reaper.defer(main) -- перезапускаем функцию
 end
 
+
+
 main() -- начальный запуск
 
 
-
+        --[[
+        if hasSidechainInputs(track_under_cursor, i) then
+            hbox_send:remove(button_circ)
+            local meter = VolumeMeter{w = 15}
+            hbox_send:add(meter)
+            table.insert(meters, meter)  -- Добавляем индикатор в список
+            meter.onmouseenter=function(self, event)
+                meter:attr('border','red')
+                return true
+            end
+            meter.onmouseleave=function(self, event)
+                meter:attr('border',false)
+                return true
+            end
+        end
+        window.onupdate = function()
+            for _, meter in ipairs(meters) do
+                meter:set_from_track(track_under_cursor)
+            end
+        end
+        ]]
