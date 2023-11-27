@@ -59,7 +59,7 @@ end
 
 function widg.CircleWidget2:_drawArc(x, y, outerRadius, startAngle, endAngle, arcWidth)
     if self.hovered then
-        self:setcolor(func.makeDarker(self.calc.color, -0.2))
+        self:setcolor(func.makeDarker(self.calc.color, -0.5))
     else
         self:setcolor(self.calc.color)
     end
@@ -117,19 +117,20 @@ function widg.CircleWidget2:setCurrentValue(newValue, shouldRedraw)
 end
 
 function widg.CircleWidget2:getValue()
+    self:redraw()
     return self.currentValue
 end
 
 
 
 function widg.CircleWidget2:_handle_mouseenter(event)
-    --self.hovered = true
+    self.hovered = true
     
     return true
 end
 
 function widg.CircleWidget2:_handle_mouseleave(event)
-    --self.hovered = false
+    self.hovered = false
     
     return true
 end
@@ -198,70 +199,50 @@ function widg.CircleWidget2:sign(x)
     return x > 0 and 1 or x < 0 and -1 or 0
 end
 
-return widg
 
 
---[[
-widg.window = nil
-widg.cursorHidden = false
-widg.initial_mx = nil
-widg.initial_my = nil
-widg.wnd_w = 9000  -- здесь получаем ширину окна
-widg.flag_mousedown = false  -- Флаг для проверки, было ли событие mousedown
+local img_path = script_path .. "../images/cursor.cur"
+local null_cursor = reaper.JS_Mouse_LoadCursorFromFile(img_path)
 
 
-
-
-function widg.Loop()
-    if widg.cursorHidden then
-        reaper.JS_Mouse_SetCursor(nil)
-        reaper.defer(widg.Loop)
-    else
-        reaper.JS_WindowMessage_Release(widg.window, "WM_SETCURSOR")
-    end
-end
-
--- Обработчик события mousedown
 function widg.CircleWidget2:_handle_mousedown(event)
     widg.initial_mx, widg.initial_my = reaper.GetMousePosition()
-    widg.window = reaper.JS_Window_FromPoint(widg.initial_mx, widg.initial_my)
-    reaper.JS_Mouse_SetPosition(widg.wnd_w, widg.initial_my)
-    widg.cursorHidden = true
-    reaper.JS_WindowMessage_Intercept(widg.window, "WM_SETCURSOR", false)
-    widg.Loop()
+    self:attr('cursor', null_cursor) -- Скрываем курсор
+    --widg.cursorHidden = true
     widg.flag_mousedown = true 
+    self.hovered = true
     return true
 end
 
 -- Обработчик события dragstart
 function widg.CircleWidget2:_handle_dragstart(event, x, y, t)
     if widg.flag_mousedown then  
+        self:attr('cursor', null_cursor)
         self.dragging = true
         self.prevY = y
         self.alpha2 = 0.002
         self.hovered = true
-        -- Скрываем курсор
-        widg.cursorHidden = true
-        reaper.JS_WindowMessage_Intercept(widg.window, "WM_SETCURSOR", false)
-        widg.Loop()
         return true
     end
 end
 
 -- Обработчики событий dragend и mouseup
 function widg.CircleWidget2:_handle_dragend_or_mouseup(event, dragarg)
-    -- Возвращаем курсор на начальную позицию
-    reaper.JS_Mouse_SetPosition(widg.initial_mx, widg.initial_my)
-    -- Показываем курсор
-    widg.cursorHidden = false
-    -- Сбрасываем флаг
+    --self.hovered = false
     widg.flag_mousedown = false
+    if widg.initial_mx and widg.initial_my then
+        reaper.JS_Mouse_SetPosition(widg.initial_mx, widg.initial_my)
+    end
+    self:attr('cursor', UNDEFINED)
+
 end
 
 widg.CircleWidget2._handle_dragend = widg.CircleWidget2._handle_dragend_or_mouseup
 widg.CircleWidget2._handle_mouseup = widg.CircleWidget2._handle_dragend_or_mouseup
-]]
 
+
+
+return widg
 
 --[[
 
