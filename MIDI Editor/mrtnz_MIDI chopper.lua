@@ -1,6 +1,6 @@
 -- @description MIDI Chopper
 -- @author mrtnz
--- @version 1.1
+-- @version 1.2
 -- @about
 --   Chopper for midi editor
 
