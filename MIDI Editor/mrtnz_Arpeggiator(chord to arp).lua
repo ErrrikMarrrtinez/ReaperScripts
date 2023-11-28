@@ -1,8 +1,8 @@
 -- @description MArpeggiator(chord to arp)
 -- @author mrtnz
--- @version 1.0.43
+-- @version 1.0.44
 -- @changelog
---        - fix scale ui
+--        - fix scale ui v2
 
 
 
@@ -17,7 +17,6 @@ local rtkPath = resourcePath .. "../libs/"
 local imagesPath = scriptDir .. "../images/"
 local jsonPath = scriptDir .. "../libs/" 
 
--- Определение разделителя пути в зависимости от операционной системы
 local separator = ""
 if reaper.GetOS() == "Win32" or reaper.GetOS() == "Win64" then
     separator = "\\"
@@ -659,21 +658,10 @@ local reset_b = app_hbox:add(rtk.Button{icon=refresh,border="#3a3a3a65", halign=
 
 local scale_b = app_hbox:add(rtk.Button{border="#3a3a3a65",halign='center',padding=4,gradient=3,color=color_apps_def,tagged=true,'1.0',iconpos='left',icon=loop,})
 
-local function applyScale(scale)
-    rtk.scale.user = scale
-    scale_b:attr('label', string.format("%.2f", scale))
-    wnd:attr('w', initialW * scale)-- * curr_scale)
-    wnd:attr('h', initialH * scale)-- * curr_scale)
-    wnd:reflow()
-end
 
 local savedScale = reaper.GetExtState(sectionID, "windowScale")
 local savedPosX = reaper.GetExtState(sectionID, "windowPosX")
 local savedPosY = reaper.GetExtState(sectionID, "windowPosY")
-
-if savedScale ~= "" then
-    applyScale(tonumber(savedScale))
-end
 
 if savedPosX ~= "" and savedPosY ~= "" then
     wnd:attr('x', tonumber(savedPosX))
@@ -1801,21 +1789,8 @@ pin_b.onclick = function(self)
     pin_b.pressed = not pin_b.pressed
     updatePinState(pin_b.pressed)
     reaper.SetExtState(sectionID, "pinState", tostring(pin_b.pressed), true)
-end--[[
-wnd.onresize = function(self, w, h)
-    if not w or not h then return end
-
-    local scale = h / initialH 
-    rtk.scale.user = scale
-    scale_b:attr('label', string.format("%.2f", scale))
-
-    reaper.SetExtState(sectionID, "windowScale", tostring(scale), true)
-    reaper.SetExtState(sectionID, "windowPosX", tostring(self.x), true)
-    reaper.SetExtState(sectionID, "windowPosY", tostring(self.y), true)
-end]]
-
+end
     
-reset_b.onclick = function() applyScale(1.0) end
 btn_generate.onmouseleave=function(self)
     self:attr('icon', gen)
 end
@@ -3379,6 +3354,19 @@ function CircleWidget:onchange()
     end
 end
 
+wnd.onresize = function(self, w, h)
+    if not w or not h then return end
+
+    local scale = h / initialH 
+    rtk.scale.user = scale
+    scale_b:attr('label', string.format("%.2f", scale))
+
+    reaper.SetExtState(sectionID, "windowScale", tostring(scale), true)
+    reaper.SetExtState(sectionID, "windowPosX", tostring(self.x), true)
+    reaper.SetExtState(sectionID, "windowPosY", tostring(self.y), true)
+end
+
+
 local keepRunning = true
 wnd.onclose = function(self)
     reaper.SetExtState(sectionID, "windowPosX", tostring(self.x), true)
@@ -3388,7 +3376,6 @@ wnd.onclose = function(self)
 end
 
 wnd.onkeypress = via.onkeypressHandler(via, func, "midi")
-
 function defer_f()
     if not keepRunning then return end 
     all_container_boxes:focus()
@@ -3404,4 +3391,16 @@ initialW=initialW*curr_scale
 initialH=initialH*curr_scale
 wnd:attr('w', initialW)
 wnd:attr('h',initialH)
-reset_b:onclick()
+
+local function applyScale(scale)
+    rtk.scale.user = scale
+    scale_b:attr('label', string.format("%.2f", scale))
+    wnd:attr('w', initialW * scale)-- * curr_scale)
+    wnd:attr('h', initialH * scale)-- * curr_scale)
+    wnd:reflow()
+end
+if savedScale ~= "" then
+    applyScale(tonumber(savedScale))
+end
+reset_b.onclick = function() applyScale(1.0/curr_scale) end
+applyScale(1.0/curr_scale)
