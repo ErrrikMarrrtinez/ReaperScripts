@@ -1,6 +1,6 @@
 -- @description mrtnz_Mini FX LIST(for track under mouse)
 -- @author mrtnz
--- @version 1.0beta1.034
+-- @version 1.0beta1.035
 
 local script_path = (select(2, reaper.get_action_context())):match('^(.*[/\\])')
 
@@ -148,6 +148,10 @@ window.onkeypress = via.onkeypressHandler(via, func, "main")
 
 
 local horisontal_wd = window:add(rtk.HBox{})
+local curr_scale = rtk.scale.system
+--[[
+window:attr('h', height * curr_scale)
+window:attr('w', tcpWidth * curr_scale)]]
 
 
 local vbox = horisontal_wd:add(rtk.VBox{w = tcpWidth / 2, padding = 1})
@@ -156,7 +160,7 @@ local function update_proportion()
 end
 local dragging_2, initialMouseX, initialWidth = false, 0, 0
 local defaultColor, lastWidth = '#6F8FAF60', nil
-local proportion = tonumber(reaper.GetExtState("Your_Section", "proportion")) or 0.99
+local proportion = tonumber(reaper.GetExtState("Your_Section", "proportion")) or 0.99 / curr_scale
 vbox:attr('w', tcpWidth * proportion)
 
 local spacer = horisontal_wd:add(rtk.Spacer{
@@ -164,9 +168,8 @@ local spacer = horisontal_wd:add(rtk.Spacer{
     w = 7,
     x=-1,
     z=12,
-    cursor = rtk.mouse.cursors.SIZE_EW,
-    onmouseenter = function(self, event) self:attr('bg', defaultColor:sub(1, -3)); return true end,
-    onmouseleave = function(self, event) self:attr('bg', defaultColor); return true end,
+    onmouseenter = function(self, event) self:attr('cursor', rtk.mouse.cursors.SIZE_EW) self:attr('bg', defaultColor:sub(1, -3)); return true end,
+    onmouseleave = function(self, event) self:attr('cursor', rtk.mouse.cursors.UNDEFINED) self:attr('bg', defaultColor); return true end,
     ondragstart = function(self, event) dragging_2, initialMouseX, initialWidth = true, event.x, vbox.w; return true end,
     ondragmousemove = function(self, event)
         if dragging_2 then
@@ -187,20 +190,38 @@ local spacer = horisontal_wd:add(rtk.Spacer{
 
 local vbox_sends = horisontal_wd:add(rtk.VBox{bg='#2a2a2a',padding = 1}, {fillw = true})
 
-function move_button(src_hbox, target, vbox, track_under_cursor)
 
+enable:recolor("#1c2434")
+local disabled_current_color = "#4ac88275"
+local drag_color = 'green'
+local base_button_color = '#345c94'
+local offline_color = '#6E260E'
+local offline_button_disable_color = '#3a1407'
+local disabled_text_color = '#FF0000'
+local disabled_button_color = '#2a2a2a'
+local disabled_hbox_border = '#6E260E'
+local disabled_button_disable_color = '#1a1a1a'
+local text_color_default = '#FFFFFF'
+
+local isEnter = false
+local track_under_cursor_at_first_click = nil
+local current_fx_index = nil
+local current_fx_name = nil
+local selected_fx_name = nil
+local current_mode = 0
+local selectedTracks = {}
+
+
+function move_button(src_hbox, target, vbox, track_under_cursor)
     local src_button = src_hbox:get_child(1)
     local target_button = target:get_child(1)
-    
-    
-
     local src_idx = vbox:get_child_index(src_hbox) - 1
     local target_idx = vbox:get_child_index(target) - 1
-
+    
     if src_hbox ~= target then
+    
         local srcCurrentIndex = src_button.currentIndex
         local targetCurrentIndex = target_button.currentIndex
-
         src_button.currentIndex, target_button.currentIndex = targetCurrentIndex, srcCurrentIndex
 
         if src_idx > target_idx then
@@ -209,15 +230,12 @@ function move_button(src_hbox, target, vbox, track_under_cursor)
             vbox:reorder_after(src_hbox, target)
         end
         
-
         reaper.TrackFX_CopyToTrack(track_under_cursor, src_idx, track_under_cursor, target_idx, true)
         func.updateButtonIndices(vbox, reaper.TrackFX_GetCount(track_under_cursor))
-        
     end
-    
-    
-    
 end
+
+
 function createOnMouseWheelHandler(track_under_cursor, button, vbox, hbox, height)
     return function(self, event)
     
@@ -290,24 +308,6 @@ function createOnClickHandler(track_under_cursor, button, vbox, hbox, button_dis
 end
 
 
-
-
-enable:recolor("#1c2434")
-
-
-
-
-local disabled_current_color = "#4ac88275"
-local drag_color = 'green'
-local base_button_color = '#345c94'
-local offline_color = '#6E260E'
-local offline_button_disable_color = '#3a1407'
-local disabled_text_color = '#FF0000'
-local disabled_button_color = '#2a2a2a'
-local disabled_hbox_border = '#6E260E'
-local disabled_button_disable_color = '#1a1a1a'
-local text_color_default = '#FFFFFF'
-
 function setButtonAttributes(button, button_disable, track, fx_index, hbox)
     local offline = reaper.TrackFX_GetOffline(track, fx_index)
     local enabled = reaper.TrackFX_GetEnabled(track, fx_index)
@@ -356,10 +356,7 @@ function setButtonAttributes(button, button_disable, track, fx_index, hbox)
     hbox:attr('rborder', lborder)
 end
     
-
-
-
-
+    
 function getCurrentFXPins(track, fxnumber)
     local retval, inputPins, outputPins = reaper.TrackFX_GetIOSize(track, fxnumber)
     for pin = 2, 3 do
@@ -371,6 +368,7 @@ function getCurrentFXPins(track, fxnumber)
     
     return nil
 end
+
 
 function setSidechainPins(track, fxnumber, value, mode)
     local numOfChannels = math.min(reaper.GetMediaTrackInfo_Value(track, "I_NCHAN"), 32)
@@ -400,6 +398,7 @@ function setSidechainPins(track, fxnumber, value, mode)
         end
     end
 end
+
 
 function findFreeDestChannel(track)
     local occupiedChannels = {}
@@ -431,6 +430,7 @@ function createSend(freeChannel, source_tracks, destination_track, fx_index)
         end
     end
 end
+  
     
 function main_send(mode, source_tracks, destination_track, fx_index)
     --if mode == 0 then return end
@@ -442,26 +442,15 @@ function main_send(mode, source_tracks, destination_track, fx_index)
         local freeChannel = findFreeDestChannel(destination_track)
         createSend(freeChannel, source_tracks, destination_track, fx_index)
         setSidechainPins(destination_track, fx_index, freeChannel - 2, "add")
-       reaper.ShowConsoleMsg('третий режим')
     elseif mode == 2 then  -- "new_replace" теперь становится mode 2
         local freeChannel = findFreeDestChannel(destination_track)
         createSend(freeChannel, source_tracks, destination_track, fx_index)
         setSidechainPins(destination_track, fx_index, freeChannel - 2, "replace")
-        reaper.ShowConsoleMsg('второй режим')
     elseif mode == 1 then  -- "use_current" теперь становится mode 1
         local freeChannel = currentChannel - 1
         createSend(freeChannel, source_tracks, destination_track, fx_index)
-        reaper.ShowConsoleMsg('первый режим')
     end
 end
-
-local isEnter = false
-local track_under_cursor_at_first_click = nil
-local current_fx_index = nil
-local current_fx_name = nil
-local selected_fx_name = nil
-local current_mode = 0
-local selectedTracks = {}
 
 
 function updateWidgetText(track, isDragging_2)
@@ -500,13 +489,14 @@ function updateWidgetText(track, isDragging_2)
         end
         isEnter = isDragging_2
     end
-    
 end
+
+local close_1 = false
 
 function checkTrackAndCursor()
     local mouse_state = reaper.JS_Mouse_GetState(5) 
     local isDragging_2 = (mouse_state == 5)
-    
+    if close_1 then return end
     if isDragging_2 and not track_under_cursor_at_first_click then
         -- Начало перетаскивания
         reaper.BR_GetMouseCursorContext()
@@ -526,7 +516,6 @@ function checkTrackAndCursor()
     reaper.defer(checkTrackAndCursor) 
 end
 
-checkTrackAndCursor()
 
 function getCurrentFXPins2(track, fxnumber)
     local retval, inputPins, outputPins = reaper.TrackFX_GetIOSize(track, fxnumber)
@@ -564,7 +553,7 @@ function getCurrentFXPins2(track, fxnumber)
             end
         end
     end
-
+    
     return pinPairs
 end
 
@@ -737,7 +726,9 @@ function update()
             if not isCursorOnNewFreeMode and not isCursorOnNewPreserve then
                 new_free_mode:hide()
                 new_preserve:hide()
+                
             end
+            --window:attr('cursor', rtk.mouse.cursors.UNDEFINED)
             return true
         end
         
@@ -750,11 +741,10 @@ function update()
                 current_fx_name = fxName
                 current_track = track_under_cursor
                 current_mode = 1
+                --window:attr('cursor', rtk.mouse.cursors.REAPER_POINTER_ROUTING)
             end
             return true
         end
-        
-        
         
         
         circle.ondoubleclick = function(self, event)
@@ -790,8 +780,6 @@ function update()
         
         fx_button.ondragstart = function(self, event)
             if event.ctrl or event.shift then
-                --self:attr('lborder', 'green')
-                --self:attr('rborder', 'green')
                 selected_fx_index = i  -- Сохраняем индекс FX
                 selected_fx_track = track_under_cursor  -- Сохраняем исходный трек
                 self:attr('cursor', rtk.mouse.cursors.REAPER_DRAGDROP_COPY)
@@ -847,7 +835,7 @@ function update()
                         reaper.SetMediaTrackInfo_Value(current_track, "I_CUSTOMCOLOR", original_track_color)
                     end
                     original_track_color = reaper.GetMediaTrackInfo_Value(track_under_cursor, "I_CUSTOMCOLOR") 
-                    current_track = track_under_cursor  -- обновляем текущий трек
+                    current_track = track_under_cursor
                 end
                 if track_under_cursor then
                     reaper.SetMediaTrackInfo_Value(track_under_cursor, "I_CUSTOMCOLOR", red_color|0x1000000)
@@ -900,7 +888,10 @@ function update()
         
     end
 end
+
+checkTrackAndCursor()
 update()
+
 vbox:focus()
 
 local prevVisibleTracks = nil
@@ -908,7 +899,6 @@ local prevX, prevTcpPanelY, prevTcpWidth = nil, nil, nil
 
 function main()
     local currVisibleTracks = func.collectVisibleTracks()
-    
     local _, x, tcpPanelY, tcpWidth, _ = func.getTCPTopPanelProperties()
     
     if prevVisibleTracks and prevX and prevTcpPanelY and prevTcpWidth then
@@ -917,6 +907,7 @@ function main()
             or tcpPanelY ~= prevTcpPanelY
             or tcpWidth ~= prevTcpWidth then
             window:close()
+            close_1 = true
             return -- выходим из функции, чтобы прекратить цикл
         end
     end

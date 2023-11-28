@@ -1,10 +1,12 @@
 -- @description MVelocity Tool
 -- @author mrtnz
--- @version 1.0.27
+-- @version 1.0.28
 -- @about
 --  ...
 -- @changelog
---   - fix focus buttons
+--   - fix scale > 1.0
+
+
 
 
 package.path = string.format('%s/Scripts/rtk/1/?.lua;%s?.lua;', reaper.GetResourcePath(), "")
@@ -17,26 +19,41 @@ local functions_path = script_path .. "../libs/Functions.lua"
 local func = dofile(functions_path)
 local via = dofile(window_path)
 
-initialW=415
-initialH=400
+
+
+initialW = 415
+initialH = 400
+
+
 local scale_2
 main_background_color = "#1a1a1a"
-local wnd = rtk.Window{
-    w = initialW,
-    h = initialH,
-    title = 'MVelocity',
-    bg = main_background_color,
-    resizable=true,
-    opacity=0.98,padding=8,
+local wnd = 
+        rtk.Window{
+            w = initialW,
+            h = initialH,
+            title = 'MVelocity',
+            bg = main_background_color,
+            resizable=true,
+            opacity=0.98,
+            padding=8,
     
 }
 wnd:open()
 
+
+local curr_scale = rtk.scale.system
+
+wnd:attr('w', initialW*curr_scale)
+wnd:attr('h',initialH*curr_scale)
+
+
+--[[
 wnd.onresize=function(self, w, h)
-    scale_2 = math.min(w / initialW, h / initialH)
-    rtk.scale.user = scale_2
+    scale_2 = math.min(w / initialW*curr_scale, h / initialH*curr_scale)
+    rtk.scale.user = scale_2-- / 1.25
     self:reflow()
-end
+end]]
+
 main_line_color = "#5a5a5a"
 SimpleSlider = rtk.class('SimpleSlider', rtk.Spacer)
 SimpleSlider.register{
