@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="33a1ce75a260af331540771585d480c3d965fe72">
+<index version="1" name="ReaperScripts" commit="356d9b3abb4153707a362398c61ea9c060e6b957">
   <category name="Item Editing">
     <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
       <metadata>
@@ -479,6 +479,10 @@
         <changelog><![CDATA[- fix scale ui v2]]></changelog>
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/33a1ce75a260af331540771585d480c3d965fe72/MIDI%20Editor/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
       </version>
+      <version name="1.0.45" author="mrtnz" time="2023-11-28T15:04:49Z">
+        <changelog><![CDATA[- fix scale ui2]]></changelog>
+        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/356d9b3abb4153707a362398c61ea9c060e6b957/MIDI%20Editor/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
+      </version>
     </reapack>
     <reapack name="mrtnz_MIDI chopper.lua" type="script" desc="MIDI Chopper v1.21">
       <metadata>
@@ -539,6 +543,10 @@
       <version name="1.0.28" author="mrtnz" time="2023-11-28T07:21:20Z">
         <changelog><![CDATA[- fix scale > 1.0]]></changelog>
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/46d7dce21ba8f06e57653c151f9eee334ea0a4f2/MIDI%20Editor/mrtnz_MVelocity.lua</source>
+      </version>
+      <version name="1.0.29" author="mrtnz" time="2023-11-28T15:04:49Z">
+        <changelog><![CDATA[- fix scale > 1.0]]></changelog>
+        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/356d9b3abb4153707a362398c61ea9c060e6b957/MIDI%20Editor/mrtnz_MVelocity.lua</source>
       </version>
     </reapack>
   </category>
@@ -614,6 +622,9 @@ Tooltip with events]]></changelog>
       </version>
       <version name="1.0beta1.035" author="mrtnz" time="2023-11-28T07:21:20Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/46d7dce21ba8f06e57653c151f9eee334ea0a4f2/Tracks/mrtnz_mini%20fx%20list.lua</source>
+      </version>
+      <version name="1.0beta1.036" author="mrtnz" time="2023-11-28T15:04:49Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/356d9b3abb4153707a362398c61ea9c060e6b957/Tracks/mrtnz_mini%20fx%20list.lua</source>
       </version>
     </reapack>
     <reapack name="mrtnz_toggle freeze selected tracks(mono,stereo,multi).lua" type="script" desc="Toggle freeze selected tracks(mono, stereo, multi)">
@@ -696,7 +707,7 @@ Tooltip with events]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
