@@ -1,13 +1,14 @@
--- @description MIDI Chopper
+-- @description MIDI Chopper v1.21
 -- @author mrtnz
--- @version 1.2
+-- @version 1.21
 -- @about
---   Chopper for midi editor
-
+--  ...
+-- @changelog
+--   - fix 
 midiEditor = reaper.MIDIEditor_GetActive()
 take = reaper.MIDIEditor_GetTake(midiEditor)
 if not take or not reaper.TakeIsMIDI(take) then return end
-
+--Chopper(Split notes) for midi editor
 function table.serialize(obj)
   local lua = ""
   local t = type(obj)
