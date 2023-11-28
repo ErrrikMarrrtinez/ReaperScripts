@@ -1,10 +1,8 @@
 -- @description MArpeggiator(chord to arp)
 -- @author mrtnz
--- @version 1.0.42
+-- @version 1.0.43
 -- @changelog
---        - keyboard passes through the script window, 
---        - arpeggio is inserted taking into account the current timebase of the midi item
---        - (also taking into account the stretch of the item)
+--        - fix scale ui
 
 
 
@@ -465,6 +463,7 @@ v_sliders_modes_pressed_color="#9a9a9a"
 modes_button_wight = base_wight_button - 15
 height=30
 sectionID = "" 
+
 initialW=355
 initialH=400
 local scale_2
@@ -494,6 +493,7 @@ local wnd = rtk.Window{
     maxw=1000,
     
 }
+
 local all_container_boxes = wnd:add(rtk.Container{})
 local hbox_app = all_container_boxes:add(rtk.HBox{tooltip='click to hide',h=height,y=wnd.h-height},{fillw=true})
 local app = hbox_app:add(rtk.Application())
@@ -620,7 +620,6 @@ checkAndCreateFile(scriptPath .. "/modify.json", defaultModifyContent)
 checkAndCreateFile(scriptPath .. "/original.json")
 
 
-
 local savedState = reaper.GetExtState(sectionID, "pinState")
 local container = all_container_boxes:add(rtk.VBox{expand=1,y=-35})
 local vbox2 = container:add(rtk.VBox{y=50,padding=5,x=wnd.w/2-50})
@@ -663,8 +662,8 @@ local scale_b = app_hbox:add(rtk.Button{border="#3a3a3a65",halign='center',paddi
 local function applyScale(scale)
     rtk.scale.user = scale
     scale_b:attr('label', string.format("%.2f", scale))
-    wnd:attr('w', initialW * scale)
-    wnd:attr('h', initialH * scale)
+    wnd:attr('w', initialW * scale)-- * curr_scale)
+    wnd:attr('h', initialH * scale)-- * curr_scale)
     wnd:reflow()
 end
 
@@ -1802,19 +1801,19 @@ pin_b.onclick = function(self)
     pin_b.pressed = not pin_b.pressed
     updatePinState(pin_b.pressed)
     reaper.SetExtState(sectionID, "pinState", tostring(pin_b.pressed), true)
-end
+end--[[
 wnd.onresize = function(self, w, h)
     if not w or not h then return end
 
-    local scale = h / initialH
+    local scale = h / initialH 
     rtk.scale.user = scale
     scale_b:attr('label', string.format("%.2f", scale))
 
     reaper.SetExtState(sectionID, "windowScale", tostring(scale), true)
     reaper.SetExtState(sectionID, "windowPosX", tostring(self.x), true)
     reaper.SetExtState(sectionID, "windowPosY", tostring(self.y), true)
-end
-    
+end]]
+
     
 reset_b.onclick = function() applyScale(1.0) end
 btn_generate.onmouseleave=function(self)
@@ -3379,6 +3378,7 @@ function CircleWidget:onchange()
         
     end
 end
+
 local keepRunning = true
 wnd.onclose = function(self)
     reaper.SetExtState(sectionID, "windowPosX", tostring(self.x), true)
@@ -3398,3 +3398,10 @@ defer_f()
 
 
 wnd:open()
+
+local curr_scale = rtk.scale.system
+initialW=initialW*curr_scale
+initialH=initialH*curr_scale
+wnd:attr('w', initialW)
+wnd:attr('h',initialH)
+reset_b:onclick()
