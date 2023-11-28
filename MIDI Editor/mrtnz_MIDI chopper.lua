@@ -1,10 +1,10 @@
 -- @description MIDI Chopper v1.21
 -- @author mrtnz
--- @version 1.21
+-- @version 1.211
 -- @about
 --  ...
 -- @changelog
---   - fix 
+--   - fix window size
 midiEditor = reaper.MIDIEditor_GetActive()
 take = reaper.MIDIEditor_GetTake(midiEditor)
 if not take or not reaper.TakeIsMIDI(take) then return end
@@ -279,6 +279,8 @@ local stored_mouse_y = nil
 local useAverage = false
 local grid_values = {1920, 1280, 960, 640, 480, 320, 240, 160, 120, 80, 60, 30}
 
+local width, height = 300, 266
+
 
 function MouseCursorBusy(enable)
     local hwnd = reaper.JS_Window_FindTop(title, true)
@@ -313,6 +315,7 @@ end
 
 local slider_width = 200
 function CustomSlider(ctx, label, value, min_value, max_value, normal_color, hover_color, active_color, grab_normal_color, grab_active_color)
+    
     reaper.ImGui_SetNextItemWidth(ctx, slider_width)
     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_FrameBg(), hex_to_rgba(normal_color))
     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_FrameBgHovered(), hex_to_rgba(hover_color))
@@ -355,6 +358,7 @@ local window_flags = reaper.ImGui_WindowFlags_NoCollapse()
 
 
 local function loop()
+    reaper.ImGui_SetNextWindowSize(ctx, width, height)
     reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_WindowRounding(), 10)
     reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_FrameRounding(), 5)
     reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_GrabRounding(), 5)
@@ -467,4 +471,3 @@ end
 reaper.ImGui_Attach(ctx, font_main)
 reaper.ImGui_Attach(ctx, font_button)
 reaper.defer(loop)
-
