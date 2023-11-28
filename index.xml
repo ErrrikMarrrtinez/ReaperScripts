@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="46d7dce21ba8f06e57653c151f9eee334ea0a4f2">
+<index version="1" name="ReaperScripts" commit="1bb04081d29b8e75e3e2c4174c6a4fff51bc9173">
   <category name="Item Editing">
     <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
       <metadata>
@@ -476,18 +476,22 @@
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/46d7dce21ba8f06e57653c151f9eee334ea0a4f2/MIDI%20Editor/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
       </version>
     </reapack>
-    <reapack name="mrtnz_MIDI chopper.lua" type="script" desc="MIDI Chopper">
+    <reapack name="mrtnz_MIDI chopper.lua" type="script" desc="MIDI Chopper v1.21">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
-{\pard \ql \f0 \sa180 \li0 \fi0 Chopper for midi editor\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 ...\par}
 }
 ]]></description>
       </metadata>
       <version name="1.2" author="mrtnz" time="2023-11-27T13:33:15Z">
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/6199cdbed989492bc2143e9357d5da5b8d1c4f76/MIDI%20Editor/mrtnz_MIDI%20chopper.lua</source>
+      </version>
+      <version name="1.21" author="mrtnz" time="2023-11-28T07:40:47Z">
+        <changelog><![CDATA[- fix ]]></changelog>
+        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1bb04081d29b8e75e3e2c4174c6a4fff51bc9173/MIDI%20Editor/mrtnz_MIDI%20chopper.lua</source>
       </version>
     </reapack>
     <reapack name="mrtnz_MVelocity.lua" type="script" desc="MVelocity Tool">
@@ -684,7 +688,7 @@ Tooltip with events]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
