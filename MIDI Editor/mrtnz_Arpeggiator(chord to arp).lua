@@ -1,8 +1,8 @@
 -- @description MArpeggiator(chord to arp)
 -- @author mrtnz
--- @version 1.0.44
+-- @version 1.0.45
 -- @changelog
---        - fix scale ui v2
+--        - fix scale ui2
 
 
 
@@ -17,6 +17,7 @@ local rtkPath = resourcePath .. "../libs/"
 local imagesPath = scriptDir .. "../images/"
 local jsonPath = scriptDir .. "../libs/" 
 
+-- Определение разделителя пути в зависимости от операционной системы
 local separator = ""
 if reaper.GetOS() == "Win32" or reaper.GetOS() == "Win64" then
     separator = "\\"
@@ -3386,11 +3387,13 @@ defer_f()
 
 wnd:open()
 
-local curr_scale = rtk.scale.system
+local curr_scale = rtk.scale.system*rtk.scale.reaper*rtk.scale.user
+
 initialW=initialW*curr_scale
 initialH=initialH*curr_scale
 wnd:attr('w', initialW)
 wnd:attr('h',initialH)
+
 
 local function applyScale(scale)
     rtk.scale.user = scale
@@ -3399,6 +3402,7 @@ local function applyScale(scale)
     wnd:attr('h', initialH * scale)-- * curr_scale)
     wnd:reflow()
 end
+
 if savedScale ~= "" then
     applyScale(tonumber(savedScale))
 end

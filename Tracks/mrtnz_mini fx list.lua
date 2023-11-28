@@ -1,6 +1,6 @@
 -- @description mrtnz_Mini FX LIST(for track under mouse)
 -- @author mrtnz
--- @version 1.0beta1.035
+-- @version 1.0beta1.036
 
 local script_path = (select(2, reaper.get_action_context())):match('^(.*[/\\])')
 
@@ -148,7 +148,7 @@ window.onkeypress = via.onkeypressHandler(via, func, "main")
 
 
 local horisontal_wd = window:add(rtk.HBox{})
-local curr_scale = rtk.scale.system
+local curr_scale = rtk.scale.system*rtk.scale.reaper*rtk.scale.user
 --[[
 window:attr('h', height * curr_scale)
 window:attr('w', tcpWidth * curr_scale)]]
