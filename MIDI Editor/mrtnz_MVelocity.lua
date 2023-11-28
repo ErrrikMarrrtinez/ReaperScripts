@@ -1,6 +1,6 @@
 -- @description MVelocity Tool
 -- @author mrtnz
--- @version 1.0.28
+-- @version 1.0.29
 -- @about
 --  ...
 -- @changelog
@@ -41,7 +41,7 @@ local wnd =
 wnd:open()
 
 
-local curr_scale = rtk.scale.system
+local curr_scale = rtk.scale.system*rtk.scale.reaper*rtk.scale.user
 
 wnd:attr('w', initialW*curr_scale)
 wnd:attr('h',initialH*curr_scale)
