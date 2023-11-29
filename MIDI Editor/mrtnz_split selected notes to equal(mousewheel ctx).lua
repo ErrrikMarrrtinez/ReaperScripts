@@ -1,8 +1,7 @@
 -- @description Split note to equal parts(mousewheel ctx)
 -- @author mrtnz
--- @version 1.0
+-- @version 1.01
 -- @about
---  ...
 
 
 
