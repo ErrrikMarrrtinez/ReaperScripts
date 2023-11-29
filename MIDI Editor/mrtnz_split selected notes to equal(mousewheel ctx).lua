@@ -1,8 +1,8 @@
 -- @description Split note to equal parts(mousewheel ctx)
 -- @author mrtnz
--- @version 1.012
+-- @version 1.013
 -- @about
---  split notes to equal parts
+--  split notes to equal parts, + 1 script for offset editing with mousewheel ctx
 -- @provides
 --   [main=midi_editor] mrtnz_split selected notes to equal(mousewheel ctx).lua
 
