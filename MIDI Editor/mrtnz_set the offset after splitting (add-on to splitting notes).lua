@@ -1,11 +1,4 @@
--- @description Split note to equal parts(mousewheel ctx)
--- @author mrtnz
--- @version 1.2
--- @about
---  split notes to equal parts
--- @provides
---   [main=midi_editor] mrtnz_split selected notes to equal(mousewheel ctx).lua
-
+-- @noindex
 
 local midiEditor = reaper.MIDIEditor_GetActive()
 local take = reaper.MIDIEditor_GetTake(midiEditor)
@@ -30,8 +23,6 @@ function table.serialize(obj)
       lua = lua .. "}"
   elseif t == "nil" then
       return nil
-  else
-      error("can not serialize a " .. t .. " type.")
   end
   return lua
 end
@@ -172,46 +163,45 @@ function split(value, ofs, interp_type, useTick)
   end
 end
 
-div=2
+div=1
 ofs=0
 
 
 local r = reaper
 
-
-function run(useTick, increaseDiv) 
-    local lastDiv = tonumber(r.GetExtState("MyScript", "lastDiv")) or 1
+function run(useTick, increaseOfs) 
+    local lastDiv = tonumber(r.GetExtState("MyScript", "lastDiv")) or 1 -- Получаем сохранённое значение div
+    local lastOfs = tonumber(r.GetExtState("MyScript", "lastOfs")) or 0
     if checkIdenticalNotesWithSaved("SaveSelectedNotes_B") then 
-        if increaseDiv then
-            div = lastDiv + 1 
+        if increaseOfs then
+            ofs = math.min(1, lastOfs + 0.1) -- Увеличиваем ofs, не более 1
         else
-            div = math.max(1, lastDiv - 1)  
+            ofs = math.max(-1, lastOfs - 0.1) -- Уменьшаем ofs, не менее -1
         end
         deleteSelectedNotes() 
         loadNotesFromExstateAndInsert("SaveSelectedNotes_A")
     else 
         saveSelectedNotesToExstate("SaveSelectedNotes_A")
-        div = 2
+        ofs = 0
     end
     
-    split(div, ofs, interp_type, useTick) 
+    split(lastDiv, ofs, interp_type, useTick)  -- Используем lastDiv вместо div
     saveSelectedNotesToExstate("SaveSelectedNotes_B")
-    r.SetExtState("MyScript", "lastDiv", tostring(div), false)
+    r.SetExtState("MyScript", "lastOfs", tostring(ofs), false)
     r.UpdateArrange()
 end
-
 
 function adjustWithMouseWheel()
     local _, _, _, _, _, _, val = r.get_action_context()
     r.Undo_BeginBlock()
     if val > 0 then
-        run(false, true)
+        run(false, true)  -- Увеличиваем ofs
     else
-        run(false, false) 
+        run(false, false) -- Уменьшаем ofs
     end
-    r.Undo_EndBlock("Split note to equal", -1)
+    r.Undo_EndBlock("Adjust note offset", -1)
 end
 
-
 adjustWithMouseWheel()
+
 
