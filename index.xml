@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="971aa390e81ab5f1d95905234a188794da624b3d">
+<index version="1" name="ReaperScripts" commit="1c7bbd994d0fc8cc5c0d645753b5f8143aebb584">
   <category name="Item Editing">
     <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
       <metadata>
@@ -585,6 +585,9 @@
       </version>
       <version name="1.2" author="mrtnz" time="2023-11-29T12:18:36Z">
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/971aa390e81ab5f1d95905234a188794da624b3d/MIDI%20Editor/mrtnz_split%20selected%20notes%20to%20equal(mousewheel%20ctx).lua</source>
+      </version>
+      <version name="1.012" author="mrtnz" time="2023-11-29T12:22:18Z">
+        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1c7bbd994d0fc8cc5c0d645753b5f8143aebb584/MIDI%20Editor/mrtnz_split%20selected%20notes%20to%20equal(mousewheel%20ctx).lua</source>
       </version>
     </reapack>
   </category>
