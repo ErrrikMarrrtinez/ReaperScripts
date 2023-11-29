@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="ca1e3d7854e5ef1ee551dcffe68d14f45c8431e1">
+<index version="1" name="ReaperScripts" commit="7566e1293b6ad68b513f0a75ee24ccb8ff3d609d">
   <category name="Item Editing">
     <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
       <metadata>
@@ -591,6 +591,10 @@
       </version>
       <version name="1.013" author="mrtnz" time="2023-11-29T12:26:17Z">
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/9827e277c577b900960ee7581a894758f2b6d3cd/MIDI%20Editor/mrtnz_split%20selected%20notes%20to%20equal(mousewheel%20ctx).lua</source>
+      </version>
+      <version name="1.014" author="mrtnz" time="2023-11-29T12:32:44Z">
+        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7566e1293b6ad68b513f0a75ee24ccb8ff3d609d/MIDI%20Editor/mrtnz_split%20selected%20notes%20to%20equal(mousewheel%20ctx).lua</source>
+        <source main="midi_editor" file="mrtnz_set the offset after splitting (add-on to splitting notes).lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7566e1293b6ad68b513f0a75ee24ccb8ff3d609d/MIDI%20Editor/mrtnz_set%20the%20offset%20after%20splitting%20(add-on%20to%20splitting%20notes).lua</source>
       </version>
     </reapack>
   </category>
