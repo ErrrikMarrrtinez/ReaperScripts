@@ -549,20 +549,6 @@
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/356d9b3abb4153707a362398c61ea9c060e6b957/MIDI%20Editor/mrtnz_MVelocity.lua</source>
       </version>
     </reapack>
-    <reapack name="mrtnz_split selected notes to equal(mousewheel ctx).lua" type="script" desc="Split note to equal parts(mousewheel ctx)">
-      <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
-{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
-\widowctrl\hyphauto
-
-{\pard \ql \f0 \sa180 \li0 \fi0 ...\par}
-}
-]]></description>
-      </metadata>
-      <version name="1.0" author="mrtnz" time="2023-11-29T05:12:50Z">
-        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/ec53cd12b7e09c92e8738aca4499b4dc1a56e5f3/MIDI%20Editor/mrtnz_split%20selected%20notes%20to%20equal(mousewheel%20ctx).lua</source>
-      </version>
-    </reapack>
   </category>
   <category name="Tracks">
     <reapack name="mrtnz_close all fx windows for selected tracks.lua" type="script" desc="Close all fx windows for selected tracks">
@@ -721,7 +707,7 @@ Tooltip with events]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
