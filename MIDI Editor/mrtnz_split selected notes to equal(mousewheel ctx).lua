@@ -1,6 +1,6 @@
 -- @description Split note to equal parts(mousewheel ctx)
 -- @author mrtnz
--- @version 1.014
+-- @version 1.015
 -- @about
 --  split notes to equal parts, + 1 script for offset editing with mousewheel ctx
 -- @provides
@@ -181,6 +181,7 @@ local r = reaper
 
 function run(useTick, increaseDiv) 
     local lastDiv = tonumber(r.GetExtState("MyScript", "lastDiv")) or 1
+    local lastOfs = tonumber(r.GetExtState("MyScript", "lastOfs")) or 0  
     if checkIdenticalNotesWithSaved("SaveSelectedNotes_B") then 
         if increaseDiv then
             div = lastDiv + 1 
@@ -192,13 +193,15 @@ function run(useTick, increaseDiv)
     else 
         saveSelectedNotesToExstate("SaveSelectedNotes_A")
         div = 2
+        r.SetExtState("MyScript", "lastOfs", "0", false)
+        lastOfs = 0
     end
     
-    split(div, ofs, interp_type, useTick) 
+    split(div, lastOfs, interp_type, useTick)  -- Используем lastOfs вместо ofs
     saveSelectedNotesToExstate("SaveSelectedNotes_B")
     r.SetExtState("MyScript", "lastDiv", tostring(div), false)
     r.UpdateArrange()
-end
+end 
 
 
 function adjustWithMouseWheel()
