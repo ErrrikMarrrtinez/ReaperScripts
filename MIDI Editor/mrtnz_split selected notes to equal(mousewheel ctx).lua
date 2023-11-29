@@ -1,10 +1,10 @@
 -- @description Split note to equal parts(mousewheel ctx)
 -- @author mrtnz
--- @version 1.013
+-- @version 1.014
 -- @about
 --  split notes to equal parts, + 1 script for offset editing with mousewheel ctx
 -- @provides
---   mrtnz_set the offset after splitting (add-on to splitting notes).lua
+--   [main=midi_editor] mrtnz_set the offset after splitting (add-on to splitting notes).lua
 
 
 local midiEditor = reaper.MIDIEditor_GetActive()
