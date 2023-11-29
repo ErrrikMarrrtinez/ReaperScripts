@@ -1,6 +1,6 @@
 -- @description Split note to equal parts(mousewheel ctx)
 -- @author mrtnz
--- @version 1.2
+-- @version 1.012
 -- @about
 --  split notes to equal parts
 -- @provides
