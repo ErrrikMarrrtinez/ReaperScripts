@@ -1,10 +1,10 @@
--- @description MIDI Chopper v1.21
+-- @description MIDI Chopper v1.212
 -- @author mrtnz
--- @version 1.211
+-- @version 1.212
 -- @about
 --  ...
 -- @changelog
---   - fix window size
+--   - fix error font
 midiEditor = reaper.MIDIEditor_GetActive()
 take = reaper.MIDIEditor_GetTake(midiEditor)
 if not take or not reaper.TakeIsMIDI(take) then return end
@@ -339,8 +339,23 @@ end
 
 local title = 'MIDI Chopper'
 local ctx = reaper.ImGui_CreateContext(title)
-local font_main = reaper.ImGui_CreateFont("Palatino Linotype", 14)
-local font_button = reaper.ImGui_CreateFont("Textile", 15)
+
+function tryLoadFont(fontList, fontSize)
+    local font
+    for _, fontName in ipairs(fontList) do
+        font = reaper.ImGui_CreateFont(fontName, fontSize)
+        if font then break end
+    end
+    return font or reaper.ImGui_CreateFont("", fontSize) -- Fallback to default font
+end
+local mainFontList = {"Palatino Linotype", "Arial", "Verdana", "Tahoma"}
+local buttonFontList = {"Textile", "Arial", "Verdana", "Tahoma"}
+
+local font_main = tryLoadFont(mainFontList, 14)
+local font_button = tryLoadFont(buttonFontList, 15)
+
+
+
 local window_flags = reaper.ImGui_WindowFlags_NoCollapse()
 
 
