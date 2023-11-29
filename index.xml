@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="ca6909300337bdfae62afccbb221b94dd9e4a6a1">
+<index version="1" name="ReaperScripts" commit="c7159666cc9dd819f57ade379572268c87e162d3">
   <category name="Item Editing">
     <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
       <metadata>
@@ -498,7 +498,7 @@
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/356d9b3abb4153707a362398c61ea9c060e6b957/MIDI%20Editor/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
       </version>
     </reapack>
-    <reapack name="mrtnz_MIDI chopper.lua" type="script" desc="MIDI Chopper v1.21">
+    <reapack name="mrtnz_MIDI chopper.lua" type="script" desc="MIDI Chopper v1.212">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
@@ -518,6 +518,10 @@
       <version name="1.211" author="mrtnz" time="2023-11-28T07:47:02Z">
         <changelog><![CDATA[- fix window size]]></changelog>
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/9cf1367f82d35fc08d3f7ba80720456b56d528de/MIDI%20Editor/mrtnz_MIDI%20chopper.lua</source>
+      </version>
+      <version name="1.212" author="mrtnz" time="2023-11-29T08:58:52Z">
+        <changelog><![CDATA[- fix error font]]></changelog>
+        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c7159666cc9dd819f57ade379572268c87e162d3/MIDI%20Editor/mrtnz_MIDI%20chopper.lua</source>
       </version>
     </reapack>
     <reapack name="mrtnz_MVelocity.lua" type="script" desc="MVelocity Tool">
