@@ -4,7 +4,7 @@
 -- @about
 --  split notes to equal parts, + 1 script for offset editing with mousewheel ctx
 -- @provides
---   [main=midi_editor] mrtnz_split selected notes to equal(mousewheel ctx).lua
+--   mrtnz_set the offset after splitting (add-on to splitting notes).lua
 
 
 local midiEditor = reaper.MIDIEditor_GetActive()
