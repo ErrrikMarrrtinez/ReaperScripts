@@ -42,6 +42,7 @@
 --   ../images/chance.png
 --   ../images/on_on.png
 --   ../images/cursor.cur
+--   ../images/freeze_ic.png
 --   rtk.lua
 --   Widgets.lua
 --   Window.lua
