@@ -1,6 +1,6 @@
 -- @description mrtnz_Mini FX LIST(for track under mouse)
 -- @author mrtnz
--- @version 1.0beta1.037
+-- @version 1.0beta1.038
 
 local script_path = (select(2, reaper.get_action_context())):match('^(.*[/\\])')
 
@@ -367,11 +367,26 @@ function updateButtonBorders(all_buttons, clickedIndex)
             local current_hbox = all_hboxes[i]
             
             
-            local freeze_button_time = current_hbox:add(rtk.Button{'freeze'},{fillh=true})
+            local freeze_button_time = current_hbox:
+                add(
+                    rtk.Button{
+                        icon=freeze_ic,
+                        tborder='red',
+                        color="#2f445c",
+                        x=-30,'FREEZE',
+                        iconpos='right',
+                        spacing=25,
+                        halign='center',
+                        },{
+                        fillw=true,
+                        fillh=true
+            })
             freeze_button_time.onclick = function(self, event)
                 --reaper.ShowConsoleMsg(clickedIndex)
                 freeze_track(clickedIndex, track_under_cursor)
                 update()
+                all_buttons = {}
+                all_boxes = {}
             end
         else
             button:attr('lborder', (i < clickedIndex and i > 1) and 'red' or nil)
@@ -757,22 +772,6 @@ function update()
         local fxName_frez = frozenFxNames[i]
         local hbox_frez = new_vbox:add(rtk.HBox{},{fillw=true,fillh=true})
         local wid = vbox.w 
-        --[[local button_disable_frez = hbox_frez:
-            add(
-                rtk.Button{
-                    icon=freeze_ic,
-                    halign='center',
-                    padding=-5,
-                    iconpos='right',
-                    border='#ffffff30',
-                    gradient=2,
-                    w=30,
-                    z=4,
-                    disabled = true,
-                    },{
-                    fillh=true
-        })]]
-        
         local fx_button_fr = hbox_frez:
             add(
                 rtk.Button{
@@ -1162,27 +1161,4 @@ end
 
 
 
-main() -- начальный запуск
-
-
-        --[[
-        if hasSidechainInputs(track_under_cursor, i) then
-            hbox_send:remove(button_circ)
-            local meter = VolumeMeter{w = 15}
-            hbox_send:add(meter)
-            table.insert(meters, meter)  -- Добавляем индикатор в список
-            meter.onmouseenter=function(self, event)
-                meter:attr('border','red')
-                return true
-            end
-            meter.onmouseleave=function(self, event)
-                meter:attr('border',false)
-                return true
-            end
-        end
-        window.onupdate = function()
-            for _, meter in ipairs(meters) do
-                meter:set_from_track(track_under_cursor)
-            end
-        end
-        ]]
+main()
