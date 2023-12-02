@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="3c10ee5164590a79d118d45d442325cf2e02bd52">
+<index version="1" name="ReaperScripts" commit="39dee3717508d647f5e25ffbe2412a49a7130c4e">
   <category name="Item Editing">
     <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
       <metadata>
@@ -680,6 +680,9 @@ Tooltip with events]]></changelog>
       </version>
       <version name="1.0beta1.037" author="mrtnz" time="2023-12-02T09:54:43Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3c10ee5164590a79d118d45d442325cf2e02bd52/Tracks/mrtnz_mini%20fx%20list.lua</source>
+      </version>
+      <version name="1.0beta1.038" author="mrtnz" time="2023-12-02T11:36:10Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/39dee3717508d647f5e25ffbe2412a49a7130c4e/Tracks/mrtnz_mini%20fx%20list.lua</source>
       </version>
     </reapack>
     <reapack name="mrtnz_toggle freeze selected tracks(mono,stereo,multi).lua" type="script" desc="Toggle freeze selected tracks(mono, stereo, multi)">
