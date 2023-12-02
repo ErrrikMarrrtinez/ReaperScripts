@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="39dee3717508d647f5e25ffbe2412a49a7130c4e">
+<index version="1" name="ReaperScripts" commit="64d349a331d3974ae4b25d561bdec9de3307ccd6">
   <category name="Item Editing">
     <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
       <metadata>
@@ -91,7 +91,7 @@
       <metadata> HEAD
         
  HEAD
-      <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+      <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
@@ -368,6 +368,52 @@
         <source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/e27f5f4e81a4cb161a24cbbdba4865204b3941b9/libs/rtk.lua</source>
         <source file="Widgets.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/e27f5f4e81a4cb161a24cbbdba4865204b3941b9/libs/Widgets.lua</source>
         <source file="Window.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/e27f5f4e81a4cb161a24cbbdba4865204b3941b9/libs/Window.lua</source>
+      </version>
+      <version name="1.26" author="mrtnz" time="2023-12-02T18:12:43Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/libs/Functions.lua</source>
+        <source file="../images/Plus.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/Plus.png</source>
+        <source file="../images/add.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/add.png</source>
+        <source file="../images/bulb1.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/bulb1.png</source>
+        <source file="../images/bulb2.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/bulb2.png</source>
+        <source file="../images/bulb_en.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/bulb_en.png</source>
+        <source file="../images/close.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/close.png</source>
+        <source file="../images/down.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/down.png</source>
+        <source file="../images/gear.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/gear.png</source>
+        <source file="../images/gear_l.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/gear_l.png</source>
+        <source file="../images/gen_p.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/gen_p.png</source>
+        <source file="../images/key.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/key.png</source>
+        <source file="../images/leg.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/leg.png</source>
+        <source file="../images/link.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/link.png</source>
+        <source file="../images/link2.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/link2.png</source>
+        <source file="../images/loop.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/loop.png</source>
+        <source file="../images/oct.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/oct.png</source>
+        <source file="../images/off.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/off.png</source>
+        <source file="../images/on.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/on.png</source>
+        <source file="../images/onof.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/onof.png</source>
+        <source file="../images/page.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/page.png</source>
+        <source file="../images/past.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/past.png</source>
+        <source file="../images/pin.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/pin.png</source>
+        <source file="../images/pinned.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/pinned.png</source>
+        <source file="../images/preset.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/preset.png</source>
+        <source file="../images/rand.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/rand.png</source>
+        <source file="../images/refresh.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/refresh.png</source>
+        <source file="../images/rnd.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/rnd.png</source>
+        <source file="../images/save.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/save.png</source>
+        <source file="../images/tab.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/tab.png</source>
+        <source file="../images/tr.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/tr.png</source>
+        <source file="../images/up-and-down.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/up-and-down.png</source>
+        <source file="../images/up.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/up.png</source>
+        <source file="../images/sawdown.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/sawdown.png</source>
+        <source file="../images/sawup.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/sawup.png</source>
+        <source file="../images/aup.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/aup.png</source>
+        <source file="../images/adown.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/adown.png</source>
+        <source file="../images/chance.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/chance.png</source>
+        <source file="../images/on_on.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/on_on.png</source>
+        <source file="../images/cursor.cur">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/cursor.cur</source>
+        <source file="../images/freeze_ic.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/images/freeze_ic.png</source>
+        <source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/libs/rtk.lua</source>
+        <source file="Widgets.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/libs/Widgets.lua</source>
+        <source file="Window.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64d349a331d3974ae4b25d561bdec9de3307ccd6/libs/Window.lua</source>
       </version>
     </reapack>
   </category>
@@ -765,7 +811,7 @@ Tooltip with events]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
