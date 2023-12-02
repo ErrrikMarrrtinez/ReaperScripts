@@ -1,7 +1,7 @@
 -- @description MVarious
 -- @author mrtnz
 -- @about Functions and various for my scripts.
--- @version 1.25
+-- @version 1.26
 -- @provides
 --   ../images/Plus.png
 --   ../images/add.png
