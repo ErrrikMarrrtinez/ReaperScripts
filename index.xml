@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="1808e73a7194864eb55e213f1622ed1d99fb094e">
+<index version="1" name="ReaperScripts" commit="3c10ee5164590a79d118d45d442325cf2e02bd52">
   <category name="Item Editing">
     <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
       <metadata>
@@ -91,7 +91,7 @@
       <metadata> HEAD
         
  HEAD
-      <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+      <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
@@ -677,6 +677,9 @@ Tooltip with events]]></changelog>
       </version>
       <version name="1.0beta1.036" author="mrtnz" time="2023-11-28T15:04:49Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/356d9b3abb4153707a362398c61ea9c060e6b957/Tracks/mrtnz_mini%20fx%20list.lua</source>
+      </version>
+      <version name="1.0beta1.037" author="mrtnz" time="2023-12-02T09:54:43Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3c10ee5164590a79d118d45d442325cf2e02bd52/Tracks/mrtnz_mini%20fx%20list.lua</source>
       </version>
     </reapack>
     <reapack name="mrtnz_toggle freeze selected tracks(mono,stereo,multi).lua" type="script" desc="Toggle freeze selected tracks(mono, stereo, multi)">
