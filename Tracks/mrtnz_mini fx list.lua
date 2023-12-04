@@ -1,6 +1,6 @@
 -- @description mrtnz_Mini FX LIST(for track under mouse)
 -- @author mrtnz
--- @version 1.0beta1.038
+-- @version 1.0beta1.039
 
 local script_path = (select(2, reaper.get_action_context())):match('^(.*[/\\])')
 
@@ -19,6 +19,7 @@ local widg = dofile(widg)
 rtk.add_image_search_path(images_path, 'dark')
 local enable = rtk.Image.icon('on_on'):scale(120,120,22,7)
 local freeze_ic = rtk.Image.icon('freeze_ic'):scale(120,120,22,8)
+local visib = rtk.Image.icon('visib'):scale(120,120,22,8)
 
 
 
@@ -186,25 +187,38 @@ local curr_scale = rtk.scale.system*rtk.scale.reaper*rtk.scale.user
 
 local vbox = horisontal_wd:add(rtk.VBox{w = tcpWidth / 2, padding = 1})
 
-local function update_proportion()
-    reaper.SetExtState("Your_Section", "proportion", tostring(vbox.w / tcpWidth), false)
+function update_proportion()
+    reaper.SetExtState("MiniFxList", "proportion", tostring(vbox.w / tcpWidth), false)
 end
 
 local dragging_2, initialMouseX, initialWidth = false, 0, 0
 local defaultColor, lastWidth = '#6F8FAF60', nil
-local proportion = tonumber(reaper.GetExtState("Your_Section", "proportion")) or 0.94 / curr_scale
+local proportion = tonumber(reaper.GetExtState("MiniFxList", "proportion")) or 0.96 / curr_scale
 
 vbox:attr('w', tcpWidth * proportion)
 
 local spacer = horisontal_wd:add(rtk.Spacer{
+
     bg = defaultColor,
     w = 7,
     x=-1,
     z=12,
-    onmouseenter = function(self, event) self:attr('cursor', rtk.mouse.cursors.SIZE_EW) self:attr('bg', defaultColor:sub(1, -3)); return true end,
-    onmouseleave = function(self, event) self:attr('cursor', rtk.mouse.cursors.UNDEFINED) self:attr('bg', defaultColor); return true end,
+    
+    onmouseenter = function(self, event) 
+        self:attr('cursor', rtk.mouse.cursors.SIZE_EW)
+        self:attr('bg', defaultColor:sub(1, -3));
+        return true 
+    end,
+    
+    onmouseleave = function(self, event) 
+        self:attr('cursor', rtk.mouse.cursors.UNDEFINED) 
+        self:attr('bg', defaultColor); 
+        return true 
+    end,
+    
     ondragstart = function(self, event)
         dragging_2, initialMouseX, initialWidth = true, event.x, vbox.w
+        self:attr('cursor', rtk.mouse.cursors.REAPER_VERTICAL_LEFTRIGHT)
         if isVisible then
         end
         return true
@@ -214,6 +228,7 @@ local spacer = horisontal_wd:add(rtk.Spacer{
         if dragging_2 then
             local newWidth = rtk.clamp(initialWidth + event.x - initialMouseX, 140, tcpWidth - settings_width-5)
             vbox:attr('w', newWidth)
+            
             update_proportion()
         end
         return true
@@ -221,8 +236,21 @@ local spacer = horisontal_wd:add(rtk.Spacer{
     
     ondragend = function(self, event)
         dragging_2 = false
+        self:attr('cursor', rtk.mouse.cursors.UNDEFINED)
+        self:onmouseenter()
         update_proportion()
         update()
+        return true
+    end,
+    
+    onmousedown = function(self, event)
+        self:attr('cursor', rtk.mouse.cursors.REAPER_VERTICAL_LEFTRIGHT)
+        return true
+    end,
+    
+    onmouseup = function(self, event)
+        self:attr('cursor', rtk.mouse.cursors.REAPER_VERTICAL_LEFTRIGHT)
+        self:onmouseenter()
         return true
     end,
     
@@ -232,12 +260,13 @@ local spacer = horisontal_wd:add(rtk.Spacer{
             lastWidth = nil
         else
             lastWidth = vbox.w
-            vbox:attr('w', tcpWidth-settings_width-5)
+            vbox:attr('w', tcpWidth-settings_width-7)
         end
         update_proportion()
         return true
-    end,
-}, {fillh = true})
+    end,},{
+    fillh = true
+})
 
 
 
@@ -250,7 +279,7 @@ local vbox_settings = horisontal_wd:add(rtk.VBox{w = settings_width, bg = '#1a1a
 
 enable:recolor("#1c2434")
 local disabled_current_color = "#4ac88275"
-local drag_color = 'green'
+local drag_color = '#3a3a3a10'
 local base_button_color = '#345c94'
 local offline_color = '#6E260E'
 local offline_button_disable_color = '#3a1407'
@@ -347,55 +376,40 @@ end
 local all_buttons = {}
 local all_boxes = {}
 
+
 function updateButtonBorders(all_buttons, clickedIndex)
-    
+    local isSingleSelection = (clickedIndex == 1)
     for i, button in ipairs(all_buttons) do
         button:attr('tborder', false)
         button:attr('bborder', false)
         button:attr('rborder', false)
         button:attr('lborder', false)
-        if i == 1 then
-            button:attr('tborder', i <= clickedIndex and 'red' or nil)
-            button:attr('lborder', i <= clickedIndex and 'red' or nil)
-            button:attr('rborder', i <= clickedIndex and 'red' or nil)
-            
-        elseif i == clickedIndex then
-            button:attr('bborder', 'red')
-            button:attr('lborder', 'red')
-            button:attr('rborder', 'red')
-            
-            local current_hbox = all_hboxes[i]
-            
-            
-            local freeze_button_time = current_hbox:
-                add(
-                    rtk.Button{
-                        icon=freeze_ic,
-                        tborder='red',
-                        color="#2f445c",
-                        x=-30,'FREEZE',
-                        iconpos='right',
-                        spacing=25,
-                        halign='center',
-                        },{
-                        fillw=true,
-                        fillh=true
-            })
-            freeze_button_time.onclick = function(self, event)
-                --reaper.ShowConsoleMsg(clickedIndex)
-                freeze_track(clickedIndex, track_under_cursor)
-                update()
-                all_buttons = {}
-                all_boxes = {}
-            end
+
+        if isSingleSelection then
+            button:attr('tborder', i == clickedIndex and 'red' or nil)
+            button:attr('bborder', i == clickedIndex and 'red' or nil)
+            button:attr('lborder', i == clickedIndex and 'red' or nil)
+            button:attr('rborder', i == clickedIndex and 'red' or nil)
         else
-            button:attr('lborder', (i < clickedIndex and i > 1) and 'red' or nil)
-            button:attr('rborder', (i < clickedIndex and i > 1) and 'red' or nil)
+            if i == 1 then
+                button:attr('tborder', i <= clickedIndex and 'red' or nil)
+                button:attr('lborder', i <= clickedIndex and 'red' or nil)
+                button:attr('rborder', i <= clickedIndex and 'red' or nil)
+            elseif i == clickedIndex then
+                button:attr('bborder', 'red')
+                button:attr('lborder', 'red')
+                button:attr('rborder', 'red')
+            else
+                button:attr('lborder', (i < clickedIndex and i > 1) and 'red' or nil)
+                button:attr('rborder', (i < clickedIndex and i > 1) and 'red' or nil)
+            end
         end
-        
     end
-    
 end
+
+
+
+
 
 function freeze_track(value, track_under_cursor)
 
@@ -403,7 +417,11 @@ function freeze_track(value, track_under_cursor)
     reaper.PreventUIRefresh(1)
     
     local selected_track = track_under_cursor
-    
+    local itemCount = reaper.CountTrackMediaItems(selected_track)
+    if itemCount == 0 then
+        reaper.ShowConsoleMsg("В треке нет элементов.\n")
+        return
+    end
     if selected_track then
         local fxCount = reaper.TrackFX_GetCount(selected_track)
         local freeze_count = value
@@ -412,7 +430,7 @@ function freeze_track(value, track_under_cursor)
             reaper.InsertTrackAtIndex(idx, true)
             local temp_track = reaper.GetTrack(0, idx)
             reaper.SetMediaTrackInfo_Value(temp_track, "I_TCPHIDE", 1)
-    
+            
             for i = fxCount-1, freeze_count, -1 do
                 reaper.TrackFX_CopyToTrack(selected_track, i, temp_track, 0, true)
             end
@@ -433,12 +451,112 @@ function freeze_track(value, track_under_cursor)
     else
         reaper.ShowConsoleMsg("Трек не выбран.\n")
     end
-    
-    reaper.UpdateArrange()
+  
     reaper.PreventUIRefresh(-1)
+    reaper.UpdateArrange()
     reaper.Undo_EndBlock("Freezed", -1)
     
 end
+
+
+local temp_index = 0
+
+local freeze_button_time = vbox_settings: 
+     add(
+         rtk.Button{
+             icon=freeze_ic,
+             color="#2f445c",
+             padding=0,
+             border='#4a4a4a',
+             halign='center',
+             disabled=true,
+             h=20
+             },{
+             fillw=true,
+})
+
+local visible_frozen = vbox_settings: 
+     add(
+         rtk.Button{
+             icon=visib,
+             color="#2f445c",
+             padding=0,
+             border='#4a4a4a',
+             halign='center',
+             h=20
+             },{
+             fillw=true,
+})
+
+
+local active_button = nil
+local width_wide = 38
+local settings_width = 15
+
+local function reset_other_buttons(except)
+    for _, button in ipairs({freeze_button_time, visible_frozen}) do
+        if button ~= except then
+            button:animate{'h', dst=20, duration=0.2}
+        end
+    end
+end
+
+local is_active_value = false
+
+function enter_animation(self)
+    if active_button ~= self then
+        reset_other_buttons(self)
+        self:animate{'h', dst=width_wide, duration=0.2}
+        vbox_settings:animate{'w', dst=width_wide, duration=0.2}
+        update_proportion()
+
+        local proportion = tonumber(reaper.GetExtState("MiniFxList", "proportion")) or 0.94 / curr_scale
+        if proportion >= 0.90 and proportion <= 0.96 then
+            vbox:animate{'w', dst=tcpWidth-width_wide-spacer.w, duration=0.2}
+            is_active_value = true
+        end
+    end
+    active_button = self
+end
+
+function leave_animation(self)
+    if active_button == self then
+        vbox_settings:animate{'w', dst=settings_width, duration=0.2}
+        self:animate{'h', dst=20, duration=0.2}
+        --:after(function()
+            if active_button == self then
+                if is_active_value then
+                    vbox:animate{'w', dst=tcpWidth-settings_width-spacer.w, duration=0.2}
+                end
+                is_active_value = false
+                active_button = nil
+            end
+        --end)
+    end
+end
+
+freeze_button_time.onmouseenter = function(self, event)
+    enter_animation(self)
+    return true
+end
+
+freeze_button_time.onmouseleave = function(self, event)
+    leave_animation(self)
+    return true
+end
+
+visible_frozen.onmouseenter = function(self, event)
+    enter_animation(self)
+    return true
+end
+
+visible_frozen.onmouseleave = function(self, event)
+    leave_animation(self)
+    return true
+end
+
+
+
 
 function createOnClickHandler(track_under_cursor, button, vbox, hbox, button_disable)
     return function(self, event)
@@ -459,14 +577,19 @@ function createOnClickHandler(track_under_cursor, button, vbox, hbox, button_dis
                 reaper.TrackFX_Show(track_under_cursor, currentIndex, isOpen and 2 or 3)
             end
         elseif event.button == rtk.mouse.BUTTON_RIGHT then
-            
             updateButtonBorders(all_buttons, currentIndex+1)
-            --reaper.ShowConsoleMsg(button.currentIndex+1)
-           
+            temp_index = currentIndex+1
+            freeze_button_time:attr('disabled', false)
+            --freeze_button_time:attr('color', '#ff7518')
         end
     end
 end
 
+freeze_button_time.onclick = function(self, event)
+    --reaper.ShowConsoleMsg(temp_index)
+    freeze_track(temp_index, track_under_cursor)
+    update()
+end
 
 function createOnClickHandlerForDisable(track_under_cursor, i, fx_button, button_disable, hbox, setButtonAttributes, update)
     return function(self, event)
@@ -730,22 +853,27 @@ function getCurrentFXPins2(track, fxnumber)
 end
 
 
+isVisible = false
+
 function toggleVisibility()
     isVisible = not isVisible
     for _, hbox in ipairs(all_hboxes) do
         if isVisible then
+            visible_frozen:attr('color', '#bfcfff70')
             hbox:show()
             new_vbox:show()
+            vbox_sends:hide()
         else
             hbox:hide()
             new_vbox:hide()
+            visible_frozen:attr('color', '#2f445c')
+            vbox_sends:show()
         end
     end
-    reaper.SetExtState("MiniFxList", "IsVisible", tostring(isVisible), true)
     update()
 end
 
-isVisible = reaper.GetExtState("MiniFxList", "IsVisible") ~= "false"
+visible_frozen.onclick = toggleVisibility
 
 all_hboxes = {}
 
@@ -757,11 +885,18 @@ local selected_fx_track = nil
 local red_color = reaper.ColorToNative(255, 0, 0)  -- RGB для красного
 
 function update()
+
     vbox:remove_all()
     vbox_sends:remove_all()
     new_vbox:remove_all()
+    
     all_boxes = {}
     all_buttons = {}
+    
+    freeze_button_time:attr('disabled', true)
+    freeze_button_time:attr('border', false)
+    
+    visible_frozen:attr('border', false)
     
     local fx_count1 = reaper.TrackFX_GetCount(track_under_cursor)
     local frozenFxNames, frozenFxIndices = getFrozenFxNamesAndIndices(track_under_cursor)
@@ -776,14 +911,14 @@ function update()
             add(
                 rtk.Button{
                     label=fxName_frez,
-                    color=base_button_color..20,
+                    color=base_button_color..10,
                     wrap=true,
                     icon=freeze_ic,
                     flat=true,
                     iconpos='left',
-                    tagged=false,
-                    padding=def_tpadding/3,
-                    tpadding=def_tpadding/2,
+                    tagged=true,
+                    padding=2,
+                    --tpadding=def_tpadding/1,
                     halign='center',
                     bborder='#7a7a7a65',
                     z=15,
@@ -798,11 +933,10 @@ function update()
         
         if not isVisible then
             hbox_frez:hide()
-            --hbox_send_frez:hide()
             new_vbox:hide()
         end
         
-        vbox_settings.onclick = toggleVisibility
+        
         
     end
     
@@ -824,20 +958,20 @@ function update()
         local hbox = vbox:add(rtk.HBox{},{fillw=true,fillh=true})
         local hbox_send = vbox_sends:add(rtk.HBox{spacing=-2,}, {fillw = true, fillh = true})
         
-        
+
 
         local button_circ = hbox_send:
             add(
                 rtk.Button{
                     color=base_button_color..70,
                     wrap=true,
-                    --w=15,
+                    w=20,
                     flat=false,
                     halign='center',
                     tmargin=1,
                     bmargin=3,
                     padding=1,
-                    'Curr',
+                    '   ',
                     },{
                     fillh=true
         })
@@ -1161,4 +1295,27 @@ end
 
 
 
-main()
+main() -- начальный запуск
+
+
+        --[[
+        if hasSidechainInputs(track_under_cursor, i) then
+            hbox_send:remove(button_circ)
+            local meter = VolumeMeter{w = 15}
+            hbox_send:add(meter)
+            table.insert(meters, meter)  -- Добавляем индикатор в список
+            meter.onmouseenter=function(self, event)
+                meter:attr('border','red')
+                return true
+            end
+            meter.onmouseleave=function(self, event)
+                meter:attr('border',false)
+                return true
+            end
+        end
+        window.onupdate = function()
+            for _, meter in ipairs(meters) do
+                meter:set_from_track(track_under_cursor)
+            end
+        end
+        ]]
