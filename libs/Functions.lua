@@ -1,7 +1,7 @@
 -- @description MVarious
 -- @author mrtnz
 -- @about Functions and various for my scripts.
--- @version 1.27
+-- @version 1.28
 -- @provides
 --   ../images/Plus.png
 --   ../images/add.png
@@ -44,6 +44,7 @@
 --   ../images/cursor.cur
 --   ../images/freeze_ic.png
 --   ../images/visib.png
+--   ../images/edit.png
 --   rtk.lua
 --   Widgets.lua
 --   Window.lua
