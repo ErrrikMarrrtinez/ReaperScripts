@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="5a332da35c8e1974a67cc0488f303f76f5122d40">
+<index version="1" name="ReaperScripts" commit="5d4ee12cd11ac8a109714b803f8dacb8cdae3679">
   <category name="Item Editing">
     <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
       <metadata>
@@ -510,6 +510,54 @@
         <source file="Widgets.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/a03da38811dd9b88eeb0532da3186a6558aadbc3/libs/Widgets.lua</source>
         <source file="Window.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/a03da38811dd9b88eeb0532da3186a6558aadbc3/libs/Window.lua</source>
       </version>
+      <version name="1.29" author="mrtnz" time="2023-12-08T13:21:55Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/libs/Functions.lua</source>
+        <source file="../images/Plus.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/Plus.png</source>
+        <source file="../images/add.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/add.png</source>
+        <source file="../images/bulb1.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/bulb1.png</source>
+        <source file="../images/bulb2.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/bulb2.png</source>
+        <source file="../images/bulb_en.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/bulb_en.png</source>
+        <source file="../images/close.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/close.png</source>
+        <source file="../images/down.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/down.png</source>
+        <source file="../images/gear.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/gear.png</source>
+        <source file="../images/gear_l.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/gear_l.png</source>
+        <source file="../images/gen_p.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/gen_p.png</source>
+        <source file="../images/key.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/key.png</source>
+        <source file="../images/leg.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/leg.png</source>
+        <source file="../images/link.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/link.png</source>
+        <source file="../images/link2.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/link2.png</source>
+        <source file="../images/loop.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/loop.png</source>
+        <source file="../images/oct.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/oct.png</source>
+        <source file="../images/off.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/off.png</source>
+        <source file="../images/on.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/on.png</source>
+        <source file="../images/onof.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/onof.png</source>
+        <source file="../images/page.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/page.png</source>
+        <source file="../images/past.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/past.png</source>
+        <source file="../images/pin.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/pin.png</source>
+        <source file="../images/pinned.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/pinned.png</source>
+        <source file="../images/preset.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/preset.png</source>
+        <source file="../images/rand.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/rand.png</source>
+        <source file="../images/refresh.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/refresh.png</source>
+        <source file="../images/rnd.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/rnd.png</source>
+        <source file="../images/save.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/save.png</source>
+        <source file="../images/tab.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/tab.png</source>
+        <source file="../images/tr.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/tr.png</source>
+        <source file="../images/up-and-down.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/up-and-down.png</source>
+        <source file="../images/up.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/up.png</source>
+        <source file="../images/sawdown.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/sawdown.png</source>
+        <source file="../images/sawup.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/sawup.png</source>
+        <source file="../images/aup.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/aup.png</source>
+        <source file="../images/adown.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/adown.png</source>
+        <source file="../images/chance.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/chance.png</source>
+        <source file="../images/on_on.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/on_on.png</source>
+        <source file="../images/cursor.cur">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/cursor.cur</source>
+        <source file="../images/freeze_ic.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/freeze_ic.png</source>
+        <source file="../images/unfreeze_ic.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/unfreeze_ic.png</source>
+        <source file="../images/visib.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/images/visib.png</source>
+        <source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/libs/rtk.lua</source>
+        <source file="Widgets.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/libs/Widgets.lua</source>
+        <source file="Window.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/libs/Window.lua</source>
+      </version>
     </reapack>
   </category>
   <category name="MIDI Editor">
@@ -830,6 +878,21 @@ Tooltip with events]]></changelog>
       </version>
       <version name="1.0beta1.040" author="mrtnz" time="2023-12-05T09:58:41Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/a03da38811dd9b88eeb0532da3186a6558aadbc3/Tracks/mrtnz_mini%20fx%20list.lua</source>
+      </version>
+      <version name="1.0beta1.041" author="mrtnz" time="2023-12-08T13:21:55Z">
+        <changelog><![CDATA[* Added the ability to rename fx by clicking the middle mouse button. After entering the fx name, press enter to accept or escape to cancel.
+* Added animation when attempting to create a send.
+* Added window expansion when creating a send.
+* Added a refresh button.
+* Improved freeze creation through right-click.
+* Added functionality for level-based unfreeze: freeze the desired amount of fx, unfreeze different levels of freezes.
+* Added side panel animation (requires refinement).
+* For frozen buttons, added level highlighting of the current fx when hovering to the right of the button.
+* Inside this panel, when hovering over a certain level, the entire group of the current level is outlined.
+* Right-click on the level button (requires refinement) selects several groups of freeze levels and sublevels; the button changes from freeze to unfreeze in the upper right corner - all selected fx will be unfrozen.
+* Added a "refresh" button in the right side panel in case something somewhere hangs (it's better to report this, thank you :D).
+* Small error refinements.]]></changelog>
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/Tracks/mrtnz_mini%20fx%20list.lua</source>
       </version>
     </reapack>
     <reapack name="mrtnz_toggle freeze selected tracks(mono,stereo,multi).lua" type="script" desc="Toggle freeze selected tracks(mono, stereo, multi)">
