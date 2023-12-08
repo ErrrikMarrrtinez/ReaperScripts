@@ -1,6 +1,6 @@
 -- @description Insert fx and show x parameter creating a pool by razor edit
 -- @author mrtnz
--- @version 1.01
+-- @version 1.02
 -- @about
 --   insert fx and show x parameter creating a pool by razor edit
 
