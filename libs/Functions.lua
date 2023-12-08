@@ -1,7 +1,7 @@
 -- @description MVarious
 -- @author mrtnz
 -- @about Functions and various for my scripts.
--- @version 1.28
+-- @version 1.29
 -- @provides
 --   ../images/Plus.png
 --   ../images/add.png
@@ -43,8 +43,8 @@
 --   ../images/on_on.png
 --   ../images/cursor.cur
 --   ../images/freeze_ic.png
+--   ../images/unfreeze_ic.png
 --   ../images/visib.png
---   ../images/edit.png
 --   rtk.lua
 --   Widgets.lua
 --   Window.lua
@@ -257,6 +257,10 @@ function M.trimFXName(fxName, tcpWidth)
   fxName = fxName:gsub("^JS: ", "")
   fxName = fxName:gsub("^CLAP: ", "")
   fxName = fxName:gsub(" %b()", "")
+
+  fxName = fxName:gsub(".*:", "")
+  fxName = fxName:gsub("%b()", ""):gsub("%b{}", ""):gsub("%b[]", "")
+  fxName = fxName:gsub("^%s*(.-)%s*$", "%1")
 
   if tcpWidth < 150 then
     fxName = fxName:gsub("[aeiouyAEIOUYаеёиоуыэюяАЕЁИОУЫЭЮЯ]", "")
