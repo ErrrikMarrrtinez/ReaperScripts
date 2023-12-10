@@ -1,6 +1,6 @@
 -- @description Insert fx and show x parameter creating a pool by razor edit
 -- @author mrtnz
--- @version 1.02
+-- @version 1.03
 -- @about
 --   insert fx and show x parameter creating a pool by razor edit
 
@@ -26,10 +26,38 @@ local function getRazorTracks()
     return tracks
 end
 
+local function getRazorEditLengthInMilliseconds(track)
+    local _, razorEdit = reaper.GetSetMediaTrackInfo_String(track, "P_RAZOREDITS", "", false)
+    if razorEdit ~= "" then
+        local start_time, end_time = razorEdit:match("(%S+)%s+(%S+)")
+        return (start_time and end_time) and (end_time - start_time) * 1000 or nil
+    end
+    return nil
+end
+
 local function processTrack(track)
     local fxIdx = reaper.TrackFX_GetByName(track, FX, 1)
-    local isOpen = reaper.TrackFX_GetOpen(track, fxIdx)
+    --local isOpen = reaper.TrackFX_GetOpen(track, fxIdx)
     reaper.TrackFX_SetOpen(track, fxIdx, isOpen == 0 and 1 or 0)
+    
+    local length = getRazorEditLengthInMilliseconds(track)
+    if length then
+        local fx_value
+        if length <= 1000 then
+            local def =  0.45
+            if length > 500 then def = 0.42 end
+            if length > 600 then def = 0.41 end
+            if length > 700 then def = 0.35 end
+            if length > 800 then def = 0.39 end
+            if length < 200 then def = 0.49 end
+            
+            fx_value = (length / 1000) ^ def * 0.78760969638824
+        else
+            local normalized_length = (length - 1000) / 1000
+            fx_value = 0.78760969638824 + normalized_length * (1.0 - 0.78760969638824)
+        end
+        reaper.TrackFX_SetParam(track, fxIdx, 2, fx_value)
+    end
     
     local paramIdx = TrackIdx
     local envelope = reaper.GetFXEnvelope(track, fxIdx, paramIdx, true)
@@ -44,6 +72,7 @@ local function processTrack(track)
         end
     end
 end
+
 reaper.Undo_BeginBlock()
 local function env_pool()
     if reaper.CountTracks(0) == 0 then return reaper.defer(function() end) end
