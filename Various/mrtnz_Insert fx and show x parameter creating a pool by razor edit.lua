@@ -43,6 +43,7 @@ local function processTrack(track)
     local length = getRazorEditLengthInMilliseconds(track)
     if length then
         local fx_value
+        --if length > 2000 then return end
         if length <= 1000 then
             local def =  0.45
             if length > 500 then def = 0.42 end
