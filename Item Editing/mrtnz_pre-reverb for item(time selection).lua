@@ -1,6 +1,6 @@
 -- @description Pre-reverb, reverse reverb for item(time selection) 
 -- @author mrtnz
--- @version 1.2
+-- @version 1.3
 -- @about
 --  ...
 
@@ -13,6 +13,7 @@ local presetName = 'preverb'
 local vintage = "ValhallaVintageVerb"
 local plate = "ValhallaPlate"
 local room = "ValhallaRoom"
+local reaverb = "ReaVerbate"
 
 
 reaper.Undo_BeginBlock()
@@ -140,14 +141,17 @@ function main()
       reaper.PreventUIRefresh(-1)
       return
     end
-    
+    --[[
     function main2()
         local roundedLength = length 
         local ReaperVal
         reaper.ShowConsoleMsg(length)
         local startTime, endTime = reaper.GetSet_LoopTimeRange(false, false, 0, 0, false)
         local length = endTime - startTime
-        if fx ~= vintage and fx ~= plate and fx ~= room then return end
+        if fx ~= vintage and fx ~= plate and fx ~= room and then return end
+        if fx ~= reaverb then
+            
+        end
         
         local numFX = reaper.TakeFX_GetCount(take)
         if numFX == 0 then return end
@@ -162,14 +166,51 @@ function main()
         
         
     end
-    local tail_length_ms = 20000 
-    reaper.SNM_SetIntConfigVar("deffadelen", tail_length_ms)
+    ]]
     
+    function main2()
+        local roundedLength = length 
+        local ReaperVal
+        local startTime, endTime = reaper.GetSet_LoopTimeRange(false, false, 0, 0, false)
+        local length = endTime - startTime
+        --reaper.ShowConsoleMsg(length)
+        
+        local tail
+        if fx == reaverb then
+            local revtail = length 
+            local tail_values = {0.3, 0.6, 0.65, 0.75, 0.80, 0.85, 0.90, 0.94, 0.95, 0.97, 0.98, 1}
+            local revtail_values = {0.3, 0.5, 0.8, 1.1, 2, 2.5, 3, 4, 5, 6, 8, 10}
+            for i = 1, #revtail_values do
+                if revtail <= revtail_values[i] then
+                    tail = tail_values[i]
+                    break
+                end
+            end
+            tail = tail or 1
+            for i = 0, 7 do
+                local param_value = (i == 2) and tail or ((i == 0 or i == 3 or i == 4 or i == 6) and 1 or 0)
+                reaper.TakeFX_SetParamNormalized(take, 0, i, param_value)
+            end
+        end
+        
+        if fx ~= vintage and fx ~= plate and fx ~= room then return end
+        local numFX = reaper.TakeFX_GetCount(take)
+        if numFX == 0 then return end
+        local fx = 0
+        local param = 2
+        reaper.TakeFX_SetPreset(take, fx, presetName or "df")
+        local find = tostring(roundedLength) 
+        ReaperVal = VF_BFpluginparam(find, take, fx, param)
+        if ReaperVal then reaper.TakeFX_SetParamNormalized(take, fx, param, ReaperVal) end
+        local tail_length_ms = 20000 
+        reaper.SNM_SetIntConfigVar("deffadelen", tail_length_ms)
+    end
     
     main2()
-    
-    
+    --reaper.Main_OnCommand(42685, 0)
+    --[[
     reaper.Main_OnCommand(42009, 0) 
+     
     reaper.Main_OnCommand(41051, 0) 
     local new_item = reaper.GetSelectedMediaItem(0, 0) 
     
@@ -178,14 +219,13 @@ function main()
       if take then
         local name = ""
         retval, name = reaper.GetSetMediaItemTakeInfo_String(take, "P_NAME", "", false)
-        local new_name = string.gsub(name, "-glued.*", "[reversed]")
-        reaper.GetSetMediaItemTakeInfo_String(take, "P_NAME", new_name, true)
+        local new_name = string.gsub(name, "-glued.*", "[reversed]") 
+        reaper.GetSetMediaItemTakeInfo_String(take, "P_NAME", new_name.."A", true)
       end
     end
     reaper.Main_OnCommand(40635, 0) 
-    reaper.Undo_EndBlock("Pre-verb item", -1)
+    reaper.Undo_EndBlock("Pre-verb item", -1)]]
     reaper.PreventUIRefresh(-1)
-    
     
 end
 
