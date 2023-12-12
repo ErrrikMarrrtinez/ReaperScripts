@@ -1,6 +1,6 @@
 -- @description Pre-reverb, reverse reverb for item(time selection) 
 -- @author mrtnz
--- @version 1.3
+-- @version 1.4
 -- @about
 --  ...
 
@@ -8,12 +8,13 @@
 
 local presetName = 'preverb'
 
-
-
 local vintage = "ValhallaVintageVerb"
 local plate = "ValhallaPlate"
 local room = "ValhallaRoom"
 local reaverb = "ReaVerbate"
+
+local tail_length = nil
+
 
 
 reaper.Undo_BeginBlock()
@@ -73,6 +74,7 @@ function VF_BFpluginparam(find_Str, tr, fx, param)
         end
     end
 end
+
 function main()
     local start_time, end_time = reaper.GetSet_LoopTimeRange(false, false, 0, 0, false)
     if start_time == end_time then
@@ -82,12 +84,20 @@ function main()
       return
     end
     
+    local tail_length = (end_time - start_time) * 1000
+    local originalValue = reaper.SNM_GetIntConfigVar("itemfxtail", -1)
+    
+    local newValue = math.floor(tail_length)
+    reaper.SNM_SetIntConfigVar("itemfxtail", newValue)
+    --reaper.ShowConsoleMsg(newValue)
+    
     local item = reaper.GetSelectedMediaItem(0, 0)
     if not item then 
       reaper.Undo_EndBlock("No item selected", -1)
       reaper.PreventUIRefresh(-1)
       return 
     end
+    
     
     local retval, fx = reaper.GetUserInputs("Enter FX Name", 1, "FX Name:,extrawidth=100", last_fx_name)
     if not retval or fx == "" then
@@ -113,6 +123,11 @@ function main()
       end
       reaper.InsertTrackAtIndex(track_idx, false)
       newTrack = reaper.GetTrack(0, track_idx)
+    end
+    local isMidi = false
+    if reaper.TakeIsMIDI(reaper.GetActiveTake(item)) then
+        reaper.Main_OnCommand(42685, 0)
+        isMidi = true
     end
     
     local item_pos = reaper.GetMediaItemInfo_Value(item, "D_POSITION")
@@ -173,7 +188,7 @@ function main()
         local ReaperVal
         local startTime, endTime = reaper.GetSet_LoopTimeRange(false, false, 0, 0, false)
         local length = endTime - startTime
-        --reaper.ShowConsoleMsg(length)
+        --reaper.ShowConsoleMsg(tail_length)
         
         local tail
         if fx == reaverb then
@@ -202,15 +217,12 @@ function main()
         local find = tostring(roundedLength) 
         ReaperVal = VF_BFpluginparam(find, take, fx, param)
         if ReaperVal then reaper.TakeFX_SetParamNormalized(take, fx, param, ReaperVal) end
-        local tail_length_ms = 20000 
-        reaper.SNM_SetIntConfigVar("deffadelen", tail_length_ms)
     end
     
+    
     main2()
-    --reaper.Main_OnCommand(42685, 0)
-    --[[
+    
     reaper.Main_OnCommand(42009, 0) 
-     
     reaper.Main_OnCommand(41051, 0) 
     local new_item = reaper.GetSelectedMediaItem(0, 0) 
     
@@ -223,14 +235,61 @@ function main()
         reaper.GetSetMediaItemTakeInfo_String(take, "P_NAME", new_name.."A", true)
       end
     end
+    
+    if isMidi then
+        reaper.SetMediaItemSelected(item, true)
+        reaper.Main_OnCommand(40125, 0) --next take
+        reaper.Main_OnCommand(40131, 0) --crop
+        --local commandId = reaper.NamedCommandLookup("_SWS_SELNEXTITEM2")
+        --reaper.Main_OnCommandEx(commandId, 0, 0)
+        local CountSelitem = reaper.CountSelectedMediaItems(0);
+        if CountSelitem == 0 then no_undo() return end;
+        
+        
+        local CountTrack = reaper.CountTracks(0);
+        if CountTrack == 0 then no_undo() return end;
+        
+        reaper.Undo_BeginBlock();
+        reaper.PreventUIRefresh(1);
+        
+        for i = 1,CountTrack do;
+            local track = reaper.GetTrack(0,i-1);
+        
+            ---
+            local CountTrItem = reaper.CountTrackMediaItems(track);
+            local sel2,item2;
+            for i = CountTrItem-1,0,-1 do;
+        
+                local item = reaper.GetTrackMediaItem(track,i);
+                local take = reaper.GetActiveTake(item);
+                local IsMIDI = reaper.TakeIsMIDI(take);
+                if IsMIDI then;
+        
+                    local sel = reaper.GetMediaItemInfo_Value(item,'B_UISEL');
+        
+                    if sel == 1 and sel2 == 0 then;
+                        reaper.SetMediaItemInfo_Value(item2,'B_UISEL',1);
+                        reaper.SetMediaItemInfo_Value(item,'B_UISEL',1);
+                        sel = 0;
+                    end;
+                    sel2 = sel;
+                    item2 = item;
+                end;
+            end;
+            ---
+        end;
+        
+        reaper.Main_OnCommand(40362, 0) --glue
+        
+    end
+    
+    
+    
     reaper.Main_OnCommand(40635, 0) 
-    reaper.Undo_EndBlock("Pre-verb item", -1)]]
+    reaper.SNM_SetIntConfigVar("itemfxtail", originalValue)
+    reaper.Undo_EndBlock("Pre-verb item", -1)
     reaper.PreventUIRefresh(-1)
     
 end
 
-
-
-
 main()
-
