@@ -1,6 +1,6 @@
 -- @description Change pan for paired selected tracks (mousewheel ctx)
 -- @author mrtnz
--- @version 1.0
+-- @version 1.1
 -- @about
 --  ...
 
