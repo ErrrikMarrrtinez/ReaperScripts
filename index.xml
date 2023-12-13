@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="58f2e1f362a50b4e1ec5d677d929c4d94a1d610d">
+<index version="1" name="ReaperScripts" commit="014985a0bbe1a2885b450ad75e9c66759d0aa7be">
   <category name="Item Editing">
     <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
       <metadata>
@@ -50,6 +50,9 @@
       </version>
       <version name="1.4" author="mrtnz" time="2023-12-12T12:17:08Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/58f2e1f362a50b4e1ec5d677d929c4d94a1d610d/Item%20Editing/mrtnz_pre-reverb%20for%20item(time%20selection).lua</source>
+      </version>
+      <version name="1.5" author="mrtnz" time="2023-12-13T09:19:54Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/014985a0bbe1a2885b450ad75e9c66759d0aa7be/Item%20Editing/mrtnz_pre-reverb%20for%20item(time%20selection).lua</source>
       </version>
     </reapack>
     <reapack name="mrtnz_shuffle selected items down or up(mousewheel).lua" type="script" desc="Shuffle selected items down or up(mousewheel)">
@@ -722,6 +725,20 @@
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c7159666cc9dd819f57ade379572268c87e162d3/MIDI%20Editor/mrtnz_MIDI%20chopper.lua</source>
       </version>
     </reapack>
+    <reapack name="mrtnz_move velocity up or down (mousewheel).lua" type="script" desc="Move velocity note up or down (mousewheel ctx)">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 ...\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0" author="mrtnz" time="2023-12-13T09:19:54Z">
+        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/014985a0bbe1a2885b450ad75e9c66759d0aa7be/MIDI%20Editor/mrtnz_move%20velocity%20up%20or%20down%20(mousewheel).lua</source>
+      </version>
+    </reapack>
     <reapack name="mrtnz_MVelocity.lua" type="script" desc="MVelocity Tool">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
@@ -801,6 +818,20 @@
     </reapack>
   </category>
   <category name="Tracks">
+    <reapack name="mrtnz_auto (ghost) midi input for instrument plugin tracks.lua" type="script" desc="Auto (ghost) midi input for instrument plugin tracks">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 ...\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0" author="mrtnz" time="2023-12-13T09:19:54Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/014985a0bbe1a2885b450ad75e9c66759d0aa7be/Tracks/mrtnz_auto%20(ghost)%20midi%20input%20for%20instrument%20plugin%20tracks.lua</source>
+      </version>
+    </reapack>
     <reapack name="mrtnz_close all fx windows for selected tracks.lua" type="script" desc="Close all fx windows for selected tracks">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
@@ -903,6 +934,24 @@ Tooltip with events]]></changelog>
 * Small error refinements.]]></changelog>
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/Tracks/mrtnz_mini%20fx%20list.lua</source>
       </version>
+      <version name="1.0beta1.042" author="mrtnz" time="2023-12-13T09:19:54Z">
+        <changelog><![CDATA[* Small error refinements.]]></changelog>
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/014985a0bbe1a2885b450ad75e9c66759d0aa7be/Tracks/mrtnz_mini%20fx%20list.lua</source>
+      </version>
+    </reapack>
+    <reapack name="mrtnz_set track color red while ARM is enabled.lua" type="script" desc="Set track color red while ARM is enabled">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 ...\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0" author="mrtnz" time="2023-12-13T09:19:54Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/014985a0bbe1a2885b450ad75e9c66759d0aa7be/Tracks/mrtnz_set%20track%20color%20red%20while%20ARM%20is%20enabled.lua</source>
+      </version>
     </reapack>
     <reapack name="mrtnz_toggle freeze selected tracks(mono,stereo,multi).lua" type="script" desc="Toggle freeze selected tracks(mono, stereo, multi)">
       <version name="1.0" author="mrtnz" time="2023-11-19T07:33:20Z">
@@ -990,7 +1039,7 @@ Tooltip with events]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
