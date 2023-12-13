@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="8f5ae6f0c1dcc539978b1862b87d4c0eb8ebc35b">
+<index version="1" name="ReaperScripts" commit="ed9de0d7dc91234ee93539ba7537c01e0c8b2fbf">
   <category name="Item Editing">
     <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
       <metadata>
@@ -832,6 +832,23 @@
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/014985a0bbe1a2885b450ad75e9c66759d0aa7be/Tracks/mrtnz_auto%20(ghost)%20midi%20input%20for%20instrument%20plugin%20tracks.lua</source>
       </version>
     </reapack>
+    <reapack name="mrtnz_change pan for paired selected tracks (mousewheel ctx).lua" type="script" desc="Change pan for paired selected tracks (mousewheel ctx)">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 ...\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.2" author="mrtnz" time="2023-12-13T10:27:51Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/9a319d2ed08e6e90a6801ff0d70de22eff3e76b5/Tracks/mrtnz_change%20pan%20for%20paired%20selected%20tracks%20(mousewheel%20ctx).lua</source>
+      </version>
+      <version name="1.3" author="mrtnz" time="2023-12-13T10:27:55Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/ed9de0d7dc91234ee93539ba7537c01e0c8b2fbf/Tracks/mrtnz_change%20pan%20for%20paired%20selected%20tracks%20(mousewheel%20ctx).lua</source>
+      </version>
+    </reapack>
     <reapack name="mrtnz_close all fx windows for selected tracks.lua" type="script" desc="Close all fx windows for selected tracks">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
@@ -1039,7 +1056,7 @@ Tooltip with events]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
