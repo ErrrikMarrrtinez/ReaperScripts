@@ -1,18 +1,7 @@
 -- @description mrtnz_Mini FX LIST(for track under mouse)
 -- @author mrtnz
--- @version 1.0beta1.041
+-- @version 1.0beta1.042
 -- @changelog
---    * Added the ability to rename fx by clicking the middle mouse button. After entering the fx name, press enter to accept or escape to cancel.
---    * Added animation when attempting to create a send.
---    * Added window expansion when creating a send.
---    * Added a refresh button.
---    * Improved freeze creation through right-click.
---    * Added functionality for level-based unfreeze: freeze the desired amount of fx, unfreeze different levels of freezes.
---    * Added side panel animation (requires refinement).
---    * For frozen buttons, added level highlighting of the current fx when hovering to the right of the button.
---    * Inside this panel, when hovering over a certain level, the entire group of the current level is outlined.
---    * Right-click on the level button (requires refinement) selects several groups of freeze levels and sublevels; the button changes from freeze to unfreeze in the upper right corner - all selected fx will be unfrozen.
---    * Added a "refresh" button in the right side panel in case something somewhere hangs (it's better to report this, thank you :D).
 --    * Small error refinements.
 
 
@@ -246,12 +235,17 @@ local defaultColor, lastWidth = '#6F8FAF60', nil
 local proportion = tonumber(reaper.GetExtState("MiniFxList", "proportion")) or 0.96 / curr_scale
 
 vbox:attr('w', tcpWidth * proportion)
+local img_path = script_path .. "../images/cursor.cur"
+local null_cursor = reaper.JS_Mouse_LoadCursorFromFile(img_path)
 
+local x_x = 0
 local spacer = horisontal_wd:add(rtk.Spacer{
 
+
     bg = defaultColor,
-    w = 7,
+    w = 6,
     x=-1,
+    hotzone=7,
     z=12,
     
     onmouseenter = function(self, event) 
@@ -268,7 +262,8 @@ local spacer = horisontal_wd:add(rtk.Spacer{
     
     ondragstart = function(self, event)
         dragging_2, initialMouseX, initialWidth = true, event.x, vbox.w
-        self:attr('cursor', rtk.mouse.cursors.REAPER_VERTICAL_LEFTRIGHT)
+        self:attr('cursor', null_cursor)
+        arbusa, x_enter = reaper.GetMousePosition()
         if isVisible then
         end
         return true
@@ -278,15 +273,21 @@ local spacer = horisontal_wd:add(rtk.Spacer{
         if dragging_2 then
             local newWidth = rtk.clamp(initialWidth + event.x - initialMouseX, 140, tcpWidth - settings_width-7)
             vbox:attr('w', newWidth)
+            arbus, asds = reaper.GetMousePosition()
+            self:queue_draw()
         end
+        
         return true
     end,
     
     ondragend = function(self, event)
+        reaper.JS_Mouse_SetPosition(arbus, x_enter)
         dragging_2 = false
+        
         self:attr('cursor', rtk.mouse.cursors.UNDEFINED)
         self:onmouseenter()
         update_proportion()
+        
         update()
         return true
     end,
@@ -303,21 +304,20 @@ local spacer = horisontal_wd:add(rtk.Spacer{
     end,
     
     onclick = function(self, event)
-        if lastWidth then
-            vbox:attr('w', lastWidth)
-            lastWidth = nil
-        else
-            lastWidth = vbox.w
-            vbox:attr('w', tcpWidth-settings_width-7)
+        if event.button == rtk.mouse.BUTTON_LEFT then
+            if lastWidth then
+                vbox:attr('w', lastWidth)
+                lastWidth = nil
+            else
+                lastWidth = vbox.w
+                vbox:attr('w', tcpWidth-settings_width-7)
+            end
+            update_proportion()
         end
-        update_proportion()
         return true
     end,},{
     fillh = true
 })
-
-
-
 
 local vbox_sends = horisontal_wd:add(rtk.VBox{bg='#2a2a2a',padding = 1}, {fillw = true})
 
@@ -621,7 +621,6 @@ function enter_animation(self)
     end
     active_button = self
 end
-
 function leave_animation(self)
     if active_button == self then
         vbox_settings:animate{'w', dst=settings_width, duration=animate_duration }
@@ -710,7 +709,7 @@ vp.onmouseleave = function(self, event)
     --vbox_settings:animate{'w', dst=settings_width, duration=animate_duration }
 end
 freeze_button_time:onmouseenter()
-freeze_button_time:onmouseleave()
+--freeze_button_time:onmouseleave()
 --
 
 --visible_frozen:onmouseleave()
@@ -738,7 +737,8 @@ function createOnClickHandler(track_under_cursor, button, vbox, hbox, button_dis
             end
         elseif event.button == rtk.mouse.BUTTON_RIGHT then
             --func.msg(temp_index)
-            
+            freeze_button_time:onmouseenter()
+            --freeze_button_time:onmouseleave()
             updateButtonBorders(all_buttons, temp_index, false)
             
             freeze_button_time:attr('disabled', false)
@@ -771,6 +771,7 @@ end
 
 freeze_button_time.onclick = function(self, event)
     freeze_track(temp_index1, track_under_cursor)
+    --func.msg(temp_index1)
     update()
 end
 
@@ -933,13 +934,19 @@ end
 
 function updateWidgetText(track, isDragging_2)
     if track and window.in_window then
+    
+        update_proportion()
+        local proportion = tonumber(reaper.GetExtState("MiniFxList", "proportion")) or 0.94 / curr_scale
+        vbox:animate{'w', dst=tcpWidth/(proportion+2), duration=animate_duration} 
         
         local _, track_name = reaper.GetTrackName(track, "")
         local text_prefix = isDragging_2 and 'создается посыл с трека ' or 'создался посыл с трека '
         if not isDragging_2 and current_fx_name then
             local _, destination_track_name = reaper.GetTrackName(track_under_cursor, "")
+            
             if track == track_under_cursor then
             else
+                
                 local selectedTracksText = track_name
                 selectedTracks = {}  -- Очищаем массив перед заполнением
                 if reaper.IsTrackSelected(track) then
@@ -953,7 +960,8 @@ function updateWidgetText(track, isDragging_2)
                 else
                     table.insert(selectedTracks, track)
                 end
-
+                
+                
                 if current_mode == 0 then
                     --reaper.ShowConsoleMsg('мод = 0')
                     return
@@ -981,7 +989,7 @@ function checkTrackAndCursor()
         track_under_cursor_at_first_click = reaper.BR_GetMouseCursorContext_Track()
         
     elseif not isDragging_2 and track_under_cursor_at_first_click then
-    
+        
         updateWidgetText(track_under_cursor_at_first_click, false)
         track_under_cursor_at_first_click = nil
         
@@ -1085,6 +1093,7 @@ function update()
     freeze_button_time:attr('border', false)
     
     visible_frozen:attr('border', false)
+    freeze_button_time:onmouseleave()
     
     local fx_count1 = reaper.TrackFX_GetCount(track_under_cursor)
     
@@ -1286,7 +1295,8 @@ function update()
                         freeze_enter_flag = false
                         is_toggle_freeze = false
                         unfreeze_level_value = tostring(#all_button_levels - start_index + 1)
-                        --unfreeze_level_value = self.label
+                        freeze_button_time:onmouseenter()
+                        
                         
                     end
                 else
@@ -1439,6 +1449,7 @@ function update()
                             func.SetWetFx(track_under_cursor, i, value)
                         end
                     },{
+                    lhotzone=10,
                     fillh=true
         })  -- кноб
         
@@ -1494,6 +1505,8 @@ function update()
             end
             return true
         end
+        
+        
         
         button_circ.onmouseenter = function(self, event)
             if isEnter then

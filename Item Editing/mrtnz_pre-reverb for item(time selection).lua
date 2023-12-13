@@ -1,8 +1,11 @@
 -- @description Pre-reverb, reverse reverb for item(time selection) 
 -- @author mrtnz
--- @version 1.4
+-- @version 1.5
 -- @about
 --  ...
+
+
+
 
 
 
@@ -14,6 +17,13 @@ local room = "ValhallaRoom"
 local reaverb = "ReaVerbate"
 
 local tail_length = nil
+
+
+
+
+
+
+
 
 
 
@@ -98,6 +108,9 @@ function main()
       return 
     end
     
+
+      local _, tempChunk = reaper.GetItemStateChunk(item, "", false)
+
     
     local retval, fx = reaper.GetUserInputs("Enter FX Name", 1, "FX Name:,extrawidth=100", last_fx_name)
     if not retval or fx == "" then
@@ -112,7 +125,7 @@ function main()
     local track_idx = reaper.GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER") - 1
     local mode = reaper.GetMediaTrackInfo_Value(track, "I_FOLDERDEPTH") < 1 and 1 or 2
     local newTrack
-    
+    reaper.Main_OnCommand(40061, 0) 
     if mode == 1 then
       reaper.InsertTrackAtIndex(track_idx, false)
       newTrack = reaper.GetTrack(0, track_idx)
@@ -213,7 +226,7 @@ function main()
         if numFX == 0 then return end
         local fx = 0
         local param = 2
-        reaper.TakeFX_SetPreset(take, fx, presetName or "df")
+        reaper.TakeFX_SetPreset(take, fx, presetName)
         local find = tostring(roundedLength) 
         ReaperVal = VF_BFpluginparam(find, take, fx, param)
         if ReaperVal then reaper.TakeFX_SetParamNormalized(take, fx, param, ReaperVal) end
@@ -221,6 +234,7 @@ function main()
     
     
     main2()
+    
     
     reaper.Main_OnCommand(42009, 0) 
     reaper.Main_OnCommand(41051, 0) 
@@ -240,8 +254,8 @@ function main()
         reaper.SetMediaItemSelected(item, true)
         reaper.Main_OnCommand(40125, 0) --next take
         reaper.Main_OnCommand(40131, 0) --crop
-        --local commandId = reaper.NamedCommandLookup("_SWS_SELNEXTITEM2")
-        --reaper.Main_OnCommandEx(commandId, 0, 0)
+        
+        
         local CountSelitem = reaper.CountSelectedMediaItems(0);
         if CountSelitem == 0 then no_undo() return end;
         
@@ -279,10 +293,25 @@ function main()
             ---
         end;
         
+        reaper.SetMediaItemSelected(item, true)
+        
         reaper.Main_OnCommand(40362, 0) --glue
         
     end
     
+    reaper.SetMediaItemSelected(item, true)
+    reaper.SetMediaItemSelected(new_item, false)
+    local commandId = reaper.NamedCommandLookup("_SWS_SELNEXTITEM")
+    reaper.Main_OnCommandEx(commandId, 0, 0)
+    
+    reaper.Main_OnCommand(40697, 0) --glue
+    
+    reaper.SetMediaItemSelected(item, true)
+    
+    local item2 = reaper.GetSelectedMediaItem(0, 0) -- получаем второй выбранный элемент
+    
+    
+    reaper.SetItemStateChunk(item2, tempChunk, false) -- применяем чанк к элементу
     
     
     reaper.Main_OnCommand(40635, 0) 
