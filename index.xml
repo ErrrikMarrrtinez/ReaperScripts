@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="014985a0bbe1a2885b450ad75e9c66759d0aa7be">
+<index version="1" name="ReaperScripts" commit="e913e4684214b07470b97a02d9352bef4a48d962">
   <category name="Item Editing">
     <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
       <metadata>
@@ -832,6 +832,20 @@
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/014985a0bbe1a2885b450ad75e9c66759d0aa7be/Tracks/mrtnz_auto%20(ghost)%20midi%20input%20for%20instrument%20plugin%20tracks.lua</source>
       </version>
     </reapack>
+    <reapack name="mrtnz_change pan for paired selected tracks (mousewheel ctx).lua" type="script" desc="Change pan for paired selected tracks (mousewheel ctx)">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 ...\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0" author="mrtnz" time="2023-12-13T09:51:47Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/e913e4684214b07470b97a02d9352bef4a48d962/Tracks/mrtnz_change%20pan%20for%20paired%20selected%20tracks%20(mousewheel%20ctx).lua</source>
+      </version>
+    </reapack>
     <reapack name="mrtnz_close all fx windows for selected tracks.lua" type="script" desc="Close all fx windows for selected tracks">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
@@ -1039,7 +1053,7 @@ Tooltip with events]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
