@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="272b2ac4b0dc3a5e81fa79012f87a527fac0c14f">
+<index version="1" name="ReaperScripts" commit="64dccab08e69faf5447a27856b32b6b757c976df">
   <category name="Item Editing">
     <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
       <metadata>
@@ -727,6 +727,10 @@
       <version name="1.3" author="mrtnz" time="2023-12-14T10:21:51Z">
         <changelog><![CDATA[- Removed everything font-related as a temporary solution to font errors on different systems. ]]></changelog>
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/69b72bccc0897ca8b741b9fe1f1fb2d2abcc877c/MIDI%20Editor/mrtnz_MIDI%20chopper.lua</source>
+      </version>
+      <version name="1.4" author="mrtnz" time="2023-12-14T11:57:22Z">
+        <changelog><![CDATA[Removed everything font-related as a temporary solution to font errors on different systems. ]]></changelog>
+        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/64dccab08e69faf5447a27856b32b6b757c976df/MIDI%20Editor/mrtnz_MIDI%20chopper.lua</source>
       </version>
     </reapack>
     <reapack name="mrtnz_move velocity up or down (mousewheel).lua" type="script" desc="Move velocity note up or down (mousewheel ctx)">
