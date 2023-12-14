@@ -1,6 +1,6 @@
 -- @description MIDI Chopper v1.212
 -- @author mrtnz
--- @version 1.3
+-- @version 1.4
 -- @about
 --  This is a GUI script based on the library of the wonderful cfillion - reaimgui, 
 --  designed for midi editor, which allows you to dynamically split (having previously 
@@ -8,7 +8,7 @@
 --  slider beyond 64 values, and everything below 64 splits the note into grid values 
 --                                (1\4, 1\8, etc.).
 -- @changelog
---   - Removed everything font-related as a temporary solution to font errors on different systems. 
+--   Removed everything font-related as a temporary solution to font errors on different systems. 
 
 
 
