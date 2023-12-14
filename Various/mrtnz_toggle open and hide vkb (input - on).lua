@@ -1,9 +1,25 @@
 -- @description Toggle open and hide VKB (input - on-off)
 -- @author mrtnz
--- @version 1.01
+-- @version 1.03
 -- @about
---   open or hide vbk
+--   If you want to use a virtual keyboard (VKB) 
+--   but you don't want to see it, then you can 
+--   use this script that automatically opens the 
+--   virtual keyboard and hides it outside the window, 
+--   as well as in a "smart" way turns on the midi message, 
+--   and sets rest/month on the selected track if it has a Forex tool. 
+--   I'm going to make a second version of the script that will allow, on the contrary, 
+--   to run only at the moment when the track with the AC tool is selected and if 
+--   it has a course enabled, then it will run. 
+-- @changelog
+--    Changed the VKB window coordinates to and added 
+--    two local variables in case the user fails to hide 
+--    the window. Use or change move_x or (and) move_y 
+--    to try to correctly hide this window.
 
+
+local move_x = -1200
+local move_y = -1200
 local enableTrackChanges = true --auto apply rec and mon for selected track
 
 
@@ -90,7 +106,7 @@ end
 
 function updateVKBPositionAndSize()
   if reaper.GetToggleCommandStateEx(section_id, command_id) == 1 then
-    setVKBPositionAndSize(-200, 100, 110, 28)
+    setVKBPositionAndSize(move_y, move_x, 110, 28)
   end
 end
 

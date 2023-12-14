@@ -1,14 +1,21 @@
 -- @description MIDI Chopper v1.212
 -- @author mrtnz
--- @version 1.212
+-- @version 1.3
 -- @about
---  ...
+--  This is a GUI script based on the library of the wonderful cfillion - reaimgui, 
+--  designed for midi editor, which allows you to dynamically split (having previously 
+--  received working notes through the get button) notes into equal parts by moving the 
+--  slider beyond 64 values, and everything below 64 splits the note into grid values 
+--                                (1\4, 1\8, etc.).
 -- @changelog
---   - fix error font
+--   - Removed everything font-related as a temporary solution to font errors on different systems. 
+
+
+
 midiEditor = reaper.MIDIEditor_GetActive()
 take = reaper.MIDIEditor_GetTake(midiEditor)
 if not take or not reaper.TakeIsMIDI(take) then return end
---Chopper(Split notes) for midi editor
+
 function table.serialize(obj)
   local lua = ""
   local t = type(obj)
@@ -340,36 +347,12 @@ end
 local title = 'MIDI Chopper'
 local ctx = reaper.ImGui_CreateContext(title)
 
-function tryLoadFont(fontList, fontSize)
-    local font
-    for _, fontName in ipairs(fontList) do
-        font = reaper.ImGui_CreateFont(fontName, fontSize)
-        if font then break end
-    end
-    return font or reaper.ImGui_CreateFont("", fontSize) -- Fallback to default font
-end
-local mainFontList = {"Palatino Linotype", "Arial", "Verdana", "Tahoma"}
-local buttonFontList = {"Textile", "Arial", "Verdana", "Tahoma"}
-
-local font_main = tryLoadFont(mainFontList, 14)
-local font_button = tryLoadFont(buttonFontList, 15)
 
 
+local font_main = font_main--tryLoadFont(mainFontList, 14)
+local font_button = font_main--tryLoadFont(buttonFontList, 15)
 
 local window_flags = reaper.ImGui_WindowFlags_NoCollapse()
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 local function loop()
@@ -483,6 +466,6 @@ local function loop()
     if open then reaper.defer(loop) end
 end
 
-reaper.ImGui_Attach(ctx, font_main)
-reaper.ImGui_Attach(ctx, font_button)
+--reaper.ImGui_Attach(ctx, font_main)
+--reaper.ImGui_Attach(ctx, font_button)
 reaper.defer(loop)
