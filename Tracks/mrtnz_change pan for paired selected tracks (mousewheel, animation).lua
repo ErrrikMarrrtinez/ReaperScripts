@@ -1,20 +1,8 @@
--- @description Change the pan of two tracks to the opposite side(animated).
--- @author mrtnz
--- @version 1.1
--- @provides
---   [main=main] mrtnz_change pan for paired selected tracks (mousewheel, animation).lua
---   [main=main] mrtnz_change pan of two tracks by input value.lua
---   [main=main] mrtnz_change the pan of two tracks to the opposite side(backward, animated version).lua
--- @about
---      If you want something new, you can change synchronously the pan parameter
---      of the two selected tracks with a tricky animation that reaper does not have.
---      Visually beautiful? - Yes. Practical? - Not really, but it works :D
+-- @noindex
 
-
-local value = 0.039
+local value = 0.055
 local inertia_count = 0
-local inertia_direction = value
-local val_1 = 25
+local inertia_direction = 0
 
 function clampPanValue(pan_val)
   return math.max(-1, math.min(1, pan_val))
@@ -34,16 +22,19 @@ function changePan(valueChange)
 end
 
 function run()
+  is_new, name, sec, cmd, rel, res, val = reaper.get_action_context()
   if reaper.CountSelectedTracks(0) >= 2 then
-    changePan(inertia_direction)
-    inertia_count = val_1
+    local direction = val > 0 and value or -value
+    changePan(direction)
+    inertia_count = inertia_count + 20
+    inertia_direction = inertia_direction + direction
     reaper.defer(inertiaPan)
   end
 end
 
 function inertiaPan()
   if inertia_count > 0 then
-    changePan(inertia_direction * (inertia_count / val_1))
+    changePan(inertia_direction * (inertia_count / 20))
     inertia_count = inertia_count - 1
     reaper.defer(inertiaPan)
   else
