@@ -986,7 +986,7 @@ Tooltip with events]]></changelog>
   <category name="Various">
     <reapack name="mrtnz_Insert fx and show x parameter creating a pool by razor edit.lua" type="script" desc="Insert fx and show x parameter creating a pool by razor edit">
       <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
