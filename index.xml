@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="69b72bccc0897ca8b741b9fe1f1fb2d2abcc877c">
+<index version="1" name="ReaperScripts" commit="32655b86e4ceccb8c7d4be9d0ff92716cfc2cfe1">
   <category name="Item Editing">
     <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
       <metadata>
@@ -990,7 +990,7 @@ Tooltip with events]]></changelog>
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
-{\pard \ql \f0 \sa180 \li0 \fi0 insert fx and show x parameter creating a pool by razor edit\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 I've long needed a quick way to create a tape slowdown, tape stop, tape stop effect. I usually use a free plugin for this - [b][url=https://kilohearts.com/products/tape_stop]kHs Tape Stop[/url][/b], and for a faster speed I wrote a simple script that does the following just for this fx: Along the length of the razor edit creates an envelope item, and in that area sets the stop parameter to "on" mode to activate it in the desired range. And also sets the stop time relative to the length of the razor-edit. You can disable the automatic length setting by clearing the flag in the editor here to false: local razorLength = true --this flag To quickly create the desired slowdown effects without auto-setting. Also, the exact same script will be attached to this script soon, but it will be placed inside an athame and set the envelope points. Demo link - https://imgur.com/ZdGodGG\par}
 }
 ]]></description>
       </metadata>
@@ -1005,6 +1005,11 @@ Tooltip with events]]></changelog>
       </version>
       <version name="1.03" author="mrtnz" time="2023-12-10T17:34:58Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c014bc464b0d822f29467df8ee274bb3e36a755d/Various/mrtnz_Insert%20fx%20and%20show%20x%20parameter%20creating%20a%20pool%20by%20razor%20edit.lua</source>
+      </version>
+      <version name="1.04" author="mrtnz" time="2023-12-14T11:19:50Z">
+        <changelog><![CDATA[*Added flag to change the parameter, 
+*default is true]]></changelog>
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/32655b86e4ceccb8c7d4be9d0ff92716cfc2cfe1/Various/mrtnz_Insert%20fx%20and%20show%20x%20parameter%20creating%20a%20pool%20by%20razor%20edit.lua</source>
       </version>
     </reapack>
     <reapack name="mrtnz_solo and play selected items(pressed).lua" type="script" desc="Smart solo-playitem (under cursor or selected) while the key is held down">
@@ -1067,7 +1072,7 @@ to try to correctly hide this window.]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
