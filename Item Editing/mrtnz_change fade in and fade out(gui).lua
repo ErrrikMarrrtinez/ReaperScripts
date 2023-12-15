@@ -1,6 +1,6 @@
--- @description Change fade in and fade out(gui)
+-- @description Change fade in and fade out or crop(gui) 
 -- @author mrtnz
--- @version 1.00
+-- @version 1.01
 -- @about
 --   Modification. If you highlight an item,
 --   then run the script, then you have
@@ -10,7 +10,9 @@
 --       Change the fade-in and fade-out using pinch and drag
 --       Mouse cursor in a vertical and horizontal way.
 --       By holding down shift, you can slow down this effect.
---      
+--
+--       Or you can right-click and trim the item according to the set marks
+--
 --   !!!!!Install MVarious first!!!!!!
 
 
@@ -236,9 +238,36 @@ function SimpleSlider:_handle_dragstart(event, x, y)
     return {lastx=x, lasty=y, shift=event.shift}, false 
 end 
 
+
+
 function SimpleSlider:_handle_dragend(event, arg) 
-   self.dragstartx = nil 
-   
-   win:close()
-   reaper.JS_Mouse_SetPosition(more_x1, more_y1)
-end
+    self.dragstartx = nil 
+    
+    reaper.JS_Mouse_SetPosition(more_x1, more_y1)
+    if event.button == rtk.mouse.BUTTON_RIGHT then
+        if item then
+            local pos_item = reaper.GetMediaItemInfo_Value(item, 'D_POSITION')
+            local len_item = reaper.GetMediaItemInfo_Value(item, 'D_LENGTH')
+            local fade_in_len = self.start_value * len_item
+            local fade_out_len = (1 - self.end_value) * len_item
+            local new_pos_item = pos_item + fade_in_len
+            local new_len_item = len_item - fade_in_len - fade_out_len
+           win:close()
+            -- Разделяем айтем на две части по границам fade in и fade out
+            local item_start = reaper.SplitMediaItem(item, pos_item + fade_in_len)
+            local item_end = reaper.SplitMediaItem(item_start, pos_item + fade_in_len + new_len_item)
+ 
+            -- Удаляем ненужные части
+            reaper.DeleteTrackMediaItem(reaper.GetMediaItem_Track(item), item)
+            if item_end then
+                reaper.DeleteTrackMediaItem(reaper.GetMediaItem_Track(item_end), item_end)
+            end
+            item = false
+            reaper.SetMediaItemInfo_Value(item_start, 'D_FADEINLEN', 0)
+            reaper.SetMediaItemInfo_Value(item_start, 'D_FADEOUTLEN', 0)
+            reaper.UpdateArrange()
+        end
+     end
+     win:close()
+ end
+ 
