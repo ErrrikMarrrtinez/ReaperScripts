@@ -1,6 +1,6 @@
 -- @description Change fade in and fade out or crop(gui) 
 -- @author mrtnz
--- @version 1.01
+-- @version 1.02
 -- @about
 --   Modification. If you highlight an item,
 --   then run the script, then you have
@@ -262,9 +262,10 @@ function SimpleSlider:_handle_dragend(event, arg)
             if item_end then
                 reaper.DeleteTrackMediaItem(reaper.GetMediaItem_Track(item_end), item_end)
             end
-            item = false
+            
             reaper.SetMediaItemInfo_Value(item_start, 'D_FADEINLEN', 0)
             reaper.SetMediaItemInfo_Value(item_start, 'D_FADEOUTLEN', 0)
+            item = false
             reaper.UpdateArrange()
         end
      end
