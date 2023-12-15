@@ -1,19 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="73f40f1aa9eb3147ae6c8a7d407adddb8c87db47">
+<index version="1" name="ReaperScripts" commit="d276e712cbe4caf2f6e242f9a23af51d602edbf1">
   <category name="Item Editing">
-    <reapack name="mrtnz_change fade in and fade out(gui).lua" type="script" desc="Change fade in and fade out(gui)">
+    <reapack name="mrtnz_change fade in and fade out(gui).lua" type="script" desc="Change fade in and fade out or crop(gui)">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
 {\pard \ql \f0 \sa180 \li0 \fi0 Modification. If you highlight an item, then run the script, then you have script window with a redrawn item, and also which takes into itself the following features: Change the fade-in and fade-out using pinch and drag Mouse cursor in a vertical and horizontal way. By holding down shift, you can slow down this effect.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \f1 Or you can right-click and trim the item according to the set marks\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 !!!!!Install MVarious first!!!!!!\par}
 }
 ]]></description>
       </metadata>
       <version name="1.00" author="mrtnz" time="2023-12-15T07:41:00Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/73f40f1aa9eb3147ae6c8a7d407adddb8c87db47/Item%20Editing/mrtnz_change%20fade%20in%20and%20fade%20out(gui).lua</source>
+      </version>
+      <version name="1.01" author="mrtnz" time="2023-12-15T08:32:51Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/d276e712cbe4caf2f6e242f9a23af51d602edbf1/Item%20Editing/mrtnz_change%20fade%20in%20and%20fade%20out(gui).lua</source>
       </version>
     </reapack>
     <reapack name="mrtnz_copy fx from selected track to selected item.lua" type="script" desc="Copy fx from selected track to selected item">
