@@ -16,122 +16,119 @@
 if reaper.ShowMessageBox("This is an alpha version of the script that is not yet suitable for use, you can only superficially familiarize yourself. Click 'OK' to continue or 'CANCEL' to exit.",  "WARNING!", 1) == 1 then else return end
 function print(...) local t = {...} for i = 1, select('#', ...) do t[i] = tostring(t[i]) end reaper.ShowConsoleMsg(table.concat(t, '\t') .. '\n') end
 --- collect paths ---
-sep = package.config:sub(1,1)
-cur_path = ({reaper.get_action_context()})[2]:match('^.+' .. sep)
-ini_path = reaper.get_ini_file()
-icon_path = cur_path .. "icons"
-data_path = cur_path .. "data"
+sep          = package.config:sub(1,1)
+cur_path     = ({reaper.get_action_context()})[2]:match('^.+' .. sep)
+ini_path     = reaper.get_ini_file()
+icon_path    = cur_path .. "icons"
+data_path    = cur_path .. "data"
 package.path = cur_path ..'libs' .. sep .. '?.lua'
 ----------------------
 
 --- req libraries ---
-rtk = require('rtk')
+rtk  = require('rtk')
 json = require('json')
 ---------------------F
 
 --- main dictionary ---
-all_paths = {}
+all_paths      = {}
 all_paths_list = {}
 -----------------------
 
---- settings ---
-round_rect_window = 14 --def 8/ min 2 max 20
-round_rect_list = 6 -- def 6, min 1, max 12
-GLOBAL_ANIMATE = true
-KEY_FOR_TOUCHSCROLL="ctrl+shift"
-
-max_visible=150
----------------
-
---media settings
-CURRENT_media_path = true
-GENERAL_media_path = {false, INDIVIDUAL_path}
-INDIVIDUAL_media_path = false
-INDIVIDUAL_path = "C:\\Users\\Эрик\\Desktop\\Портфель"
----------------
-
----------------
-CUSTOM_IMAGE_local = 'customImages' .. sep
-CUSTOM_IMAGE_global = cur_path .. CUSTOM_IMAGE_local
-
-DEF_IMG_W = 450
-DEF_IMG_H = 450
-----------------
 
 
-----------------
-deadline_warning_color = "red#55"
-elevation_warning = 13
-----------------
+
+
 
 --- scan modules ---
+dofile(cur_path.."modules"..sep.."variables.lua")
 dofile(cur_path.."modules"..sep.."widgets.lua")
 dofile(cur_path.."modules"..sep.."func.lua")
 rtk.add_image_search_path(cur_path..sep.."icons", 'dark')
 --------------------
 --- initialize ---
-def_bg_color = rtk.color.get_reaper_theme_bg()
-def_pad_color = hex_darker (def_bg_color, -0.46)
-ic, img = loadIcons(icon_path)
-data_files = loadIniFiles(data_path)
-params_data=data_files.data_path
-params_file=data_files.params
+def_bg_color              = rtk.color.get_reaper_theme_bg()
+def_pad_color             = hex_darker (def_bg_color, -0.46)
+ic, img                   = loadIcons(icon_path)
+data_files                = loadIniFiles(data_path)
+params_data               = data_files.data_path
+params_file               = data_files.params
 -------------------
 
 --- return projects ---
 new_paths, all_paths_list = get_recent_projects(ini_path)
-sorted_paths = sort_paths(new_paths, all_paths_list, "size", 0)
-
+sorted_paths              = sort_paths(new_paths, all_paths_list, "size", 0)
 -----------------------
  
+ 
 --- constains ---
-lbm=rtk.mouse.BUTTON_LEFT
-rbm=rtk.mouse.BUTTON_RIGHT
-cbm=rtk.mouse.BUTTON_CENTER
-def_spacing=5
-rtk.double_click_delay=0.23
+lbm                       = rtk.mouse.BUTTON_LEFT
+rbm                       = rtk.mouse.BUTTON_RIGHT
+cbm                       = rtk.mouse.BUTTON_MIDDLE
+def_spacing               = 5
+rtk.double_click_delay    = 0.23
 -----------------
 
-MAIN_PARAMS = {
-    w=550,
-    h=800,
-}
-scale=1.0
-preview=nil
+
+scale   = 1
+preview = nil
+
+lum = 0.7
+
+COL0  = def_bg_color -- main bg col
+--list and header
+COL1  = "transparent" -- rect_bg_heading border\all border list
+COL2  = shift_color(def_bg_color, 0, 0.5, 0.85+lum) -- bg heading
+COL3  = shift_color(def_bg_color, 0, 0.7, 0.65+lum) -- bg list
+--popup
+COL4  = shift_color(def_bg_color, 0, 0.9, 0.35+lum) -- shadow bg
+COL5  = shift_color(def_bg_color, 0, 0.6, 0.55+lum) -- border
+COL6  = shift_color(def_bg_color, 0, 0.8, 0.85+lum) -- bg
+--ENTRY
+COL7  = shift_color(def_bg_color, 0, 1, 0.95+lum) -- border
+COL8  = shift_color(def_bg_color, 0, 1, 0.65+lum) -- bg
+--ELEMENTS
+COL9  = shift_color(def_bg_color, 0, 0.6, 0.75+lum) -- odd
+COL10 = shift_color(def_bg_color, 0, 0.8, 0.7+lum) --even
+
+COL11 = shift_color(def_bg_color, 0, 0.9, 0.95+lum) -- mouseenter
+COl12 = shift_color(def_bg_color, 0, 0.75, 1.15+lum) -- selected
+
+COL13 = shift_color(def_bg_color, 0, 0.64, 0.55+lum) -- def pad color
+COL18 = shift_color(def_bg_color, 0, 0.5, 0.75+lum)
 
 --print(rtk.uuid4())
-
+--[[
 --main bg
-COL0="#1a1a1a" -- main bg col \ def_bg_color
+COL0  = "#1a1a1a" -- main bg col \ def_bg_color
 --list and header
-COL1="transparent" --#5a5a5a" -- rect_bg_heading border\all border list \ #5a5a5a
-COL2="#4a4a4a" -- bg heading  \ 4a4a4a
-COL3="#2a2a2a" -- bg list \ 2a2a2a
+COL1  = "transparent" --#5a5a5a" -- rect_bg_heading border\all border list \ #5a5a5a
+COL2  = "#4a4a4a" -- bg heading  \ 4a4a4a
+COL3  = "#2a2a2a" -- bg list \ 2a2a2a
 --popup
-COL4=COL3..50 -- shadow bg
-COL5=COL1..75-- border \hex_darker(COL0, -1.2)
-COL6=COL1 -- bg \hex_darker(COL0, -0.7)
+COL4  = COL3..50 -- shadow bg
+COL5  = COL1..75-- border \hex_darker(COL0, -1.2)
+COL6  = COL1 -- bg \hex_darker(COL0, -0.7)
 --ENTRY
-COL7="#6a6a6a" -- border \6a6a6a
-COL8="#2a2a2a" -- bg \3a3a3a
+COL7  = "#6a6a6a" -- border \6a6a6a
+COL8  = "#2a2a2a" -- bg \3a3a3a
 --ELEMENTS
-COL9="#3a3a3a" -- odd \3a3a3a
-COL10="#323232" --even \323232
+COL9  = "#3a3a3a" -- odd \3a3a3a
+COL10 = "#323232" --even \323232
 
-COL11="#6a6a6a" -- mouseenter \6a6a6a
-COl12="#9a9a9a" -- selected \9a9a9a
+COL11 = "#6a6a6a" -- mouseenter \6a6a6a
+COl12 = "#9a9a9a" -- selected \9a9a9a
 
-COL13=COL0 .. 50 -- def pad color\ 
+COL13 = COL0 .. 50 -- def pad color\ 
 COL18 = "#3a3a3a"
-
+]]
  
 --create window
 local wnd = rtk.Window{x=50,y=50,bg=COL0, expand=1, w=700, h=800, padding=10} wnd:open() wnd.onresize = function(self, w, h)self:reflow()end wnd.onclose = function() reaper.CF_Preview_StopAll() rtk.quit()end
 --------scale problems---------
 if rtk.scale.value ~= 1.0 then
     rtk.scale.user = scale/rtk.scale.value
-    wnd:attr('w', MAIN_PARAMS.w * scale) -- last w
-    wnd:attr('h', MAIN_PARAMS.h * scale) -- last h
+    wnd:attr('w', wnd.calc.w * scale) -- last w
+    wnd:attr('h', wnd.calc.h * scale) -- last h
 end
 
 --local WND_vbox=wnd:add(rtk.VBox{spacing=def_spacing})
@@ -150,6 +147,7 @@ local app_right = cont_edge_app:add(rtk.HBox{spacing=def_spacing,lmargin=3,rmarg
 app_right:add(rtk.Box.FLEXSPACE)
 local pin_app = create_b(app_right, "PIN", 40, 30, true, ic.pin:scale(120,120,22,5):recolor("white"))
 local settings_app = create_b(app_right, "STNGS", 40, 30, true, ic.settings:scale(120,120,22,5):recolor("white") ) settings_app.click=1
+
 
 local main_hbox_window = main_vbox_window:add(rtk.HBox{minh=350, h=0.7, spacing=def_spacing},{fillw=true, fillh=true})
 local left_vbox_sect = main_hbox_window:add(rtk.VBox{B_heigh=27, spacing=def_spacing},{fillh=true})
@@ -271,9 +269,43 @@ create_b(NEW_vp_vbox, "NEW PROJECT", 1, left_vbox_sect.B_heigh)
 create_b(NEW_vp_vbox, "NEW TAB", 1, left_vbox_sect.B_heigh)
 create_b(NEW_vp_vbox, "NEW TAB(SV)", 1, left_vbox_sect.B_heigh).onreflow = function(self); self.refs.NEW_TAB_SV_:attr('text', self.calc.w > 122 and "NEW TAB(PRESERVE)" or "NEW TAB(PS)") end
 
-
 ---------LIST MAIN SECTION---------
 local main_vbox_list = main_hbox_window:add(rtk.VBox{ spacing=def_spacing},{fillh=true, fillh=true})
+
+local hbox_sorting_modul = main_vbox_list:add(rtk.HBox{x=8, spacing=def_spacing, h=25})
+hbox_sorting_modul:add(rtk.Box.FLEXSPACE)
+hbox_sorting_modul:add(rtk.Text{fontsize=22, valign='center', h=1, "SORT BY"})
+
+menu = {
+    {'New ➤ Old', 'date', 1},
+    {'Old ➤ New', 'date', 0},
+    {'A ➤ Z', 'az', 1},
+    {'Z ➤ A', 'az', 0},
+    {'Small ➤ Large', 'size', 1},
+    {'Large ➤ Small', 'size', 0},
+    {'First ➤ Last','opened', 1},
+    {'Last ➤ First','opened', 0},
+}
+
+local HB_sort = hbox_sorting_modul:add(rtk.VBox{})
+local option_menu = HB_sort:add(OptionMenu{ pos='left', minw=140, current=2, menu=menu, cursor=rtk.mouse.cursors.HAND, color='#696969', h=25,w=0.3},{})
+local VB_RVB = RoundrectVBox({y=3, margin=-12, w=1, h=200}, "#4a4a4a", 8)
+ 
+option_menu.onclick=function(self,event)
+    if popupOption.opened then
+        popupOption:close()
+    else
+        PopupOption(self, VB_RVB)
+        popupOption.onclose=function(self,event)
+            local key = menu[option_menu.current][2]
+            local direction = menu[option_menu.current][3]
+            sorted_paths = sort_paths(new_paths, all_paths_list, key, direction)
+            
+            main_run(TYPE)
+        end
+    end
+end
+
 local list_container, container_heading, list_vbox_group, vp_main_list = create_container({h=1, fillw=true}, main_vbox_list) 
 list_vbox_group:attr('bmargin', 6)
 list_vbox_group:attr('spacing', 3)
@@ -283,7 +315,6 @@ list_vbox_group.onmousewheel=function(self,event)
         return true
     end
 end
-
 -----------------------------------
 ----------resizible list----------
 --[[
@@ -316,6 +347,12 @@ RESIZE_LINE.onmouseleave = function(self, event)
     self:attr('bg', 'transparent')
 end
 ]]
+
+-----------------------------------
+-----------------------------------
+
+
+
 -----------------------------------
 -----------------------------------
 
@@ -332,7 +369,7 @@ rait_icons = icons_raiting(34, icons_cols)
 
 local vbox_popup = rtk.VBox{spacing=1, h=1}, {fillh=true}
 
-local popup_by_path = rtk.Popup{x=1, y=1, alpha=0.9, bg=COL9, padding=2,shadow="#1a1a1a90",border=COL9, child=vbox_popup, w=145, h=188, overlay=COL4}
+local popup_by_path = rtk.Popup{x=1, y=1, alpha=0.9, bg=COL9, padding=2,shadow="#1a1a1a90",border=COL9, child=vbox_popup, w=145, h=188, overlay=COL4..40}
 
 vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"OPEN", w=1})
 vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"NEW TAB", w=1})
@@ -355,6 +392,7 @@ function create_block_list()
     
     local flowbox_main = rtk_FlowBox({margin=4, expand=4, spacing=-2, w=1})
     --local flowbox_main = rtk.FlowBox{margin=4, expand=4, spacing=-2, w=1}
+    flowbox_main:remove_all()
     list_vbox_group:remove_all()
     vp_main_list:attr('child', flowbox_main)
     --list_vbox_group
@@ -406,7 +444,7 @@ function create_block_list()
         end
         
         local slider_length_audio = left_img_progress:add(SimpleSlider{
-        w=cont_img.calc.w, y=2, value=norm_prog_val, maxh=18,z=-1, scroll_on_drag=false, color=def_padcol, 
+        w=cont_img.calc.w, y=2, value=norm_prog_val, maxh=18,z=10, scroll_on_drag=false, color=def_padcol, 
         tmargin=-2, rmargin=8, x=-2, lmargin=8,hotzone=5, roundrad=round_rect_list, ttype=3, textcolor="#ffffff80",
         onchange=function(val)
             data.progress=val
@@ -427,7 +465,24 @@ function create_block_list()
         recolor(rait_cont.refs.BG, def_padcol, "#5a5a5a80")
         local heading=rait_cont.refs.VBOX.refs.HEAD rait_cont.refs.VBOX:remove(heading)
          
-        
+        ---------
+        slider_length_audio.onclick=function(self,event)
+            
+            if event.button == cbm then
+                local ret, col = reaper.GR_SelectColor(wnd.hwnd)
+                if ret then 
+                    local col_hex = rtk.color.int2hex(col, true)
+                    if col_hex == "#000000" then 
+                        padcolor=def_pad_color 
+                    else
+                        data.padcolor=col_hex
+                        slider_length_audio:attr('color', col_hex)
+                        save_parameter(n.path, data)
+                    end
+                end
+            end
+            return true
+        end
         
         n.form_date_1 = n.form_date:gsub(" %d+, %d+:%d+", "")
         n.form_date_2 = n.form_date:gsub(", %d%d:%d%d", "")
@@ -436,6 +491,7 @@ function create_block_list()
         n.sel = 0
 
         local new_cont = container_hbox:add(rtk.Container{hotzone=2, z=5},{fillw=true,fillh=true})
+        
         
         
         new_cont.onmousedown = function(self, event)
@@ -471,7 +527,7 @@ function create_block_list()
                 
                 popup_by_path:move(x_norm, y_norm)
                 a,s,d,v=popup_by_path:_get_padding()
-                print(a,s,d,v)
+                
                 
                 if padcolor ~= def_pad_color then
                     popup_by_path:attr('shadow', def_padcol..10)
@@ -495,40 +551,26 @@ function create_block_list()
         end
         
         
-        ---------
-        slider_length_audio.onclick=function(self,event)
-            if event.button == rbm then
-                local ret, col = reaper.GR_SelectColor(wnd.hwnd)
-                if ret then 
-                    local col_hex = rtk.color.int2hex(col, true)
-                    if col_hex == "#000000" then 
-                        padcolor=def_pad_color 
-                    else
-                        data.padcolor=col_hex
-                        slider_length_audio:attr('color', col_hex)
-                        save_parameter(n.path, data)
-                    end
-                end
-            end
-        end
         
-VP_1:scrollto(0, 0, false)
+        
+        VP_1:scrollto(0, 0, false)
         icon_raiting_proj:attr('icon', rait_icons[icons_row1[raiting]])
-        
         icon_raiting_proj.onclick=function(self, event)
+            pop_up_raiting:open{}
             VP_1:scrollto(0, 0, false)
             pop_up_raiting:attr('x', self.clientx-12)
             pop_up_raiting:attr('y', self.clienty-60)
             
-            pop_up_raiting:open{}
+            
             pop_up_raiting.child.SELF = icon_raiting_proj
             
             --raiting
             local Y = 40 + (raiting - 1) * 40 - 30
             VP_1:scrollto(0, Y, true)
         end
-        
         rait_vp:add(rtk.Spacer{h=50})
+        
+        
         for i, icon_name in ipairs(icons_row1) do
             local icon = rait_icons[icon_name]
             local b = rait_vp:add(rtk.Button{cursor=rtk.mouse.cursors.HAND, alpha=0.6, elevation=1, circular=true, x=-1, lpadding=-5,color=shift_color(icons_cols[i], 1.0, 0.6, 0.6)..90, flat=false,w=35, h=35, icon=icon})
@@ -583,9 +625,7 @@ VP_1:scrollto(0, 0, false)
         end
         
         rtk.defer(update_hover)
-        
     end
-    
 end
 
 
@@ -596,6 +636,7 @@ function create_list()
     container_heading:remove(HEADING_types_hbox)
     vp_main_list:attr('child', list_vbox_group)
     container_heading:add(HEADING_types_hbox)
+    HEADING_types_hbox:remove_all()
     --HEADING--
     HEADING_types_hbox:add(rtk.Button{x=5,ref="info", surface=false, minw=52, icon=ic.info, halign='center',fontflags=rtk.font.BOLD,halign='center' },{ halign='center', fillh=true})
     HEADING_types_hbox:add(rtk.Button{w=0.4, ref="fnames", surface=false, minw=nil, label="FILE NAME", icon=ic.filename,fontflags=rtk.font.BOLD},{fillh=true})
@@ -721,7 +762,7 @@ function create_list()
                 if padcolor ~= def_pad_color then
                     popup_by_path:attr('shadow', padcolor..10)
                 else
-                    popup_by_path:attr('shadow', "#1a1a1a90")
+                    popup_by_path:attr('shadow', "#1a1a1a20")
                 end
                 popup_by_path:attr('alpha', 0.94)
                 if n.sel == 0 then
@@ -791,7 +832,7 @@ function create_list()
         end
         
         pad_status.onclick = function(self, event)
-            if event.button == rbm then
+            if event.button == cbm then
                 local ret, col = reaper.GR_SelectColor(wnd.hwnd)
                 if ret then 
                     local col_hex = rtk.color.int2hex(col, true)
@@ -870,6 +911,8 @@ function create_list()
             n.sel = 1
             recolor(bg_roundrect, "#9a9a9a", hex_darker("#9a9a9a", 0.2))
         end
+        
+        
     end
 end
 
@@ -1538,12 +1581,15 @@ end
 local cont_info_bar = main_vbox_list:add(rtk.Container{w=1, h=30})
 local info_bar = create_spacer(cont_info_bar, COL1, COL3, round_rect_window)
 
-create_block_list()
+function main_run()
+    if TYPE_module == 1 then
+        create_list()
+    else
+        create_block_list()
+    end
+end
 
-
---create_list()
-
-
+main_run()
 --new_paths[sorted_paths[1]].hbox.refs.date.onreflow = function(self, event)
 --    update_window(wnd, wnd.w, wnd.h)
 --end
