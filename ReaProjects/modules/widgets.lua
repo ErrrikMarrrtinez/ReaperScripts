@@ -306,21 +306,22 @@ end]]
 function rtk_FlowBox(params)
     local flowbox = rtk.Container(params)
     local spacing = params.spacing or 0
-    local min_elem_width = params.min_elem_width or 240 -- --надо найти ШИРИНУ КАК_ТО
-    local last_width = nil -- Последняя известная ширина контейнера
+    local min_elem_width = params.min_elem_width or 240 -- minw
+    local last_width = nil 
+    local last_visible_count = nil -- last count visible
     flowbox.onreflow = function(self)
-        if self.calc.w == last_width then
-            -- Ширина контейнера не изменилась, нет необходимости обновлять геометрию и координаты элементов
-            return
-        end
-        last_width = self.calc.w
-        local visible_w, new_y, new_x = 0, 0, 0
         local visible_count = 0
         for i, info in ipairs(self.children) do
             if info[1].visible then
                 visible_count = visible_count + 1
             end
         end
+        if self.calc.w == last_width and visible_count == last_visible_count then
+            return
+        end
+        last_width = self.calc.w
+        last_visible_count = visible_count
+        local visible_w, new_y, new_x = 0, 0, 0
         local elems_per_row = math.max(1, math.floor(self.calc.w / (min_elem_width + spacing)))
         local elem_width = self.calc.w / elems_per_row
         for i, info in ipairs(self.children) do
@@ -340,4 +341,156 @@ function rtk_FlowBox(params)
 end
 
 
+OptionMenu = rtk.class('OptionMenu', rtk.Spacer)
 
+OptionMenu.register{
+    color = rtk.Attribute{type='color', default='#8a8a8a'},
+    minh = rtk.Attribute{default=25},
+    minw = rtk.Attribute{default=150},
+    roundrad = rtk.Attribute{default=8},
+    menu =  rtk.Attribute{},
+    w = rtk.Attribute{default=100},
+    autofocus = true,
+    onchange = rtk.Attribute{default=nil},
+    fontsize = rtk.Attribute{default=16},
+    pos = rtk.Attribute{default="left"},
+    text = rtk.Attribute{default=""},
+    current = rtk.Attribute{default=1},
+}
+
+function OptionMenu:initialize(attrs, ...)
+    rtk.Spacer.initialize(self, attrs, OptionMenu.attributes.defaults, ...)
+end
+
+function OptionMenu:_handle_draw(offx, offy, alpha, event)
+    local col = self.color
+    local bg_col = shift_color(col, 1.0, 1.0, 0.9)
+    local bg_col2 = shift_color(bg_col, 1, 0.70, 0.70)
+    local current_text = self.menu[self.current][1]
+
+    local calc_x = math.round(offx + self.calc.x)
+    local calc_y = math.round(offy + self.calc.y)
+    local calc_h = math.round(self.calc.h)
+    local calc_w = math.round(self.calc.w)
+    
+    local square_x = self.pos == "right" and offx or offx + calc_w - calc_h
+    
+    --main rect --
+    self:setcolor(bg_col, alpha)
+    rtk.gfx.roundrect(calc_x, calc_y, calc_w, calc_h, self.roundrad, 0.5, true)
+    
+    -- text in button
+    self:setcolor("#FFFFFF", alpha)
+    local new_text = rtk.Font{}
+    new_text:set('font', 16, 1.0, BOLD)
+    x_txt = calc_x + 10
+    y_txt = calc_y + 5--calc_h--(calc_h + calc_x+2)/2
+    new_text:draw(current_text, x_txt, y_txt, calc_w, calc_h, BOLD)
+    
+    -- square arrow
+    self:setcolor(bg_col2, alpha)
+    rtk.gfx.roundrect(square_x+1, calc_y+1, calc_h-2, calc_h-2, self.roundrad+2, 0.5, true)
+    
+   self:setcolor(col, alpha)
+   local arrow_text = rtk.Font{}
+   arrow_text:set('font', 17, 0.9, nil)
+   local text_w, text_h = arrow_text:measure('▼')
+   x_txt = square_x + (calc_h - text_w) / 2
+   y_txt = calc_y + (calc_h - text_h) / 2
+   arrow_text:draw('▼', x_txt, y_txt)
+end
+
+function OptionMenu:_handle_mouseenter(event)
+    self.original_color = self.color
+    self.hover_color = shift_color(self.color, 1, 1, 1.1)
+    self.color = self.hover_color
+    return true
+end
+
+function OptionMenu:_handle_mouseleave(event)
+    self.color = self.original_color
+end
+
+function OptionMenu:_handle_mousedown(event)
+    local ok = rtk.Spacer._handle_mousedown(self, event)
+    if ok == false then
+        return ok
+    end
+    self.color = shift_color(self.color, 1, 1, 1.12)
+end
+
+function OptionMenu:_handle_mouseup(event)
+    local ok = rtk.Spacer._handle_mouseup(self, event)
+    if ok == false then
+        return ok
+    end
+    self.color = self.hover_color
+end
+
+function DrawRoundrect(col, rval)
+    local spacer = rtk.Spacer{w=1, h=1, z=-1} rval = rval or 10
+    spacer.ondraw = function(self, offx, offy, alpha, event)
+        self:setcolor(col, alpha)
+        rtk.gfx.roundrect(
+            math.round(offx + self.calc.x-1),
+            math.round(offy + self.calc.y-1),
+            math.round(self.calc.w+2),
+            math.round(self.calc.h+2),
+            rval ,
+            1, -- fill
+            true  -- antialias
+        )
+        self:setcolor(shift_color(col, 1, 1, 1.15), alpha)
+        rtk.gfx.roundrect(
+            math.round(offx + self.calc.x),
+            math.round(offy + self.calc.y),
+            math.round(self.calc.w),
+            math.round(self.calc.h),
+            rval-2,
+            0.5, -- fill
+            true  -- antialias
+        )
+    end
+    return spacer
+end
+
+function RoundrectVBox(params, col)
+    local vb = rtk.Container(params)
+    local cont = vb:add(rtk.Container{ref='cont', w=1, h=1, z=-2, DrawRoundrect(col):attr('ref', 'bg')})
+    return vb
+end
+
+
+popupOption = rtk.Popup{h=2, bg='transparent', border='transparent', margin=-2}
+
+
+function PopupOption(widg, VB, menu)
+    VB:remove_index(2)
+    new_vb = VB:add(rtk.VBox{w=1})
+    
+    local menu = widg.menu
+    for i, name in ipairs(menu) do
+        local elem_name = menu[i][1]
+        local txt = new_vb:add(rtk.Text{font='Arial', fontscale=1, fontsize=17, cursor=rtk.mouse.cursors.HAND, lpadding=10, margin=0, w=1, valign='center', bborder='#4a4a4a', text=elem_name},{fillh=true})
+        txt.onclick=function(self,event)
+            widg:attr('current', i)
+            popupOption:close{}
+            SELECTED = true
+            return SELECTED
+        end
+        txt.onmouseenter=function(self,event)
+            self:attr('bg', "#6a6a6a")
+            return true
+        end
+        txt.onmouseleave=function(self,event)
+            self:attr('bg',"transparent")
+        end
+        if i == #menu then txt:attr('bborder', false) end
+        if i == widg.current then txt:attr('text', elem_name.."  ☑") end
+    end
+    popupOption:attr('anchor', widg)
+    popupOption:attr('child', VB)
+    popupOption:attr('h', 2)
+    popupOption:animate{'h', dst=VB.h, duration=0.1}
+    popupOption:open{}
+end

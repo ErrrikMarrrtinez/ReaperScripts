@@ -178,15 +178,15 @@ function sort_paths(new_paths, all_paths_list, sort_type, direction)
             end
         elseif sort_type == "opened" then
             if direction == 1 then
-                return new_paths[a].idx > new_paths[b].idx
-            else
                 return new_paths[a].idx < new_paths[b].idx
+            else
+                return new_paths[a].idx > new_paths[b].idx
             end
         elseif sort_type == "az" then
             if direction == 1 then
-                return new_paths[a].filename > new_paths[b].filename
+                return new_paths[a].filename:lower() < new_paths[b].filename:lower()
             else
-                return new_paths[a].filename < new_paths[b].filename
+                return new_paths[a].filename:lower() > new_paths[b].filename:lower()
             end
         elseif sort_type == "size" then
             if direction == 1 then
