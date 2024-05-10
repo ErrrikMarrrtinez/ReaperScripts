@@ -1,6 +1,6 @@
 -- @description ReaProjects - Project Manager
 -- @author mrtnz
--- @version 0.1.16-alpha
+-- @version 0.1.17-alpha
 -- @changelog
 --  Beta
 -- @provides
