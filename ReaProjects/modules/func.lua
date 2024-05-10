@@ -23,6 +23,32 @@ month_names = {
     "Dec"
 }
 
+
+local function check_and_install_extension(extension_name, filter_name)
+    local has_extension = (extension_name == "JS_ReaScriptAPI") and rtk.has_js_reascript_api or rtk.has_sws_extension
+    if not has_extension then
+      local retval = reaper.MB(extension_name .. " is not installed. Click OK to open ReaPack and install it. After ReaPack opens, find '" .. filter_name .. "' in the list and click 'Install' or 'Update'.", "Attention", 1)
+      if retval == 1 then
+        reaper.ReaPack_AddSetRepository("ReaTeam Extensions", "https://github.com/ReaTeam/Extensions/raw/master/index.xml", true, 2)
+        reaper.ReaPack_ProcessQueue(true)
+        reaper.ReaPack_BrowsePackages(filter_name)
+        return true
+      end
+    end
+    return false
+  end
+  
+  local function check_and_install_extensions()
+    local js_installed = check_and_install_extension("JS_ReaScriptAPI", "JS_ReaScriptAPI")
+    local sws_installed = check_and_install_extension("SWS", "SWS")
+    return js_installed or sws_installed
+  end
+  
+  if check_and_install_extensions() then
+    return
+  end
+
+
 function lerp(a, b, t)
     return a + (b - a) * t
 end
@@ -956,31 +982,6 @@ end
 update_state = create_state_updater()
 
 
-local function check_and_install_extension(extension_name, filter_name)
-    local has_extension = (extension_name == "JS_ReaScriptAPI") and rtk.has_js_reascript_api or rtk.has_sws_extension
-    if not has_extension then
-      local retval = reaper.MB(extension_name .. " is not installed. Click OK to open ReaPack and install it. After ReaPack opens, find '" .. filter_name .. "' in the list and click 'Install' or 'Update'.", "Attention", 1)
-      if retval == 1 then
-        reaper.ReaPack_AddSetRepository("ReaTeam Extensions", "https://github.com/ReaTeam/Extensions/raw/master/index.xml", true, 2)
-        reaper.ReaPack_ProcessQueue(true)
-        reaper.ReaPack_BrowsePackages(filter_name)
-        return true
-      end
-    end
-    return false
-  end
-  
-  local function check_and_install_extensions()
-    local js_installed = check_and_install_extension("JS_ReaScriptAPI", "JS_ReaScriptAPI")
-    local sws_installed = check_and_install_extension("SWS", "SWS")
-    return js_installed or sws_installed
-  end
-  
-  if check_and_install_extensions() then
-    return
-  end
-
-  
 
 
 
