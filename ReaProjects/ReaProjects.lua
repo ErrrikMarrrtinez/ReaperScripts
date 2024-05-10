@@ -1,6 +1,6 @@
 -- @description ReaProjects - Project Manager
 -- @author mrtnz
--- @version 0.1.15-alpha
+-- @version 0.1.16-alpha
 -- @changelog
 --  Beta
 -- @provides
@@ -65,7 +65,7 @@ def_spacing               = 5
 rtk.double_click_delay    = 0.23
 -----------------
 
-
+BACKUPS_CURRENT           = true
 scale   = 1
 preview = nil
 
@@ -100,14 +100,14 @@ end
 --local WND_vbox=wnd:add(rtk.VBox{spacing=def_spacing})
 local main_vbox_window = wnd:add(rtk.VBox{minh=670, minw=470, spacing=def_spacing},{})
 
-app_main_hbox = main_vbox_window:add(rtk.HBox{w=1, h=32})
+local app_main_hbox = main_vbox_window:add(rtk.HBox{w=1, h=32})
 
 --left side application
-cont_left_app = app_main_hbox:add(rtk.Container{h=34, w=0.2, minw=60})
+local cont_left_app = app_main_hbox:add(rtk.Container{h=34, w=0.2, minw=60})
 local left_app_hbox=cont_left_app:add(rtk.HBox{w=1},{halign='left', valign='center'})
 
 --right side applications
-cont_edge_app = app_main_hbox:add(rtk.Container{h=34, w=1})
+local cont_edge_app = app_main_hbox:add(rtk.Container{h=34, w=1})
 local app_right = cont_edge_app:add(rtk.HBox{spacing=def_spacing,lmargin=3,rmargin=1,},{halign='right', valign='center'}) 
 --app_right:add(--addhere)
 app_right:add(rtk.Box.FLEXSPACE)
@@ -138,7 +138,7 @@ rtk.Spacer{w=1, bborder='2px '..COL11},
 
 
 buttons_settings = {}
-VB_media=cont_player.refs.player:add(rtk.VBox{padding=30, halign='center', w=1, tmargin=1, spacing=5, ref='vb',rtk.Heading{fontsize=22,font='Verdena', ""}, },{})
+local VB_media=cont_player.refs.player:add(rtk.VBox{padding=30, halign='center', w=1, tmargin=1, spacing=5, ref='vb',rtk.Heading{fontsize=22,font='Verdena', ""}, },{})
 ic_on = ic.on:scale(120,120,22,4):blur(1) ic_off = ic.off:scale(120,120,22,4):blur(22)ic_on:recolor('white#40')
 
 local hb_ind = VB_media:add(rtk.HBox{h=35, w=1})
@@ -217,11 +217,7 @@ settings_app.onclick = function(self, event)
 end
 
 ---------LEFT SIDE SECTION---------
-GRP_minw=95
-GRP_maxw=150
-GRP_minh=145
-GRP_w=0.25
-
+local GRP_minw,GRP_maxw,GRP_minh,GRP_w=95,150,145,0.25
 local OPEN_container, OPEN_heading, OPEN_vp_vbox = create_container({minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, h=0.25, w=GRP_w}, left_vbox_sect,'OPEN PROJECTS')
 local NEW_container, NEW_heading, NEW_vp_vbox = create_container({minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, h=0.335, w=GRP_w}, left_vbox_sect, 'NEW PROJECTS')
 local GROUP_container, group_heading, group_vp_vbox = create_container({minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, h=1, w=GRP_w}, left_vbox_sect, 'GROUPS')
@@ -252,7 +248,6 @@ NEW_project_close.onclick=function(self, event)
 end
 
 
-
 OPEN_selected_project.onclick=function(self, event)
     local paths = get_selected_path()
     for i, path in ipairs(paths) do
@@ -273,7 +268,7 @@ end
 OPEN_selected_projects_recovery.onclick=function(self, event)
     local paths = get_selected_path()
     for i, path in ipairs(paths) do
-        reaper.Main_OnCommand(41929, 0)
+        --reaper.Main_OnCommand(41929, 0)
         open_project_recovery(path)
     end
 end
@@ -386,24 +381,36 @@ popup_backups = rtk.Popup{z=10, autofocus=true, autoclose=true, child=all_window
 
 function native_menu(n)
     vbox_popup:remove_all()
-
     popup_by_path:open{}
-    vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"OPEN", w=1})
-    vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"NEW TAB", w=1})
-    vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"OFFLINE", w=1})
+    local open_cur_proj_b = vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"OPEN", w=1})
+    local new_tab_proj_b = vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"NEW TAB", w=1})
+    local b_offline = vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"OFFLINE", w=1})
     local b_backups_open = vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"BACKUPS", w=1})
     vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"PREVIEW", w=1})
     vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"SETTINGS", w=1},{})
     
+    new_tab_proj_b.onclick=function(self,event)
+        OPEN_selected_projects_newt:onclick()
+        popup_by_path:close()
+    end
+    
+    open_cur_proj_b.onclick=function(self,event)
+        OPEN_selected_project:onclick()
+        popup_by_path:close()
+    end
+    
+    b_offline.onclick=function(self,event)
+        local paths = get_selected_path()
+        for i, path in ipairs(paths) do
+            open_project_recovery(path)
+            popup_by_path:close()
+        end
+    end
     b_backups_open.onclick=function(self,event)
         PROJECT_PATH_BACKUPS = get_backups_folder(n.dir)
         dofile(cur_path.."modules"..sep.."backups.lua")
-        
         create_backups()
-        
-        
         popup_by_path:close()
-        
         popup_backups:open()
     end
 
@@ -948,8 +955,8 @@ function create_list()
 end
 
 
---[[
 
+--[[
 collection_all = {
 name="Искушённый соблазном",
 sec_name="Грустный",
@@ -961,10 +968,9 @@ list={
 "F:\\Projects Reaper\\Тима Проекты\\Параллели судьбы\\Параллели судьбы.rpp",
 }
 }
---save_parameter("Искушённый соблазном",collection_all, params_data)
+save_parameter("Искушённый соблазном",collection_all, params_data)
 --get_all_names(params_data)
---
-]]
+--]]
 
 
 function create_list_collection(vbox_list, str_list)
@@ -994,8 +1000,8 @@ function create_collection(vbox, vbox_list)
             list={""},
             tags={},
         }
-        local COL = DATA.col
-        local NEW_COL= shift_color(COL, 1.0, 0.7, 0.7)
+        local COL = DATA.bgcol
+        local NEW_COL = shift_color(COL, 1.0, 0.7, 0.7)
         
         image, name, second_name, tags = DATA.img, DATA.name, DATA.sec_name, DATA.tags
         --create bg roundrect
@@ -1645,4 +1651,3 @@ for i = 1,26 do
     end
 end
 ]]
-
