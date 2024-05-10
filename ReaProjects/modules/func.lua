@@ -130,6 +130,18 @@ function extract_name(filePath)
     return clean_name, path
 end
 
+function get_param_ini(param)
+    local param_val = ""
+    if rtk.os.windows then
+        _, param_val = reaper.BR_Win32_GetPrivateProfileString("REAPER", param, "", ini_path) --defrenderpath or autosavedir
+    elseif rtk.os.mac or rtk.os.linux then
+        _, param_val = reaper.get_config_var_string(param)
+    end
+    return param_val
+end
+
+
+
 function get_recent_projects(ini_path)
     local p = 0
     local index = 1
@@ -515,12 +527,16 @@ end
 ------------------------------------------------------------------------
 
 function get_selected_path()
-    reaper.ClearConsole()
+    local selected_paths = {}
     for i, path in ipairs(sorted_paths) do
         local n = new_paths[path]
-        if n.sel == 1 then print(n.path) end
+        if n.sel == 1 then 
+            table.insert(selected_paths, n.path)
+        end
     end
+    return selected_paths
 end
+
 
 function unselect_all_path()
     for i, path in ipairs(sorted_paths) do
@@ -816,8 +832,8 @@ function update_image(all_info, img_path, img, data)
     local filename_proj = all_info.filename
     local merge_filename = filename_proj .. "_" .. filename
     unmatch_images(CUSTOM_IMAGE_global, filename_proj)
-    GLOBAL_img_path, data.img = resize_image(img_path, CUSTOM_IMAGE_global, merge_filename, DEF_IMG_W, DEF_IMG_H)
-    save_parameter(all_info.path, data)
+    GLOBAL_img_path, all_info.DATA.img = resize_image(img_path, CUSTOM_IMAGE_global, merge_filename, DEF_IMG_W, DEF_IMG_H)
+    save_parameter(all_info.path, all_info.DATA)
     img:attr('image',CUSTOM_IMAGE_local..merge_filename)
 end
 
@@ -938,3 +954,59 @@ function create_state_updater()
 end
 
 update_state = create_state_updater()
+
+BACKUPS_CURRENT = true
+
+function get_backups_folder(folder)
+    if BACKUPS_CURRENT then
+        local folder_name = get_param_ini('autosavedir')
+        return folder..folder_name
+    end
+end
+
+--- function to process a reaper file.
+-- @param source_file path to the source file.
+-- @return true if the process was successfully completed, otherwise false.
+function open_project_recovery(source_file)
+    local target_file = string.gsub(source_file, ".rpp$", "[recovery mode].rpp")
+    if not target_file:match("%.rpp$") then return false end
+
+    -- copy file
+    local source = assert(io.open(source_file, "rb"))
+    local content = source:read("*all")
+    source:close()
+    local target = assert(io.open(target_file, "wb"))
+    target:write(content)
+    target:close()
+
+    -- modify bypass attribute
+    local file = assert(io.open(target_file, "r+"))
+    local lines = {}
+    local bypass_found = false
+    for line in file:lines() do
+        if line:match("BYPASS %d %d %d") then
+            line = line:gsub("BYPASS %d %d %d", "BYPASS 0 1 0")
+            bypass_found = true
+        end
+        table.insert(lines, line)
+    end
+
+    -- if bypass line not found, open file in reaper and exit function
+    if not bypass_found then
+        reaper.Main_openProject(target_file)
+        return false
+    end
+    -- write updated content back to file
+    --reaper.Main_OnCommand(41929, 0)
+    file:seek("set")
+    for _, line in ipairs(lines) do file:write(line, "\n") end
+    file:close()
+    
+    -- open file in reaper and delete it
+    reaper.Main_openProject(target_file)
+    os.remove(target_file)
+
+    return true
+end
+
+

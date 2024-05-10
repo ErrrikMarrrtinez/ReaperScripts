@@ -1,6 +1,6 @@
 -- @description ReaProjects - Project Manager
 -- @author mrtnz
--- @version 0.1.13-alpha
+-- @version 0.1.15-alpha
 -- @changelog
 --  Beta
 -- @provides
@@ -35,14 +35,10 @@ all_paths_list = {}
 -----------------------
 
 
-
-
-
-
---- scan modules ---
-dofile(cur_path.."modules"..sep.."variables.lua")
+--- modules ---
 dofile(cur_path.."modules"..sep.."widgets.lua")
 dofile(cur_path.."modules"..sep.."func.lua")
+dofile(cur_path.."modules"..sep.."variables.lua")
 rtk.add_image_search_path(cur_path..sep.."icons", 'dark')
 --------------------
 --- initialize ---
@@ -52,11 +48,12 @@ ic, img                   = loadIcons(icon_path)
 data_files                = loadIniFiles(data_path)
 params_data               = data_files.data_path
 params_file               = data_files.params
+settings_file             = data_files.settings
 -------------------
 
 --- return projects ---
 new_paths, all_paths_list = get_recent_projects(ini_path)
-sorted_paths              = sort_paths(new_paths, all_paths_list, "size", 0)
+sorted_paths              = sort_paths(new_paths, all_paths_list, "opened", 1)
 -----------------------
  
  
@@ -72,58 +69,27 @@ rtk.double_click_delay    = 0.23
 scale   = 1
 preview = nil
 
-lum = 0.7
 
-COL0  = def_bg_color -- main bg col
---list and header
-COL1  = "transparent" -- rect_bg_heading border\all border list
-COL2  = shift_color(def_bg_color, 0, 0.5, 0.85+lum) -- bg heading
-COL3  = shift_color(def_bg_color, 0, 0.7, 0.65+lum) -- bg list
---popup
-COL4  = shift_color(def_bg_color, 0, 0.9, 0.35+lum) -- shadow bg
-COL5  = shift_color(def_bg_color, 0, 0.6, 0.55+lum) -- border
-COL6  = shift_color(def_bg_color, 0, 0.8, 0.85+lum) -- bg
---ENTRY
-COL7  = shift_color(def_bg_color, 0, 1, 0.95+lum) -- border
-COL8  = shift_color(def_bg_color, 0, 1, 0.65+lum) -- bg
---ELEMENTS
-COL9  = shift_color(def_bg_color, 0, 0.6, 0.75+lum) -- odd
-COL10 = shift_color(def_bg_color, 0, 0.8, 0.7+lum) --even
-
-COL11 = shift_color(def_bg_color, 0, 0.9, 0.95+lum) -- mouseenter
-COl12 = shift_color(def_bg_color, 0, 0.75, 1.15+lum) -- selected
-
-COL13 = shift_color(def_bg_color, 0, 0.64, 0.55+lum) -- def pad color
-COL18 = shift_color(def_bg_color, 0, 0.5, 0.75+lum)
-
---print(rtk.uuid4())
---[[
---main bg
-COL0  = "#1a1a1a" -- main bg col \ def_bg_color
---list and header
-COL1  = "transparent" --#5a5a5a" -- rect_bg_heading border\all border list \ #5a5a5a
-COL2  = "#4a4a4a" -- bg heading  \ 4a4a4a
-COL3  = "#2a2a2a" -- bg list \ 2a2a2a
---popup
-COL4  = COL3..50 -- shadow bg
-COL5  = COL1..75-- border \hex_darker(COL0, -1.2)
-COL6  = COL1 -- bg \hex_darker(COL0, -0.7)
---ENTRY
-COL7  = "#6a6a6a" -- border \6a6a6a
-COL8  = "#2a2a2a" -- bg \3a3a3a
---ELEMENTS
-COL9  = "#3a3a3a" -- odd \3a3a3a
-COL10 = "#323232" --even \323232
-
-COL11 = "#6a6a6a" -- mouseenter \6a6a6a
-COl12 = "#9a9a9a" -- selected \9a9a9a
-
-COL13 = COL0 .. 50 -- def pad color\ 
-COL18 = "#3a3a3a"
-]]
  
 --create window
-local wnd = rtk.Window{x=50,y=50,bg=COL0, expand=1, w=700, h=800, padding=10} wnd:open() wnd.onresize = function(self, w, h)self:reflow()end wnd.onclose = function() reaper.CF_Preview_StopAll() rtk.quit()end
+
+local wnd = rtk.Window{borderless=false, x=MAIN_PARAMS.last_x,y=MAIN_PARAMS.last_y,bg=COL0, expand=1, w=MAIN_PARAMS.wnd_w, h=MAIN_PARAMS.wnd_h, padding=10, minh=670, minw=500, } 
+wnd.onresize = function(self, w, h)
+    self:reflow()
+end 
+
+if MAIN_PARAMS.last_x < 0 then
+    wnd:move(1,  _)
+end
+
+
+wnd:open()
+
+wnd.onclose = function() 
+    MAIN_PARAMS.last_x, MAIN_PARAMS.last_y,MAIN_PARAMS.wnd_w, MAIN_PARAMS.wnd_h = wnd.x, wnd.y, wnd.calc.w, wnd.calc.h
+    save_parameter("MAIN", MAIN_PARAMS, settings_file) 
+    reaper.CF_Preview_StopAll();rtk.quit() 
+end
 --------scale problems---------
 if rtk.scale.value ~= 1.0 then
     rtk.scale.user = scale/rtk.scale.value
@@ -132,7 +98,7 @@ if rtk.scale.value ~= 1.0 then
 end
 
 --local WND_vbox=wnd:add(rtk.VBox{spacing=def_spacing})
-local main_vbox_window = wnd:add(rtk.VBox{spacing=def_spacing},{})
+local main_vbox_window = wnd:add(rtk.VBox{minh=670, minw=470, spacing=def_spacing},{})
 
 app_main_hbox = main_vbox_window:add(rtk.HBox{w=1, h=32})
 
@@ -149,7 +115,7 @@ local pin_app = create_b(app_right, "PIN", 40, 30, true, ic.pin:scale(120,120,22
 local settings_app = create_b(app_right, "STNGS", 40, 30, true, ic.settings:scale(120,120,22,5):recolor("white") ) settings_app.click=1
 
 
-local main_hbox_window = main_vbox_window:add(rtk.HBox{minh=350, h=0.7, spacing=def_spacing},{fillw=true, fillh=true})
+local main_hbox_window = main_vbox_window:add(rtk.HBox{minh=350, h=0.75, spacing=def_spacing},{fillw=true, fillh=true})
 local left_vbox_sect = main_hbox_window:add(rtk.VBox{B_heigh=27, spacing=def_spacing},{fillh=true})
 
 
@@ -261,20 +227,64 @@ local NEW_container, NEW_heading, NEW_vp_vbox = create_container({minh=GRP_minh,
 local GROUP_container, group_heading, group_vp_vbox = create_container({minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, h=1, w=GRP_w}, left_vbox_sect, 'GROUPS')
 local IMG_container, IMG_head, vp_images2 = create_container({minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, h=1, w=GRP_w}, left_vbox_sect, '[<]   IMG   [>]')
 
-create_b(OPEN_vp_vbox, "OPEN", 1, left_vbox_sect.B_heigh)
-create_b(OPEN_vp_vbox, "NEW TAB", 1, left_vbox_sect.B_heigh)
-create_b(OPEN_vp_vbox, "RECOVERY", 1, left_vbox_sect.B_heigh).onclick=function(self,event)print("AA")end
+local OPEN_selected_project = create_b(OPEN_vp_vbox, "OPEN", 1, left_vbox_sect.B_heigh)
+local OPEN_selected_projects_newt = create_b(OPEN_vp_vbox, "NEW TAB", 1, left_vbox_sect.B_heigh)
+local OPEN_selected_projects_recovery = create_b(OPEN_vp_vbox, "RECOVERY", 1, left_vbox_sect.B_heigh)
 
-create_b(NEW_vp_vbox, "NEW PROJECT", 1, left_vbox_sect.B_heigh)
-create_b(NEW_vp_vbox, "NEW TAB", 1, left_vbox_sect.B_heigh)
-create_b(NEW_vp_vbox, "NEW TAB(SV)", 1, left_vbox_sect.B_heigh).onreflow = function(self); self.refs.NEW_TAB_SV_:attr('text', self.calc.w > 122 and "NEW TAB(PRESERVE)" or "NEW TAB(PS)") end
 
----------LIST MAIN SECTION---------
+local NEW_project_current = create_b(NEW_vp_vbox, "NEW PROJECT", 1, left_vbox_sect.B_heigh)
+local NEW_project_tab = create_b(NEW_vp_vbox, "NEW TAB", 1, left_vbox_sect.B_heigh)
+local NEW_project_close = create_b(NEW_vp_vbox, "NEW TAB(SV)", 1, left_vbox_sect.B_heigh)
+
+NEW_project_current.onclick=function(self, event)
+    reaper.Main_OnCommand(40859, 0)
+end
+
+NEW_project_tab.onclick=function(self, event)
+    reaper.Main_OnCommand(41929, 0)
+end
+
+NEW_project_close.onreflow = function(self); self.refs.NEW_TAB_SV_:attr('text', self.calc.w > 122 and "NEW TAB(PRESERVE)" or "NEW TAB(PS)") end
+
+NEW_project_close.onclick=function(self, event)
+    reaper.Main_OnCommand(40026, 0)
+    reaper.Main_OnCommand(40023, 0)
+end
+
+
+
+OPEN_selected_project.onclick=function(self, event)
+    local paths = get_selected_path()
+    for i, path in ipairs(paths) do
+        if i == #paths then
+            reaper.Main_openProject(path)
+        end
+    end
+end
+
+OPEN_selected_projects_newt.onclick=function(self, event)
+    local paths = get_selected_path()
+    for i, path in ipairs(paths) do
+        reaper.Main_OnCommand(41929, 0)
+        reaper.Main_openProject(path)
+    end
+end
+
+OPEN_selected_projects_recovery.onclick=function(self, event)
+    local paths = get_selected_path()
+    for i, path in ipairs(paths) do
+        reaper.Main_OnCommand(41929, 0)
+        open_project_recovery(path)
+    end
+end
+
+
+----------------------
 local main_vbox_list = main_hbox_window:add(rtk.VBox{ spacing=def_spacing},{fillh=true, fillh=true})
 
 local hbox_sorting_modul = main_vbox_list:add(rtk.HBox{x=8, spacing=def_spacing, h=25})
 hbox_sorting_modul:add(rtk.Box.FLEXSPACE)
-hbox_sorting_modul:add(rtk.Text{fontsize=22, valign='center', h=1, "SORT BY"})
+hbox_sorting_modul:add(rtk.Text{y=1, fontsize=19, valign='center', h=1, "SORT BY"})
 
 menu = {
     {'New ➤ Old', 'date', 1},
@@ -288,7 +298,7 @@ menu = {
 }
 
 local HB_sort = hbox_sorting_modul:add(rtk.VBox{})
-local option_menu = HB_sort:add(OptionMenu{ pos='left', minw=140, current=2, menu=menu, cursor=rtk.mouse.cursors.HAND, color='#696969', h=25,w=0.3},{})
+local option_menu = HB_sort:add(OptionMenu{ pos='left', minw=140, current=7, menu=menu, cursor=rtk.mouse.cursors.HAND, color=COL8, h=25,w=0.3},{})
 local VB_RVB = RoundrectVBox({y=3, margin=-12, w=1, h=200}, "#4a4a4a", 8)
  
 option_menu.onclick=function(self,event)
@@ -315,9 +325,10 @@ list_vbox_group.onmousewheel=function(self,event)
         return true
     end
 end
------------------------------------
+
+--[[---------------------------------
 ----------resizible list----------
---[[
+
 local DRAG_LINE, mouseX, mouseH = false, 0, 0
 RESIZE_LINE = list_container:add(rtk.Spacer{hotzone=5, cursor=rtk.mouse.cursors.SIZE_NS, y=3, h=4,w=0.9, bg='transparent'},{halign='center', valign='bottom'})
 
@@ -330,11 +341,9 @@ RESIZE_LINE.ondragend = function(self, event)
 end
 RESIZE_LINE.ondragmousemove = function(self, event)
     if DRAG_LINE then
-        local new_h = rtk.clamp(mouseH + event.y - mouseX, 300, wnd.calc.h - 180 )
-        reaper.ClearConsole()
-        print(mouseH , event.y)
-        norm_h = norm(new_h, 0, wnd.calc.h)
-        list_container:attr('h', norm_h)
+        local new_h = rtk.clamp(mouseH + event.y - mouseX, 300, main_vbox_window.minh-120)
+        --norm_h = norm(new_h, 0, wnd.calc.h)
+        list_container:attr('h', new_h)
     end
 end
 
@@ -346,8 +355,8 @@ end
 RESIZE_LINE.onmouseleave = function(self, event)
     self:attr('bg', 'transparent')
 end
-]]
 
+]]
 -----------------------------------
 -----------------------------------
 
@@ -371,22 +380,36 @@ local vbox_popup = rtk.VBox{spacing=1, h=1}, {fillh=true}
 
 local popup_by_path = rtk.Popup{x=1, y=1, alpha=0.9, bg=COL9, padding=2,shadow="#1a1a1a90",border=COL9, child=vbox_popup, w=145, h=188, overlay=COL4..40}
 
-vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"OPEN", w=1})
-vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"NEW TAB", w=1})
-vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"OFFLINE", w=1})
-vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"BACKUPS", w=1})
-vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"PREVIEW", w=1})
-vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"SETTINGS", w=1},{})
+
+all_windows = rtk.VBox{z=10}
+popup_backups = rtk.Popup{z=10, autofocus=true, autoclose=true, child=all_windows}
+
+function native_menu(n)
+    vbox_popup:remove_all()
+
+    popup_by_path:open{}
+    vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"OPEN", w=1})
+    vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"NEW TAB", w=1})
+    vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"OFFLINE", w=1})
+    local b_backups_open = vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"BACKUPS", w=1})
+    vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"PREVIEW", w=1})
+    vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"SETTINGS", w=1},{})
+    
+    b_backups_open.onclick=function(self,event)
+        PROJECT_PATH_BACKUPS = get_backups_folder(n.dir)
+        dofile(cur_path.."modules"..sep.."backups.lua")
+        
+        create_backups()
+        
+        
+        popup_by_path:close()
+        
+        popup_backups:open()
+    end
+
+end
 
 local HEADING_types_hbox = rtk.HBox{ref='heading', y=-6.5,}
-local log = rtk.log
-
-function is_mouse_in_box(self)
-    local mousex, mousey = reaper.GetMousePosition()
-    local x, y = self.clientx-self.offx, self.clienty-self.offy
-    local w, h = self.calc.w, self.calc.h
-    return rtk.point_in_box(mousex,mousey,x,y,w,h)
-end
 
 function create_block_list()
     
@@ -526,7 +549,7 @@ function create_block_list()
                 local y_norm = rtk.mouse.y-OFFSETY-(y_offset > -1 and y_offset or 0)
                 
                 popup_by_path:move(x_norm, y_norm)
-                a,s,d,v=popup_by_path:_get_padding()
+
                 
                 
                 if padcolor ~= def_pad_color then
@@ -541,8 +564,7 @@ function create_block_list()
                 recolor(bg_roundrect, "#9a9a9a", smooth)
                 n.sel = 1
                 
-                popup_by_path:open{}
-                --popup_by_path:open{}
+                native_menu(n)
                 
                 
             end
@@ -771,7 +793,8 @@ function create_list()
                 recolor(bg_roundrect, "#9a9a9a", smooth)
                 n.sel = 1
                 
-                popup_by_path:open{}
+                --popup_by_path:open{}
+                native_menu(n)
                 --popup_by_path:open{}
                 
             end
@@ -779,7 +802,12 @@ function create_list()
             --get_selected_path()
         end
         hbox_projects.ondoubleclick=function(self, event)
-            get_selected_path()
+            local paths = get_selected_path()
+            for i, path in ipairs(paths) do
+                if i == #paths then
+                    reaper.Main_openProject(path)
+                end
+            end
         end
         pad_status.sensitivity = 0.15
         
@@ -914,10 +942,13 @@ function create_list()
         
         
     end
+    new_paths[sorted_paths[1]].hbox.refs.date.onreflow = function(self, event)
+        update_window(wnd, wnd.w, wnd.h)
+    end
 end
 
 
-
+--[[
 
 collection_all = {
 name="Искушённый соблазном",
@@ -930,11 +961,11 @@ list={
 "F:\\Projects Reaper\\Тима Проекты\\Параллели судьбы\\Параллели судьбы.rpp",
 }
 }
-
-
 --save_parameter("Искушённый соблазном",collection_all, params_data)
 --get_all_names(params_data)
 --
+]]
+
 
 function create_list_collection(vbox_list, str_list)
     vbox_list:remove_all()
@@ -1030,7 +1061,7 @@ end
 local open_group_editor = group_heading:add(rtk.Button{rmargin=14,">",tmargin=-7},{valign='center',  halign='right'})
 
 local group_editor = rtk.Container{w=1,h=1}
-local pop_up_editor = rtk.Popup{margin=-2, autoclose=false, border='transparent', padding=2, bg='transparent', child=group_editor}
+local pop_up_editor = rtk.Popup{margin=6, autoclose=false, border='transparent', padding=2, bg='transparent', child=group_editor}
 local cont_group, hb_heading_group, vp_group = create_container({halign='right', w=1, h=1}, group_editor, "GROUP EDITOR") vp_group:attr('x', 2)
 
 
@@ -1581,6 +1612,14 @@ end
 local cont_info_bar = main_vbox_list:add(rtk.Container{w=1, h=30})
 local info_bar = create_spacer(cont_info_bar, COL1, COL3, round_rect_window)
 
+
+--[[
+MAIN_PARAMS.TYPE_module = 0
+main_run()
+save_parameter(MAIN_PARAMS)
+]]
+
+
 function main_run()
     if TYPE_module == 1 then
         create_list()
@@ -1590,9 +1629,6 @@ function main_run()
 end
 
 main_run()
---new_paths[sorted_paths[1]].hbox.refs.date.onreflow = function(self, event)
---    update_window(wnd, wnd.w, wnd.h)
---end
 
 
 --[[
@@ -1609,3 +1645,4 @@ for i = 1,26 do
     end
 end
 ]]
+
