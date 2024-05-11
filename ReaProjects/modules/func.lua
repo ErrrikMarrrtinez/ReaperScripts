@@ -23,8 +23,7 @@ month_names = {
     "Dec"
 }
 
-
-local function check_and_install_extension(extension_name, filter_name)
+function check_and_install_extension(extension_name, filter_name)
     local has_extension = (extension_name == "JS_ReaScriptAPI") and rtk.has_js_reascript_api or rtk.has_sws_extension
     if not has_extension then
       local retval = reaper.MB(extension_name .. " is not installed. Click OK to open ReaPack and install it. After ReaPack opens, find '" .. filter_name .. "' in the list and click 'Install' or 'Update'.", "Attention", 1)
@@ -36,18 +35,13 @@ local function check_and_install_extension(extension_name, filter_name)
       end
     end
     return false
-  end
+end
   
-  local function check_and_install_extensions()
+function check_exts()
     local js_installed = check_and_install_extension("JS_ReaScriptAPI", "JS_ReaScriptAPI")
     local sws_installed = check_and_install_extension("SWS", "SWS")
     return js_installed or sws_installed
-  end
-  
-  if check_and_install_extensions() then
-    return
-  end
-
+end
 
 function lerp(a, b, t)
     return a + (b - a) * t
@@ -69,6 +63,19 @@ function table_remove(tbl, val)
             break
         end
     end
+end
+
+function update_params(old_params, settings_file)
+    local new_params = get_parameter("MAIN", settings_file)
+    if new_params == nil then
+        return old_params
+    end
+    for k, v in pairs(new_params) do
+        if old_params[k] ~= nil then
+            old_params[k] = v
+        end
+    end
+    return old_params
 end
 
 function get_modifier_value(modifiers)
@@ -587,9 +594,10 @@ function update_heigh_list(dir)
         text_name:attr('wrap', wrap)
         text_name2:attr('wrap', wrap)
 
-        new_h = math.floor( math.min(math.max(h + 15 * dir, 20), 100) )
-        n.cont:animate{'h',dst=new_h,duration=0.1, easing="in-quad"} --in quad --out-elastic
-
+        MAIN_PARAMS.heigh_elems = math.floor( math.min(math.max(h + 15 * dir, 20), 100) )
+        
+        n.cont:animate{'h',dst=MAIN_PARAMS.heigh_elems,duration=0.1, easing="in-quad"} --in quad --out-elastic
+        
     end
 end
 
@@ -712,6 +720,7 @@ function find_exact_match(str1, str2)
 
     return false
 end
+
 
 
 function scan_dir(dirPath)
@@ -879,7 +888,7 @@ function create_container(params, parent, txt)
 end
 
 function create_b_set(ref, text)
-    return rtk.Button{tagalpha=0.1, color='#3a3a3a20',tagged=true, cursor=rtk.mouse.cursors.HAND,gradient=0, padding=1,fontsize=21, ref="cur", icon=ic_off, w=1, h=1, flat=true, text}
+    return rtk.Button{tagalpha=0.1, color='#3a3a3a20',tagged=true, cursor=rtk.mouse.cursors.HAND,gradient=0, padding=1,fontsize=21, ref=ref, icon=ic_off, w=1, h=1, flat=true, text}
 end
 
 function create_b(CONT, txt, w, h, bparms, icon, animate)
@@ -980,8 +989,6 @@ function create_state_updater()
 end
 
 update_state = create_state_updater()
-
-
 
 
 

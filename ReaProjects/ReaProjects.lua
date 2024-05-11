@@ -1,6 +1,6 @@
 -- @description ReaProjects - Project Manager
 -- @author mrtnz
--- @version 0.1.17-alpha
+-- @version 0.1.18-alpha
 -- @changelog
 --  Beta
 -- @provides
@@ -37,7 +37,7 @@ all_paths_list = {}
 
 --- modules ---
 dofile(cur_path.."modules"..sep.."widgets.lua")
-dofile(cur_path.."modules"..sep.."func.lua")
+dofile(cur_path.."modules"..sep.."func.lua");if check_exts() then return end
 dofile(cur_path.."modules"..sep.."variables.lua")
 rtk.add_image_search_path(cur_path..sep.."icons", 'dark')
 --------------------
@@ -51,10 +51,6 @@ params_file               = data_files.params
 settings_file             = data_files.settings
 -------------------
 
---- return projects ---
-new_paths, all_paths_list = get_recent_projects(ini_path)
-sorted_paths              = sort_paths(new_paths, all_paths_list, "opened", 1)
------------------------
  
  
 --- constains ---
@@ -70,8 +66,13 @@ scale   = 1
 preview = nil
 
 
- 
+MAIN_PARAMS               = update_params(MAIN_PARAMS, settings_file)
+--- return projects ---
+new_paths, all_paths_list = get_recent_projects(ini_path)
+sorted_paths              = sort_paths(new_paths, all_paths_list, MAIN_PARAMS.sort, MAIN_PARAMS.sort_dir)
+-----------------------
 --create window
+
 
 local wnd = rtk.Window{borderless=false, x=MAIN_PARAMS.last_x,y=MAIN_PARAMS.last_y,bg=COL0, expand=1, w=MAIN_PARAMS.wnd_w, h=MAIN_PARAMS.wnd_h, padding=10, minh=670, minw=500, } 
 wnd.onresize = function(self, w, h)
@@ -81,7 +82,6 @@ end
 if MAIN_PARAMS.last_x < 0 then
     wnd:move(1,  _)
 end
-
 
 wnd:open()
 
@@ -147,47 +147,130 @@ buttons_settings.self_inst = hb_ind:add(create_b_set("selfinst","Self-installati
 local hb_gen = VB_media:add(rtk.HBox{h=35, w=1})
 buttons_settings.gen_dir = hb_gen:add(create_b_set("gen","General directory"))
 
-local hb_entry = VB_media:add(rtk.HBox{disabled=true, y=3, spacing=10, h=35, w=1})
+local hb_entry = VB_media:add(rtk.HBox{y=3, spacing=10, h=35, w=1})
 local entry_custom_path, custom_path_cont = rtk_Entry(hb_entry, COL10, COL13, 3, "Custom media path") 
 custom_path_cont:attr('lmargin', 50)custom_path_cont:attr('x', 18)custom_path_cont:resize(1, 30)
 
---hb_entry:add(rtk.Box.FLEXSPACE)
-local cont_button_finder = create_b(hb_entry, "DIR", 40, 32, true, ic.dir:scale(120,120,22,5):recolor("white"), false)cont_button_finder:move(18, -1.5)
-custom_path_cont.onkeypress=function(self, event)
-    entry_custom_path:blur()
+
+local defrender_path = MAIN_PARAMS.general_media_path[2]
+local param_ini = get_param_ini('defrenderpath')
+
+-- Если defrender_path пуст, тогда используем param_ini
+if (defrender_path == nil or defrender_path == "") and param_ini ~= nil and param_ini ~= "" then
+    MAIN_PARAMS.general_media_path[2] = param_ini
+    defrender_path = MAIN_PARAMS.general_media_path[2]
 end
-local hb_cur_path = VB_media:add(rtk.HBox{h=40, w=1})
+
+entry_custom_path:attr('value', defrender_path)
+
+entry_custom_path.onchange=function(self,event)
+    MAIN_PARAMS.general_media_path[2] = self.value
+end
+
+
+--hb_entry:add(rtk.Box.FLEXSPACE)
+local cont_button_finder = create_b(hb_entry, "DIR", 40, 32, true, ic.dir:scale(120,120,22,5):recolor("white"), false) cont_button_finder:move(18, -1.5)
+custom_path_cont.onkeypress=function(self, event)
+    if event.keycode == rtk.keycodes.ENTER and entry_custom_path.focused  then
+        entry_custom_path:blur()
+    end
+end
+
+
+cont_button_finder.onclick=function(self,event)
+    local rv, new_file = reaper.JS_Dialog_BrowseForFolder('Select preview directory', '')
+    if rv then
+        entry_custom_path:attr('value', new_file)
+    end
+end
+local hb_cur_path = VB_media:add(rtk.HBox{h=35, w=1})
 buttons_settings.cur_path_to_rpp = hb_cur_path:add(create_b_set("cur", "Current path to rpp"))
+
+
+b_cur_paths = {}
+local VB_child_curpath = VB_media:add(rtk.VBox{x=18, rmargin=65, lmargin=50, h=105},{disabled=true})
+b_cur_paths.one_name = VB_child_curpath:add(create_b_set("one_name","Same name (name of rpp and media file)"),{fillh=true})
+b_cur_paths.similar = VB_child_curpath:add(create_b_set("similar","Use similar names (for example my_project-001, etc.)"),{fillh=true})
+b_cur_paths.all_media = VB_child_curpath:add(create_b_set("all_media","All media"),{fillh=true})
 -----------------
 
 
-local function reset_buttons()
+local function reset_buttons(buttons_settings)
     for _, b in pairs(buttons_settings) do
         b:attr('flat', true)
         b:attr('hover', false)
         b:attr('icon', ic_off)
         b:attr('bg', '#3a3a3a10')
         b:attr('surface', true)
+        b:attr('disabled, ', false)
     end
 end
 
-local function activate_buttons(b)
-    reset_buttons()
-    b:attr('flat', false)
-    b:attr('icon', ic_on)
-    b:attr('hover', true)
-    b:attr('bg', '#ffffff40')
-    b:attr('surface', false)
+local function activate_buttons(ref, buttons_settings)
+    reset_buttons(buttons_settings)
+    for _, b in pairs(buttons_settings) do
+        if b.ref == ref then
+            b:attr('flat', false);b:attr('icon', ic_on);b:attr('hover', true);b:attr('bg', '#ffffff40');b:attr('surface', false);
+        end
+    end
+    MAIN_PARAMS.current_media_path = false
+    MAIN_PARAMS.general_media_path[1] = false
+    MAIN_PARAMS.individ_media_path = false
 end
-
 
 for _, b in pairs(buttons_settings) do
     b.onclick=function(self,event)
-        activate_buttons(b)
+        activate_buttons(self.ref, buttons_settings)
+        local rf = self.ref
+        VB_child_curpath:attr('alpha',0.4)
+        hb_entry:attr('alpha',0.4)
+        if rf == "selfinst" then
+            MAIN_PARAMS.current_media_path = true
+        elseif rf == "gen" then
+            hb_entry:attr('alpha',1)
+            MAIN_PARAMS.general_media_path[1] = true
+        elseif rf == "cur" then
+            VB_child_curpath:attr('alpha',1)
+            MAIN_PARAMS.current_media_path = true
+        else
+            
+        end
+        
+        CURRENT_media_path     = MAIN_PARAMS.current_media_path
+        GENERAL_media_path     = MAIN_PARAMS.general_media_path
+        INDIVIDUAL_media_path  = MAIN_PARAMS.individ_media_path
+        
+        save_parameter("MAIN", MAIN_PARAMS, settings_file)
+    end
+    b:onclick()
+end
+
+
+
+for _, b in pairs(b_cur_paths) do
+    b.onclick=function(self,event)
+        activate_buttons(self.ref, b_cur_paths)
+        local rf = self.ref
+        if rf == "one_name" then
+        
+        elseif rf == "similar" then
+        
+        elseif rf == "all_media" then
+            
+        end
+        
     end
 end
- 
-activate_buttons(buttons_settings.cur_path_to_rpp)
+
+if CURRENT_media_path == true then
+    activate_buttons('cur', buttons_settings)
+elseif GENERAL_media_path[1] == true then
+    activate_buttons('gen', buttons_settings)
+elseif INDIVIDUAL_media_path == true then
+    activate_buttons('selfinst', buttons_settings)
+end
+
+activate_buttons('all_media', b_cur_paths)
 --[[
 self_inst
 gen_dir
@@ -293,7 +376,7 @@ menu = {
 }
 
 local HB_sort = hbox_sorting_modul:add(rtk.VBox{})
-local option_menu = HB_sort:add(OptionMenu{ pos='left', minw=140, current=7, menu=menu, cursor=rtk.mouse.cursors.HAND, color=COL8, h=25,w=0.3},{})
+local option_menu = HB_sort:add(OptionMenu{ pos='left', minw=140, current=MAIN_PARAMS.sort_type, menu=menu, cursor=rtk.mouse.cursors.HAND, color=COL8, h=25,w=0.3},{})
 local VB_RVB = RoundrectVBox({y=3, margin=-12, w=1, h=200}, "#4a4a4a", 8)
  
 option_menu.onclick=function(self,event)
@@ -306,6 +389,8 @@ option_menu.onclick=function(self,event)
             local direction = menu[option_menu.current][3]
             sorted_paths = sort_paths(new_paths, all_paths_list, key, direction)
             
+            MAIN_PARAMS.sort, MAIN_PARAMS.sort_dir, MAIN_PARAMS.sort_type = key, direction, option_menu.current
+            save_parameter("MAIN", MAIN_PARAMS, settings_file)
             main_run(TYPE)
         end
     end
@@ -692,10 +777,10 @@ function create_list()
         local padcolor = hex_darker(data.padcolor, lerp(-0.2, 0.2, 0.2 - ( progress_val / 100 ) ))
         local padcolor_dim = padcolor
         local padcolor_dim_border = padcolor
-        
+        local heigh_elems = MAIN_PARAMS.heigh_elems
         local odd_col_bg = i % 2 == 0 and '#3a3a3a' or '#323232'
         
-        local container_hbox = list_vbox_group:add(rtk.Container{h=24,},{fillw=true})
+        local container_hbox = list_vbox_group:add(rtk.Container{h=heigh_elems,},{fillw=true})
         local bg_roundrect = create_spacer(container_hbox, odd_col_bg, odd_col_bg, round_rect_list) bg_roundrect:attr('ref', 'bg_spacer')
         local short_path = shorten_path(n.dir, sep)
         local hbox_projects = container_hbox:add(rtk.HBox{ref="HBOX_P", padding=-2,thotzone=3,bhotzone=3,margin=2,spacing=2},{fillh=true,fillw=true})
@@ -1651,3 +1736,4 @@ for i = 1,26 do
     end
 end
 ]]
+
