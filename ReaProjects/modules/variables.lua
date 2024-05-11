@@ -2,6 +2,7 @@
 --NoIndex: true
 
 
+  
 
 MAIN_PARAMS = {
     dock               = '',
@@ -10,17 +11,18 @@ MAIN_PARAMS = {
     wnd_h              = 800,
     last_x             = 50,
     last_y             = 50,
-    last_sort          = {'opened', 1},
-    individual_path    = "",
+    sort               = 'opened', --opened
+    sort_dir           = 1,        --first last opened
+    sort_type          = 7,        --table 'first>last'
     current_media_path = true,
-    general_media_path = {false, individual_path},
+    general_media_path = {false, ""},
     individ_media_path = false,
     default_img_w      = 500,
     default_img_h      = 500,
     days_bef_reminder  = 5,
     dedline_warm_col   = "#e40a27",
     elevation_warming  = 13,
-    last_h_list        = 20,
+    heigh_elems        = 24,
     last_type_opened   = 1, -- 0 its list mod, 1 - list
 
     def_round_rect_win = 14, --min 2 max 20
@@ -44,8 +46,7 @@ elevation_warning      = MAIN_PARAMS.elevation_warming
 DEF_IMG_W              = MAIN_PARAMS.default_img_w
 DEF_IMG_H              = MAIN_PARAMS.default_img_h
 
-
-INDIVIDUAL_path        = MAIN_PARAMS.individual_path
+--
 CURRENT_media_path     = MAIN_PARAMS.current_media_path
 GENERAL_media_path     = MAIN_PARAMS.general_media_path
 INDIVIDUAL_media_path  = MAIN_PARAMS.individ_media_path
