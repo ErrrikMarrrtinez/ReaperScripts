@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="01b5a770caf84a936d38829b8ed21df74dbbf619">
+<index version="1" name="ReaperScripts" commit="1013b46ec0150ae2d80a97f5f991c46c1fa0672b">
   <category name="Item Editing">
     <reapack name="mrtnz_change fade in and fade out(gui).lua" type="script" desc="Change fade in and fade out or crop(gui)">
       <metadata>
@@ -1094,6 +1094,39 @@
         <source file="icons/stop.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/01b5a770caf84a936d38829b8ed21df74dbbf619/ReaProjects/icons/stop.png</source>
         <source file="icons/time.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/01b5a770caf84a936d38829b8ed21df74dbbf619/ReaProjects/icons/time.png</source>
         <source file="customImages/1.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/01b5a770caf84a936d38829b8ed21df74dbbf619/ReaProjects/customImages/1.png</source>
+      </version>
+      <version name="0.1.19-alpha" author="mrtnz" time="2024-05-13T12:56:41Z">
+        <changelog><![CDATA[Beta]]></changelog>
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/ReaProjects.lua</source>
+        <source file="libs/json.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/libs/json.lua</source>
+        <source file="libs/rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/libs/rtk.lua</source>
+        <source file="modules/backups.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/modules/backups.lua</source>
+        <source file="modules/func.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/modules/func.lua</source>
+        <source file="modules/theme descriptions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/modules/theme%20descriptions.lua</source>
+        <source file="modules/variables.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/modules/variables.lua</source>
+        <source file="modules/widgets.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/modules/widgets.lua</source>
+        <source file="data/data_path.ini">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/data/data_path.ini</source>
+        <source file="data/params.ini">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/data/params.ini</source>
+        <source file="data/saved_projects.ini">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/data/saved_projects.ini</source>
+        <source file="data/settings.ini">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/data/settings.ini</source>
+        <source file="icons/backward.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/icons/backward.png</source>
+        <source file="icons/dir.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/icons/dir.png</source>
+        <source file="icons/draw.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/icons/draw.png</source>
+        <source file="icons/filename.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/icons/filename.png</source>
+        <source file="icons/folder.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/icons/folder.png</source>
+        <source file="icons/forward.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/icons/forward.png</source>
+        <source file="icons/info.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/icons/info.png</source>
+        <source file="icons/list.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/icons/list.png</source>
+        <source file="icons/loop.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/icons/loop.png</source>
+        <source file="icons/mem.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/icons/mem.png</source>
+        <source file="icons/pin.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/icons/pin.png</source>
+        <source file="icons/play.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/icons/play.png</source>
+        <source file="icons/settings.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/icons/settings.png</source>
+        <source file="icons/smile.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/icons/smile.png</source>
+        <source file="icons/stat.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/icons/stat.png</source>
+        <source file="icons/stop.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/icons/stop.png</source>
+        <source file="icons/time.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/icons/time.png</source>
+        <source file="customImages/1.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1013b46ec0150ae2d80a97f5f991c46c1fa0672b/ReaProjects/customImages/1.png</source>
       </version>
     </reapack>
   </category>
