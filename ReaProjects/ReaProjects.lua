@@ -1,6 +1,6 @@
 -- @description ReaProjects - Project Manager
 -- @author mrtnz
--- @version 0.1.20-alpha
+-- @version 0.1.21-alpha
 -- @changelog
 --  Beta
 -- @provides
@@ -47,6 +47,7 @@ def_pad_color             = hex_darker (def_bg_color, -0.46)
 ic, img                   = loadIcons(icon_path)
 data_files                = loadIniFiles(data_path)
 
+                            check_and_create_files(data_path)
 collections_file          = data_files.collections
 workspace_file            = data_files.workspaces
 archives_file             = data_files.archives
@@ -75,10 +76,16 @@ GENERAL_media_path        = MAIN_PARAMS.general_media_path
 INDIVIDUAL_media_path     = MAIN_PARAMS.individ_media_path
 TYPE_module               = MAIN_PARAMS.last_type_opened
 --- return projects ---
-new_paths, all_paths_list = get_recent_projects(ini_path)
+
+recent_projects_path      = get_recent_projects(ini_path)
+new_paths, all_paths_list = get_all_paths(recent_projects_path)
 sorted_paths              = sort_paths(new_paths, all_paths_list, MAIN_PARAMS.sort, MAIN_PARAMS.sort_dir)
+
 -----------------------
---create window
+-----create window-----
+-----------------------
+
+
 
 
 local wnd = rtk.Window{opacity=0.97, borderless=false, x=MAIN_PARAMS.last_x,y=MAIN_PARAMS.last_y,bg=COL0, expand=1, w=MAIN_PARAMS.wnd_w, h=MAIN_PARAMS.wnd_h, padding=10, minh=670, minw=500, } 
@@ -137,11 +144,19 @@ local VP_settings = main_settings_box:add(rtk.Viewport{child = VP_settings_vbox,
 local cont_player = VP_settings_vbox:add(rtk.Container{w=1})
 cont_player:add(rtk.VBox{padding=12, ref='player', spacing=def_spacing})
 
-cont_player.refs.player:add(rtk.HBox{
-spacing=20,valign='center',
-rtk.Spacer{w=0.1, bborder='2px '..COL11},
-rtk.Heading{fontsize=24,font='Verdena', "Media Player Paths"},
-rtk.Spacer{w=1, bborder='2px '..COL11},
+cont_player.refs.player:add(
+    rtk.HBox{
+        spacing=20,
+        valign='center',
+        rtk.Spacer{w=0.1, bborder='2px '..COL11},
+        rtk.Heading{fontsize=24,
+            font='Verdena', 
+            "Media Player Paths"
+        },
+        rtk.Spacer{
+            w=1,
+            bborder='2px ' .. COL11,
+        },
 })
 
 
@@ -166,8 +181,9 @@ local gen_dir = VB_media:add(RoundButton{round=14, halign='left', color='#5a5a5a
 local hb_entry = VB_media:add(rtk.HBox{bmargin=4,spacing=20, h=30, w=1})
 hb_entry:add(rtk.Heading{x=10,fontsize=22, valign='center', h=1, "Default render path:"})
 --hb_entry:add(rtk.Spacer{w=95})
-local entry_custom_path, custom_path_cont = rtk_Entry(hb_entry, COL10, COL13, 6, "Custom media path");entry_custom_path:attr('value', update_defrender_path())
-entry_custom_path:attr('value', update_defrender_path())
+local entry_custom_path, custom_path_cont = rtk_Entry(hb_entry, COL2, COL0, 6, "Custom media path")
+entry_custom_path:attr('value', update_defrender_path());entry_custom_path:attr("caret", 0)
+
 local cont_button_finder = create_b(hb_entry, "DIR", 40, 30, true, ic.dir:scale(120,120,22,5):recolor("white"), false);cont_button_finder:move(-10, 2)
 
 
@@ -389,7 +405,28 @@ local main_vbox_list = main_hbox_window:add(rtk.VBox{ spacing=def_spacing},{fill
 
 local hbox_sorting_modul = main_vbox_list:add(rtk.HBox{x=8, spacing=def_spacing, h=25})
 
-local hbox_listmode = hbox_sorting_modul:add( rtk.HBox{cursor=rtk.mouse.cursors.HAND, w=150, lhotzone=5, hotzone=15, lmargin=5, spacing=5, rtk.Button{disabled=true, color='#ffffff50', ref='b', circular=true}, rtk.Text{ref='t', x=5, y=1,"List mode"}, } )
+local hbox_listmode = hbox_sorting_modul:add( 
+    rtk.HBox{
+        cursor=rtk.mouse.cursors.HAND, 
+        w=150, 
+        lhotzone=5, 
+        hotzone=15, 
+        lmargin=5, 
+        spacing=5, 
+        rtk.Button{
+            disabled=true, 
+            color='#ffffff50',
+            ref='b',
+            circular=true,
+            }, 
+        rtk.Text{
+            ref='t',
+            x=5, 
+            y=1,
+            "List mode"
+            },
+        }
+    )
 hbox_sorting_modul:add(rtk.Box.FLEXSPACE)
 hbox_sorting_modul:add(rtk.Text{y=1, fontsize=19, valign='center', h=1, "SORT BY"})
 
@@ -423,11 +460,12 @@ hbox_listmode.onclick=function(self,event)
     save_parameter("MAIN", MAIN_PARAMS, settings_file)
     main_run()
 end
+
 hbox_listmode.onmouseleave=function(self,event)
     self.refs.b:attr('color', '#ffffff50')
     self.refs.t:attr('color', '#ffffff')
 end
-menu = {
+local menu = {
     {'New ➤ Old', 'date', 1},
     {'Old ➤ New', 'date', 0},
     {'A ➤ Z', 'az', 1},
@@ -463,6 +501,7 @@ end
 local list_container, container_heading, list_vbox_group, vp_main_list = create_container({h=1, fillw=true}, main_vbox_list) 
 list_vbox_group:attr('bmargin', 6)
 list_vbox_group:attr('spacing', 3)
+
 list_vbox_group.onmousewheel=function(self,event)
     if event.alt then
         local new_h = update_heigh_list(event.wheel)
@@ -504,8 +543,6 @@ end
 -----------------------------------
 -----------------------------------
 
-
-
 -----------------------------------
 -----------------------------------
 
@@ -531,21 +568,30 @@ popup_backups = rtk.Popup{z=10, autofocus=true, autoclose=true, child=all_window
 local function nm_button(name)
     return rtk.Button{gradient=0, h=25,padding=2, color="#6a6a6a30",label=name, w=1}
 end
+
 function native_menu(n)
     vbox_popup:remove_all()
     vbox_popup:attr()
     popup_by_path:open{}
+    popup_by_path:open()
     local open_cur_proj_b = vbox_popup:add(nm_button("OPEN"))
     local new_tab_proj_b = vbox_popup:add(nm_button("NEW TAB"))
     local b_offline = vbox_popup:add(nm_button("OFFLINE"))
     local b_backups_open = vbox_popup:add(nm_button("BACKUPS"))
+    local b_open_folder = vbox_popup:add(nm_button("OPEN PATH"))
     
-    vbox_popup:add(nm_button("PREVIEW"))
+    
+    vbox_popup:add(nm_button("RECOLOR"))
     vbox_popup:add(nm_button("SETTINGS"))
     vbox_popup:add(nm_button("REMOVE"))
-    
 
-
+    b_open_folder.onclick=function(self,event)
+        local paths = get_selected_path()
+        for i, path in ipairs(paths) do
+            reaper.CF_LocateInExplorer(path)
+        end
+        popup_by_path:close()
+    end
     
     new_tab_proj_b.onclick=function(self,event)
         OPEN_selected_projects_newt:onclick()
@@ -591,7 +637,7 @@ function create_block_list()
         
         local data = n.DATA or {
             progress = 0,
-            padcolor = "#5a5a5a",
+            padcolor = COL13,
             rating = 0,
             comment = "",
             dl="",
@@ -602,15 +648,16 @@ function create_block_list()
         
         n.DATA = data        
         
-        image = data.img or "1.png"
-        raiting = data.raiting or 4
-        def_padcol = data.padcolor or "#6a6a6a"
-        norm_prog_val = data.progress/100 or 0
+        local image = data.img or "1.png"
+        local raiting = data.raiting or 4
+        local def_padcol = data.padcolor or COL13
+        local norm_prog_val = data.progress/100 or 0
+        
         
         local BG_COL = shift_color(def_padcol, 1.0, 0.5, 1)
         local PAD_COL = shift_color(def_padcol, 1.0, 0.35, 0.7)
         local HOVER_COL = shift_color(def_padcol, 1.0, 1, 1.3)
-        local SELECTED_COL = shift_color(def_padcol, 1.0, 0.9, 1.6)
+        local SELECTED_COL = shift_color(def_padcol, 1.0, 1, 1.4)
         
         
         local odd_col_bg = i % 2 == 0 and '#3a3a3a' or '#323232'
@@ -636,14 +683,14 @@ function create_block_list()
         end
         
         local slider_length_audio = left_img_progress:add(SimpleSlider{
-        y=-25, x=17, w=100, value=norm_prog_val, maxh=18,z=10, scroll_on_drag=false, color=PAD_COL, 
-        hotzone=5, roundrad=round_rect_list, ttype=3, z=15, minh=18, textcolor="#ffffff80",
+        y=-30, x=17, w=100, value=norm_prog_val, maxh=25,z=10, scroll_on_drag=false, color=PAD_COL, 
+        hotzone=5, roundrad=round_rect_list, ttype=3, z=15, minh=20, textcolor="#ffffff80",
         onchange=function(val)
             data.progress=val
             save_parameter(n.path, data)
         end,
         },{fillh=true})
-        slider_length_audio:hide()
+        --slider_length_audio:hide()
         
         
         local right_sect_cont = def_vb:add(rtk.Container{x=-2, margin=2,},{fillw=true, fillh=true})
@@ -667,7 +714,7 @@ function create_block_list()
         slider_length_audio.onclick=function(self,event)
             
             if event.button == cbm then
-                local ret, col = reaper.GR_SelectColor(wnd.hwnd)
+                local ret, col = reaper.GR_SelectColor(wnd.hwnd, rtk.color.int(data.padcolor, true))
                 if ret then 
                     local col_hex = rtk.color.int2hex(col, true)
                     if col_hex == "#000000" then 
@@ -690,59 +737,41 @@ function create_block_list()
 
         local new_cont = container_hbox:add(rtk.Container{hotzone=2, z=5},{fillw=true,fillh=true})
         
-        
-        
         new_cont.onmousedown = function(self, event)
-            if event.button == lbm then
-                if n.sel == 0 then
+            local lbm = event.button == lbm
+            local rbm = event.button == rbm
+            local ctrl = event.ctrl
+            local nsel = n.sel == 0
+        
+            if lbm then
+                if nsel then
                     update_player(n)
                 end
-                if event.ctrl then
-                    if n.sel == 1 then --unselect
-                        recolor(bg_roundrect, BG_COL, BG_COL)
-                        
-                        
-                        
-                        n.sel = 0
-                    else --select
-                        recolor(bg_roundrect, SELECTED_COL, SELECTED_COL)
-                        n.sel = 1
-                    end
-                elseif event.shift then
-                    
-                else
+                if ctrl then
+                    local color = n.sel == 1 and BG_COL or SELECTED_COL
+                    recolor(bg_roundrect, color, color)
+                    n.sel = 1 - n.sel
+                elseif not event.shift then
                     unselect_all_path(BG_COL)
                     recolor(bg_roundrect, SELECTED_COL, hex_darker(SELECTED_COL, 0.2))
                     n.sel = 1
                 end
-            elseif event.button == rbm then
-
+            elseif rbm then
                 local x_offset = rtk.mouse.x-wnd.calc.w+popup_by_path.calc.w
                 local y_offset = rtk.mouse.y-wnd.calc.h+popup_by_path.calc.h
-                
-                OFFSETX, OFFSETY = 0,0 --24.5, 24.5 -- when scale default
-                
-                local x_norm = rtk.mouse.x-OFFSETX-(x_offset > -1 and x_offset or 0)
-                local y_norm = rtk.mouse.y-OFFSETY-(y_offset > -1 and y_offset or 0)
+                local x_norm = rtk.mouse.x-(x_offset > -1 and x_offset or 0)
+                local y_norm = rtk.mouse.y-(y_offset > -1 and y_offset or 0)
                 
                 popup_by_path:move(x_norm, y_norm)
-
-                
-                
-                if padcolor ~= def_pad_color then
-                    popup_by_path:attr('shadow', def_padcol..10)
-                else
-                    popup_by_path:attr('shadow', "#1a1a1a90")
-                end
+                popup_by_path:attr('shadow', SELECTED_COL.."35")
                 popup_by_path:attr('alpha', 0.94)
-                if n.sel == 0 then
+                if isNotSelected then
                     unselect_all_path()
                 end
                 recolor(bg_roundrect, SELECTED_COL, smooth)
                 n.sel = 1
                 native_menu(n)
             end
-            --get_selected_path()
         end
         
         VP_1:scrollto(0, 0, false)
@@ -757,7 +786,7 @@ function create_block_list()
             pop_up_raiting.child.SELF = icon_raiting_proj
             
             --raiting
-            local Y = 40 + (raiting - 1) * 40 - 30
+            local Y = 40 + (raiting - 1) * 40 - 37
             VP_1:scrollto(0, Y, true)
         end
         rait_vp:add(rtk.Spacer{h=50})
@@ -800,18 +829,7 @@ function create_block_list()
             end
             
         end
-        local function update_hover()--[[
-            if new_cont.mouseover
-            or container_hbox.mouseover then
-                if n.sel == 0 then
-                    recolor(bg_roundrect, "#6a6a6a", hex_darker("#6a6a6a", 0.2))
-                end
-            else
-                if n.sel == 0 then
-                    recolor(bg_roundrect, odd_col_bg, odd_col_bg)
-                end
-            end]]
-
+        local function update_hover()
             val_touchscroll = get_modifier_value(KEY_FOR_TOUCHSCROLL)
             mouse_state = reaper.JS_Mouse_GetState(val_touchscroll)  
             rtk.touchscroll = (mouse_state == val_touchscroll) -- true or false
@@ -1019,6 +1037,8 @@ function create_list()
             return
         end
         
+        pad_status:ondragmousemove()
+        
         pad_status.onmousewheel = function(self, event)
             progress_val = math.floor(math.max(0, math.min(100, progress_val - event.wheel * 4)))
             local progress_val_col = lerp(-0.2, 0.2, 0.2 - ( progress_val / 100 ))
@@ -1034,7 +1054,7 @@ function create_list()
         
         pad_status.onclick = function(self, event)
             if event.button == cbm then
-                local ret, col = reaper.GR_SelectColor(wnd.hwnd)
+                local ret, col = reaper.GR_SelectColor(wnd.hwnd, rtk.color.int(data.padcolor, true))
                 if ret then 
                     local col_hex = rtk.color.int2hex(col, true)
                     if col_hex == "#000000" then 
@@ -1203,7 +1223,7 @@ function create_collection(vbox, vbox_list)
         local icon_raiting_proj = main_vbox_right:add(rtk.Button{cursor=rtk.mouse.cursors.HAND,color='red',z=8, elevation=0,alpha=0.5, circular=true, lpadding=6, flat=true,icon=rait_icons.angry, w=40, h=32}) 
         
         edit.onclick=function(self, event)
-            local ret, col = reaper.GR_SelectColor(wnd.hwnd)
+            local ret, col = reaper.GR_SelectColor(wnd.hwnd, rtk.color.int(COL, true))
             if ret then 
                 if col == 0 then return end
                 local col_hex = rtk.color.int2hex(col, true)
@@ -1520,7 +1540,6 @@ function update_player(all_info)
     image = DATA.img or "1.png"
     
     create_tag(DATA, tags_hbox_widgets, all_info)
-    
     
     create_spacer(player_container, COL1, COL3, round_rect_window)
     --local PV_cont, HB_heading, VP_player = create_container({--[[minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, ]]h=1, w=1}, player_container, "PREVIEW PLAYER")

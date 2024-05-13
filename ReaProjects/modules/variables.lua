@@ -73,5 +73,5 @@ COL10 = "#323232" --even \323232
 COL11 = "#6a6a6a" -- mouseenter \6a6a6a
 COl12 = "#9a9a9a" -- selected \9a9a9a
 
-COL13 = COL0 .. 50 -- def pad color\ 
+COL13 = COL7 -- def pad color\ 
 COL18 = "#3a3a3a"
