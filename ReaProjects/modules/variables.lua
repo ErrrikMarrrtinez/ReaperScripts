@@ -47,15 +47,12 @@ DEF_IMG_W              = MAIN_PARAMS.default_img_w
 DEF_IMG_H              = MAIN_PARAMS.default_img_h
 
 --
-CURRENT_media_path     = MAIN_PARAMS.current_media_path
-GENERAL_media_path     = MAIN_PARAMS.general_media_path
-INDIVIDUAL_media_path  = MAIN_PARAMS.individ_media_path
+
 
 
 CUSTOM_IMAGE_local     = 'customImages' .. sep
 CUSTOM_IMAGE_global    = cur_path .. CUSTOM_IMAGE_local
-TYPE_module            = MAIN_PARAMS.last_type_opened
-
+local entry_find
 
 COL0  = "#1a1a1a" -- main bg col \ def_bg_color
 --list and header

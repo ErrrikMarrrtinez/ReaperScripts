@@ -40,22 +40,17 @@ end
 
 local function get_text_color(bg_color)
     local r, g, b = hex2rgb(bg_color)
-    -- Проверяем, заданы ли r, g и b
     if r and g and b then
         local brightness = (r * 299 + g * 587 + b * 114) / 1000
         if brightness > 128 then
-            return '#000000'  -- Черный текст для светлого фона
+            return '#000000'
         else
-            return '#FFFFFF'  -- Белый текст для темного фона
+            return '#FFFFFF'
         end
     else
-        -- Если r, g или b не заданы, возвращаем черный цвет по умолчанию
         return '#FFFFFF'
     end
 end
-
-
-
 
 function SimpleSlider:_handle_draw(offx, offy, alpha, event)
     local calc = self.calc
@@ -493,4 +488,125 @@ function PopupOption(widg, VB, menu)
     popupOption:attr('h', 2)
     popupOption:animate{'h', dst=VB.h, duration=0.1}
     popupOption:open{}
+end
+
+
+RoundButton = rtk.class('RoundButton', rtk.Text)
+
+RoundButton.register{
+    color = rtk.Attribute{type='color', default='#3a3a3a'},
+    round = rtk.Attribute{default=10},
+    h = rtk.Attribute{default=35},
+    surface=false,
+    pos = rtk.Attribute{default="left"},
+    state = rtk.Attribute{default='off'},
+    new_x = rtk.Attribute{default=0},
+    toggle = rtk.Attribute{default=true},
+    cursor=rtk.mouse.cursors.HAND,
+}
+
+function RoundButton:_draw(offx, offy, alpha, event, clipw, cliph, cltargetx, cltargety, parentx, parenty)
+    local calc = self.calc
+    local x = math.round(offx + calc.x)
+    local y = math.round(offy + calc.y)
+    local w = math.round(calc.w)
+    local h = math.round(calc.h)
+    local color = self.color
+    local color_bg = shift_color(color, 1, 0.8, 0.6)
+    local round = self.round
+    local activ_col 
+    if self.state == 'on' then
+        color = color
+        activ_col = '#085308'
+    else
+        color = color_bg
+        activ_col = '#5c0a1b'
+    end
+    --bg
+    self:setcolor(color)
+    rtk.gfx.roundrect(x,y,math.round(w),math.round(h),round,0,true)
+    local square_x = x + w - (h*2+10)
+    
+    if self.toggle then
+    --rect 
+    local w_box = h*2-8
+    self:setcolor(activ_col)
+    rtk.gfx.roundrect(square_x+1, y+1, w_box, h-2, round-2, 0.5, true)
+
+
+    --circle
+    self.x_off = x+w-h-25
+    self.x_on = x+w-h-1
+    self.new_x = self.state == 'off' and self.x_off or self.x_on
+    self:setcolor(self.state == 'off' and color.."80" or '#ffffff70')
+        gfx.circle(
+        self.new_x,
+        y+h/2-1,
+        math.min(w, h)/2.5,
+        1, -- fill
+        1  
+        )    
+    end
+    --other code
+    local font = rtk.Font(calc.font, calc.fontsize)
+    local text = calc.text
+    local textw, texth = font:measure(text)
+    local textx
+    local texty
+    if calc.halign == 1 then
+        textx = x + (w - textw) / 2
+        texty = y + (h - texth) / 2
+    elseif calc.halign == 2 then
+        textx = x + w - textw - 10
+        texty = y + (h - texth) / 2
+    elseif calc.halign == 0 then
+        textx = x + 10
+        texty = y + (h - texth) / 2
+    end
+    self:setcolor("#FFFFFF")
+    font:draw(text, textx, texty)
+end
+
+
+
+function RoundButton:_handle_mousedown(event)
+    local ok = rtk.Spacer._handle_mousedown(self, event)
+    if ok ~= false then
+        return ok
+    end
+    local calc = self.calc
+    local x = math.round(calc.x)
+    local y = math.round(calc.y)
+    local w = math.round(calc.w)
+    local h = math.round(calc.h)
+    if event.button == lbm then
+        self.color = shift_color(self.color, 1, 1, 0.8)
+        self.state = self.state == 'off' and 'on' or 'off'
+        self.new_x = self.state == 'off' and self.x_off or self.x_on
+        self:animate{
+            'new_x',
+            dst = self.new_x,
+            duration = 1
+        }
+    end
+end
+
+function RoundButton:_handle_mouseup(event)
+    self.color = self.hover_color
+end
+
+function RoundButton:_handle_mouseenter(event)
+    local ok = rtk.Text._handle_mouseenter(self, event)
+    if ok ~= nil then
+        return ok
+    end
+    self.original_color = self.color
+    self.hover_color = shift_color(self.color, 1, 1, 1.2)
+    self.color = self.hover_color
+    
+    return true
+end
+
+function RoundButton:_handle_mouseleave(event)
+    self.color = self.original_color
 end
