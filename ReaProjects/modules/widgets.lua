@@ -610,3 +610,228 @@ end
 function RoundButton:_handle_mouseleave(event)
     self.color = self.original_color
 end
+
+
+
+function create_shadow(parent, bgcol, borcol, dim, new_spacer)
+    local spacer = new_spacer or parent:add(rtk.Spacer{margin=5,z=-4},{fillw=true,fillh=true})
+    local shadow = rtk.Shadow(borcol)
+    local dim =  dim * rtk.scale.reaper    
+
+    --reset deep
+    if bgcol == "transparent" and borcol == "transparent" then
+        parent:attr('z', 0)
+        parent:get_child(1):attr('z', -5)
+        
+    else
+        parent:attr('z', 3)
+        parent:get_child(1):attr('z', -1)
+    end
+
+    spacer.onreflow = function(self)
+        shadow:set_rectangle(math.round(self.calc.w), math.round(self.calc.h), dim)
+    end
+
+    spacer.ondraw = function(self, offx, offy, alpha)
+        shadow:draw(math.round(self.calc.x + offx), math.round(self.calc.y) + offy, alpha)
+    end
+    
+    return spacer
+end
+
+function create_spacer(parent, bgcol, borcol, rval, externalSpacer, text)
+    local spacer = externalSpacer or parent:add(rtk.Spacer{w=1, z=-5},{fillw=true,fillh=true})
+    bgcol = bgcol or spacer.bgcol
+    borcol = borcol or bgcol
+    
+    spacer.ondraw = function(self, offx, offy, alpha, event)
+        self:setcolor(bgcol, alpha)
+        rtk.gfx.roundrect(
+            math.round(offx + self.calc.x-1),
+            math.round(offy + self.calc.y-1),
+            math.round(self.calc.w+2),
+            math.round(self.calc.h+2),
+            rval,
+            1, -- fill
+            true  -- antialias
+        )
+        self:setcolor(borcol, alpha)
+        rtk.gfx.roundrect(
+            math.round(offx + self.calc.x),
+            math.round(offy + self.calc.y),
+            math.round(self.calc.w),
+            math.round(self.calc.h),
+            rval-2,
+            0.5, -- fill
+            true  -- antialias
+        )
+    end
+    if text then
+        local pad_procent = parent:add(
+            rtk.Text{
+                bg=bgcol,
+                margin=2,
+                padding=-4,
+                text.."%",
+                y=-1,
+                valign='center'}
+                ,{
+                fillh=true,
+                halign='center'
+        })
+
+        spacer.text=pad_procent
+
+    end
+    spacer.col=bgcol
+    spacer.borcol=borcol
+    spacer.round=rval
+    return spacer, text
+end
+
+function recolor(spacer, bgcol, borcol, text)
+    bgcol = bgcol or spacer.bgcol
+    borcol = borcol or bgcol
+    spacer.ondraw = function(self, offx, offy, alpha, event)
+        self:setcolor(borcol, alpha)
+        rtk.gfx.roundrect(
+            math.round(offx + self.calc.x),
+            math.round(offy + self.calc.y),
+            math.round(self.calc.w),
+            math.round(self.calc.h),
+            self.round-2,
+            0.5, -- fill
+            true  -- antialias
+        )
+        self:setcolor(bgcol, alpha)
+        rtk.gfx.roundrect(
+            math.round(offx + self.calc.x-1),
+            math.round(offy + self.calc.y-1),
+            math.round(self.calc.w+2),
+            math.round(self.calc.h+2),
+            self.round,
+            1, -- fill
+            true  -- antialias
+        )
+
+        
+    end
+    if text then
+        spacer.text:attr('text', text .. "%")
+        spacer.text:attr('bg', borcol)
+    end
+    spacer.col=bgcol
+    spacer.borcol=borcol
+    return spacer
+end
+
+function rtk_Entry(parent, borcol, bgcol, round, placeholder)
+    local borcol_act = hex_darker(borcol, -0.5)
+    local bgcol_act = hex_darker(bgcol, -0.2)
+    local round = round or round_rect_window
+    local container_entry = parent:add(rtk.Container{cursor=rtk.mouse.cursors.BEAM, h=35}, {fillw=true, halign='right'})
+    local bg_entry = create_spacer(container_entry, borcol, bgcol, round)
+    
+    local entry = container_entry:add(Entry{placeholder=placeholder, hotzone=5, lhotzone=10, rhotzone=10, tpadding=2, fontscale=1.2, lmargin=10,rmargin=10, w=container_entry.calc.w, h=container_entry.calc.h-8, bg=bgcol},{valign='center', })
+    
+    entry.onfocus = function(self, event)
+        bg_entry = recolor(bg_entry, hex_darker(borcol_act, -0.2), hex_darker(bgcol_act, -0.3))
+        self:attr('bg', bg_entry.bg)
+        self.FOCUSED = true
+        return true
+    end
+    
+    entry.onblur = function(self, event)
+        bg_entry = recolor(bg_entry, borcol, bgcol)
+        self:attr('bg', bgcol)
+        self.FOCUSED = false
+    end
+    
+    entry.onmouseleave = function(self, event)
+        if not self.FOCUSED then
+            bg_entry = recolor(bg_entry, borcol, bgcol)
+            self:attr('bg', bgcol)
+        end
+    end
+    
+    entry.onmouseenter = function(self, event)
+        if not self.FOCUSED then
+            bg_entry = recolor(bg_entry, borcol_act , bgcol_act)
+            self:attr('bg', bgcol_act)
+        end
+    end
+
+    container_entry.onclick = function(self, event)
+        entry:focus()
+    end
+
+    entry:onmouseenter()
+    entry:onmouseleave()
+    return entry, container_entry
+end
+
+function create_container(params, parent, txt)
+    local container = parent:add(rtk.Container(params))
+    local vbox = container:add(rtk.VBox{ref='VBOX', fillw=true},{})
+    local heading = vbox:add(rtk.Container{ref='HEAD', margin=0,h=40},{fillw=true})
+    if txt then heading:add(rtk.Text{fontsize=18,fontflags=rtk.font.BOLD,y=heading.calc.h/5,txt,halign='center',h=1,w=1}) end
+    local rect_heading = create_spacer(heading, COL1, COL2, round_rect_window)
+    local hiden_bottom = heading:add(rtk.Spacer{margin=0,y=32,h=35,w=1,bg=COL3})
+    local bg_roundrect = create_spacer(container, COL1, COL3, round_rect_window)
+    bg_roundrect:attr('ref','BG')
+    local vp_vbox = rtk.VBox{spacing=def_spacing, padding=2, margin=2,w=1}
+    local viewport = vbox:add(rtk.Viewport{child = vp_vbox, smoothscroll = true,scrollbar_size = 2,z=2})
+    
+    return container, heading, vp_vbox, viewport
+end
+
+function create_b_set(ref, text)
+    return rtk.Button{tagalpha=0.1, color='#3a3a3a20',tagged=true, cursor=rtk.mouse.cursors.HAND,gradient=0, padding=1,fontsize=21, ref=ref, icon=ic_off, w=1, h=1, flat=true, text}
+end
+
+function create_b(CONT, txt, w, h, bparms, icon, animate)
+    animate = animate == nil and true or animate
+    local b_ref = txt:gsub(" ", "_"):gsub("%W", "_")
+    local container = CONT:add(rtk.Container{cursor=rtk.mouse.cursors.HAND, hotzone=3, h=h, w=w, halign='center'},{halign='center'})
+    local b_spacer = create_spacer(container, COL8, COL18, round_rect_list); b_spacer:attr('ref', b_ref); b_spacer:attr('w', w)
+    
+    local function animate_or_attr(self, attr, value)
+        if animate then
+            if GLOBAL_ANIMATE then
+                self:animate{attr, dst=value, duration=0.05}
+            else
+                self:attr(attr, value)
+            end
+        end
+    end
+
+    local txt_v
+    if bparms then
+        txt_v = container:add(rtk.Button{tpadding=3.5,lpadding=7.5,disabled=true,surface=false, icon=icon, fontsize=18, w=container.calc.w, h=container.calc.h, ref=b_ref},{ valign='center', halign='center'})
+    else
+        txt_v = container:add(rtk.Text{fontsize=18, w=1, h=1, ref=b_ref, txt, valign='center', halign='center'})
+    end
+
+    container.onmouseenter = function(self, event)
+        animate_or_attr(self, 'h', h+(h/6))
+        animate_or_attr(txt_v, 'fontscale', 1.1)
+        b_spacer = recolor(b_spacer, COL4, COL7)
+        return true
+    end
+
+    container.onmouseleave = function(self, event)
+        animate_or_attr(self, 'h', h)
+        animate_or_attr(txt_v, 'fontscale', 1.0)
+        b_spacer = recolor(b_spacer, COL18, COL18)
+        return true
+    end
+
+    container.onmousedown = function(self, event)
+        animate_or_attr(txt_v, 'fontscale', 1.01)
+        b_spacer = recolor(b_spacer, COL18, COl12)
+        return true
+    end
+
+    container.onmouseup = container.onmouseenter
+    return container
+end

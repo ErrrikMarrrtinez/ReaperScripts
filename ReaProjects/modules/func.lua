@@ -6,21 +6,38 @@ icons_row1 = {'angry', 'sad', 'indiff', 'happin', 'happy'}
 icons_cols = {'#ff4330', '#ff9000', '#ffea03', '#98bb19' ,'#03b81a'}
 pack = rtk.ImagePack():add{src='smile.png',style='light', {w=251, h=251, names=icons_row1, size='medium', density=1}}:register_as_icons()
 
-audio_formats = {"wav", "aiff", "flac","mp3", "aac", "ogg"}
+audio_formats = {
+    "wav", 
+    "aiff", 
+    "flac",
+    "mp3", 
+    "aac", 
+    "ogg"
+}
 
 month_names = {
-    "Jan", 
-    "Feb", 
-    "Mar", 
-    "Apr", 
-    "May", 
-    "Jun", 
-    "Jul", 
-    "Aug", 
-    "Sep", 
-    "Oct", 
-    "Nov", 
-    "Dec"
+        "Jan", 
+        "Feb", 
+        "Mar", 
+        "Apr", 
+        "May", 
+        "Jun", 
+        "Jul", 
+        "Aug", 
+        "Sep", 
+        "Oct", 
+        "Nov", 
+        "Dec"
+}
+
+data_files = {
+        "archives.ini",
+        "collections.ini",
+        "data_path.ini",
+        "params.ini",
+        "saved_projects.ini",
+        "settings.ini",
+        "workspaces.ini"
 }
 
 function check_and_install_extension(extension_name, filter_name)
@@ -173,42 +190,42 @@ function get_param_ini(param)
     return param_val
 end
 
-
-
 function get_recent_projects(ini_path)
     local p = 0
-    local index = 1
-    local all_paths_list = {} -- создаем новый список
+    local all_paths_list = {}
     repeat
         p = p + 1
         local _, value = reaper.BR_Win32_GetPrivateProfileString("recent", "recent" .. string.format("%02d", p), "noEntry", ini_path)
     until value == "noEntry"
-    -- iterate through recent entries from newest to oldest
     for i = p - 1, 1, -1 do
         local _, path = reaper.BR_Win32_GetPrivateProfileString("recent", "recent" .. string.format("%02d", i), "", ini_path)
-        
-        
         local form_size, form_date, clean_date, clean_size = get_file_info(path) 
-
         if form_size ~= nil then
-        
-            table.insert(all_paths_list, path) -- добавляем путь в список
-            
-            local clean_name, directory = extract_name(path)
-            all_paths[path] = {
-                idx = index,
-                path = path,
-                dir = directory,
-                filename = clean_name,
-                form_size = form_size,
-                clean_size = clean_size,
-                form_date = form_date,
-                clean_date = clean_date,
-                hbox = hbox,
-                DATA = get_parameter(path)
-            }
-            index = index + 1
+            table.insert(all_paths_list, path)
         end
+    end
+    return all_paths_list
+end
+
+function get_all_paths(all_paths_list)
+    local all_paths = {}
+    local index = 1
+    for _, path in ipairs(all_paths_list) do
+        local clean_name, directory = extract_name(path)
+        local form_size, form_date, clean_date, clean_size = get_file_info(path) 
+        all_paths[path] = {
+            idx = index,
+            path = path,
+            dir = directory,
+            filename = clean_name,
+            form_size = form_size,
+            clean_size = clean_size,
+            form_date = form_date,
+            clean_date = clean_date,
+            hbox = hbox,
+            DATA = get_parameter(path)
+        }
+        index = index + 1
     end
     return all_paths, all_paths_list 
 end
@@ -243,119 +260,6 @@ function sort_paths(new_paths, all_paths_list, sort_type, direction)
     end)
     return all_paths_list
 end
-
-function create_shadow(parent, bgcol, borcol, dim, new_spacer)
-    local spacer = new_spacer or parent:add(rtk.Spacer{margin=5,z=-4},{fillw=true,fillh=true})
-    local shadow = rtk.Shadow(borcol)
-    local dim =  dim * rtk.scale.reaper    
-
-    --reset deep
-    if bgcol == "transparent" and borcol == "transparent" then
-        parent:attr('z', 0)
-        parent:get_child(1):attr('z', -5)
-        
-    else
-        parent:attr('z', 3)
-        parent:get_child(1):attr('z', -1)
-    end
-
-    spacer.onreflow = function(self)
-        shadow:set_rectangle(math.round(self.calc.w), math.round(self.calc.h), dim)
-    end
-
-    spacer.ondraw = function(self, offx, offy, alpha)
-        shadow:draw(math.round(self.calc.x + offx), math.round(self.calc.y) + offy, alpha)
-    end
-    
-    return spacer
-end
-
-function create_spacer(parent, bgcol, borcol, rval, externalSpacer, text)
-    local spacer = externalSpacer or parent:add(rtk.Spacer{w=1, z=-5},{fillw=true,fillh=true})
-    bgcol = bgcol or spacer.bgcol
-    borcol = borcol or bgcol
-    
-    spacer.ondraw = function(self, offx, offy, alpha, event)
-        self:setcolor(bgcol, alpha)
-        rtk.gfx.roundrect(
-            math.round(offx + self.calc.x-1),
-            math.round(offy + self.calc.y-1),
-            math.round(self.calc.w+2),
-            math.round(self.calc.h+2),
-            rval,
-            1, -- fill
-            true  -- antialias
-        )
-        self:setcolor(borcol, alpha)
-        rtk.gfx.roundrect(
-            math.round(offx + self.calc.x),
-            math.round(offy + self.calc.y),
-            math.round(self.calc.w),
-            math.round(self.calc.h),
-            rval-2,
-            0.5, -- fill
-            true  -- antialias
-        )
-    end
-    if text then
-        local pad_procent = parent:add(
-            rtk.Text{
-                bg=bgcol,
-                margin=2,
-                padding=-4,
-                text.."%",
-                y=-1,
-                valign='center'}
-                ,{
-                fillh=true,
-                halign='center'
-        })
-
-        spacer.text=pad_procent
-
-    end
-    spacer.col=bgcol
-    spacer.borcol=borcol
-    spacer.round=rval
-    return spacer, text
-end
-
-function recolor(spacer, bgcol, borcol, text)
-    bgcol = bgcol or spacer.bgcol
-    borcol = borcol or bgcol
-    spacer.ondraw = function(self, offx, offy, alpha, event)
-        self:setcolor(borcol, alpha)
-        rtk.gfx.roundrect(
-            math.round(offx + self.calc.x),
-            math.round(offy + self.calc.y),
-            math.round(self.calc.w),
-            math.round(self.calc.h),
-            self.round-2,
-            0.5, -- fill
-            true  -- antialias
-        )
-        self:setcolor(bgcol, alpha)
-        rtk.gfx.roundrect(
-            math.round(offx + self.calc.x-1),
-            math.round(offy + self.calc.y-1),
-            math.round(self.calc.w+2),
-            math.round(self.calc.h+2),
-            self.round,
-            1, -- fill
-            true  -- antialias
-        )
-
-        
-    end
-    if text then
-        spacer.text:attr('text', text .. "%")
-        spacer.text:attr('bg', borcol)
-    end
-    spacer.col=bgcol
-    spacer.borcol=borcol
-    return spacer
-end
-
 
 function loadIcons(directory)
     local icons = {}
@@ -434,8 +338,6 @@ end
 ------------------------------------------------------------------------
 ------------FILE-FUNCTIONS----------------FILE-FUNCTIONS----------------
 ------------------------------------------------------------------------
-
-
 
 
 -- Функция для чтения и декодирования данных из файла
@@ -554,7 +456,58 @@ function get_all_names(file_path)
     return saved_paths
 end
 
+------------------------------------------------------------------------
+------------------------------------------------------------------------
 
+local function check_rpp_files(dirPath)
+    local rppFiles = {}
+    local i, j = 0, 0
+
+    while true do
+        local fileName = reaper.EnumerateFiles(dirPath, i)
+        if fileName then
+            if fileName:lower():match("%.rpp$") then
+                local filePath = dirPath .. "\\" .. fileName
+                table.insert(rppFiles, filePath)
+            end
+            i = i + 1
+        else
+            local dirName = reaper.EnumerateSubdirectories(dirPath, j)
+            if dirName then
+                local subDirPath = dirPath .. "\\" .. dirName
+                if reaper.EnumerateFiles(subDirPath, 0) or reaper.EnumerateSubdirectories(subDirPath, 0) then
+                    local subDirFiles = check_rpp_files(subDirPath)
+                    for _, file in ipairs(subDirFiles) do
+                        table.insert(rppFiles, file)
+                    end
+                end
+                j = j + 1
+            else
+                break
+            end
+        end
+    end
+    return rppFiles
+end
+
+function check_and_create_files(dirPath)
+    for _, fileName in ipairs(data_files) do
+        local filePath = dirPath .. "\\" .. fileName
+        local file = io.open(filePath, "r")
+
+        if file then
+            file:close()
+        else
+            file = io.open(filePath, "w")
+            if file then
+                print("Файл " .. filePath .. " успешно создан.")
+                file:close()
+            else
+                print("Не удалось создать файл " .. filePath)
+            end
+        end
+    end
+end
 ------------------------------------------------------------------------
 ------------------------------------------------------------------------
 ------------------------------------------------------------------------
@@ -583,21 +536,23 @@ end
 local new_h = 0
 
 function update_heigh_list(dir)
-    for _, blan in ipairs(sorted_paths) do
-        local n = new_paths[blan]
-        local h = n.cont.h 
-
-        local text_name = n.hbox.refs.text_name
-        local text_name2 = n.hbox.refs.path_box.refs.paths
-             
-        local wrap = new_h > 45
-        text_name:attr('wrap', wrap)
-        text_name2:attr('wrap', wrap)
-
-        MAIN_PARAMS.heigh_elems = math.floor( math.min(math.max(h + 15 * dir, 20), 100) )
-        
-        n.cont:animate{'h',dst=MAIN_PARAMS.heigh_elems,duration=0.1, easing="in-quad"} --in quad --out-elastic
-        
+    if TYPE_module == 1 then
+        for _, blan in ipairs(sorted_paths) do
+            local n = new_paths[blan]
+            local h = n.cont.h 
+    
+            local text_name = n.hbox.refs.text_name
+            local text_name2 = n.hbox.refs.path_box.refs.paths
+                 
+            local wrap = new_h > 45
+            text_name:attr('wrap', wrap)
+            text_name2:attr('wrap', wrap)
+    
+            MAIN_PARAMS.heigh_elems = math.floor( math.min(math.max(h + 15 * dir, 20), 100) )
+            
+            n.cont:animate{'h',dst=MAIN_PARAMS.heigh_elems, duration=0.1, easing="in-quad"} --in quad --out-elastic
+            
+        end
     end
 end
 
@@ -629,50 +584,6 @@ function get_play_info(preview)
     return time, want_pos, position, length
 end
 
-function rtk_Entry(parent, borcol, bgcol, round, placeholder)
-    local borcol_act = hex_darker(borcol, -0.5)
-    local bgcol_act = hex_darker(bgcol, -0.2)
-    local round = round or round_rect_window
-    local container_entry = parent:add(rtk.Container{cursor=rtk.mouse.cursors.BEAM, h=35}, {fillw=true, halign='right'})
-    local bg_entry = create_spacer(container_entry, borcol, bgcol, round)
-    
-    local entry = container_entry:add(Entry{placeholder=placeholder, hotzone=5, lhotzone=10, rhotzone=10, tpadding=2, fontscale=1.2, lmargin=10,rmargin=10, w=container_entry.calc.w, h=container_entry.calc.h-8, bg=bgcol},{valign='center', })
-    
-    entry.onfocus = function(self, event)
-        bg_entry = recolor(bg_entry, hex_darker(borcol_act, -0.2), hex_darker(bgcol_act, -0.3))
-        self:attr('bg', bg_entry.bg)
-        self.FOCUSED = true
-        return true
-    end
-    
-    entry.onblur = function(self, event)
-        bg_entry = recolor(bg_entry, borcol, bgcol)
-        self:attr('bg', bgcol)
-        self.FOCUSED = false
-    end
-    
-    entry.onmouseleave = function(self, event)
-        if not self.FOCUSED then
-            bg_entry = recolor(bg_entry, borcol, bgcol)
-            self:attr('bg', bgcol)
-        end
-    end
-    
-    entry.onmouseenter = function(self, event)
-        if not self.FOCUSED then
-            bg_entry = recolor(bg_entry, borcol_act , bgcol_act)
-            self:attr('bg', bgcol_act)
-        end
-    end
-
-    container_entry.onclick = function(self, event)
-        entry:focus()
-    end
-
-    entry:onmouseenter()
-    entry:onmouseleave()
-    return entry, container_entry
-end
 
 
 
@@ -722,12 +633,13 @@ function find_exact_match(str1, str2)
 end
 
 
-
 function scan_dir(dirPath)
     local i = 0
     local files = {}
-
-    if CURRENT_media_path then
+    local cur_mp = CURRENT_media_path
+    local gen_mp = GENERAL_media_path[1]
+    
+    if cur_mp then
         local dirPath = dirPath:match("(.*[/\\])")
 
         while true do
@@ -753,7 +665,7 @@ function scan_dir(dirPath)
         end
     end
 
-    if GENERAL_media_path[1] then
+    if gen_mp then
         local fileName = dirPath:match("^.+\\(.+)%..+$")
         local dirPath = GENERAL_media_path[2]
         
@@ -776,11 +688,12 @@ function scan_dir(dirPath)
             i = i + 1
         end
     end
-    
+    --print( next(files) )
+    --[[
     if INDIVIDUAL_media_path then
         data = get_parameter(dirPath)
         return data
-    end
+    end]]
 
     local sortedFilePaths = {}
     for filePath, _ in pairs(files) do
@@ -835,7 +748,6 @@ function resize_image(path, save_directory, filename, new_width, new_height)
     end
 end
 
-
 function unmatch_images(dir_path, filename_proj)
     local i = 0
     while true do
@@ -872,71 +784,6 @@ function update_image(all_info, img_path, img, data)
     img:attr('image',CUSTOM_IMAGE_local..merge_filename)
 end
 
-function create_container(params, parent, txt)
-    local container = parent:add(rtk.Container(params))
-    local vbox = container:add(rtk.VBox{ref='VBOX', fillw=true},{})
-    local heading = vbox:add(rtk.Container{ref='HEAD', margin=0,h=40},{fillw=true})
-    if txt then heading:add(rtk.Text{fontsize=18,fontflags=rtk.font.BOLD,y=heading.calc.h/5,txt,halign='center',h=1,w=1}) end
-    local rect_heading = create_spacer(heading, COL1, COL2, round_rect_window)
-    local hiden_bottom = heading:add(rtk.Spacer{margin=0,y=32,h=35,w=1,bg=COL3})
-    local bg_roundrect = create_spacer(container, COL1, COL3, round_rect_window)
-    bg_roundrect:attr('ref','BG')
-    local vp_vbox = rtk.VBox{spacing=def_spacing, padding=2, margin=2,w=1}
-    local viewport = vbox:add(rtk.Viewport{child = vp_vbox, smoothscroll = true,scrollbar_size = 2,z=2})
-    
-    return container, heading, vp_vbox, viewport
-end
-
-function create_b_set(ref, text)
-    return rtk.Button{tagalpha=0.1, color='#3a3a3a20',tagged=true, cursor=rtk.mouse.cursors.HAND,gradient=0, padding=1,fontsize=21, ref=ref, icon=ic_off, w=1, h=1, flat=true, text}
-end
-
-function create_b(CONT, txt, w, h, bparms, icon, animate)
-    animate = animate == nil and true or animate
-    local b_ref = txt:gsub(" ", "_"):gsub("%W", "_")
-    local container = CONT:add(rtk.Container{cursor=rtk.mouse.cursors.HAND, hotzone=3, h=h, w=w, halign='center'},{halign='center'})
-    local b_spacer = create_spacer(container, COL8, COL18, round_rect_list); b_spacer:attr('ref', b_ref); b_spacer:attr('w', w)
-    
-    local function animate_or_attr(self, attr, value)
-        if animate then
-            if GLOBAL_ANIMATE then
-                self:animate{attr, dst=value, duration=0.05}
-            else
-                self:attr(attr, value)
-            end
-        end
-    end
-
-    local txt_v
-    if bparms then
-        txt_v = container:add(rtk.Button{tpadding=3.5,lpadding=7.5,disabled=true,surface=false, icon=icon, fontsize=18, w=container.calc.w, h=container.calc.h, ref=b_ref},{ valign='center', halign='center'})
-    else
-        txt_v = container:add(rtk.Text{fontsize=18, w=1, h=1, ref=b_ref, txt, valign='center', halign='center'})
-    end
-
-    container.onmouseenter = function(self, event)
-        animate_or_attr(self, 'h', h+(h/6))
-        animate_or_attr(txt_v, 'fontscale', 1.1)
-        b_spacer = recolor(b_spacer, COL4, COL7)
-        return true
-    end
-
-    container.onmouseleave = function(self, event)
-        animate_or_attr(self, 'h', h)
-        animate_or_attr(txt_v, 'fontscale', 1.0)
-        b_spacer = recolor(b_spacer, COL18, COL18)
-        return true
-    end
-
-    container.onmousedown = function(self, event)
-        animate_or_attr(txt_v, 'fontscale', 1.01)
-        b_spacer = recolor(b_spacer, COL18, COl12)
-        return true
-    end
-
-    container.onmouseup = container.onmouseenter
-    return container
-end
 
 
 function ENTER(self, event)
@@ -987,10 +834,6 @@ function create_state_updater()
         end
     end
 end
-
-
-
-
 
 function get_backups_folder(folder)
     if BACKUPS_CURRENT then
