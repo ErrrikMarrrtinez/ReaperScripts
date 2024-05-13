@@ -1,6 +1,6 @@
 -- @description ReaProjects - Project Manager
 -- @author mrtnz
--- @version 0.1.19-alpha
+-- @version 0.1.20-alpha
 -- @changelog
 --  Beta
 -- @provides
@@ -591,7 +591,7 @@ function create_block_list()
         
         local data = n.DATA or {
             progress = 0,
-            padcolor = "#7a7a7a",
+            padcolor = "#5a5a5a",
             rating = 0,
             comment = "",
             dl="",
@@ -609,8 +609,8 @@ function create_block_list()
         
         local BG_COL = shift_color(def_padcol, 1.0, 0.5, 1)
         local PAD_COL = shift_color(def_padcol, 1.0, 0.35, 0.7)
-        local HOVER_COL = shift_color(def_padcol, 1.0, 1, 0.6)
-        local SELECTED_COL = shift_color(def_padcol, 1.0, 0.9, 1.1)
+        local HOVER_COL = shift_color(def_padcol, 1.0, 1, 1.3)
+        local SELECTED_COL = shift_color(def_padcol, 1.0, 0.9, 1.6)
         
         
         local odd_col_bg = i % 2 == 0 and '#3a3a3a' or '#323232'
@@ -1115,10 +1115,12 @@ function create_list()
         
         
     end
-    new_paths[sorted_paths[1]].hbox.refs.date.onreflow = function(self, event)
-        update_window(wnd, wnd.w, wnd.h)
-    end
     
+    if TYPE_module ~= 1 then
+        new_paths[sorted_paths[1]].hbox.refs.date.onreflow = function(self, event)
+            update_window(wnd, wnd.w, wnd.h)
+        end
+    end
     entry_find:onchange()
 end
 
