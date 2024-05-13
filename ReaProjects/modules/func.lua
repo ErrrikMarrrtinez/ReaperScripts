@@ -571,7 +571,7 @@ function get_selected_path()
 end
 
 
-function unselect_all_path()
+function unselect_all_path(BG_COL)
     for i, path in ipairs(sorted_paths) do
         local n = new_paths[path]
         local odd_col_bg = i % 2 == 0 and '#3a3a3a' or '#323232'
@@ -988,7 +988,7 @@ function create_state_updater()
     end
 end
 
-update_state = create_state_updater()
+
 
 
 

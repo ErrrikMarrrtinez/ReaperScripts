@@ -1,6 +1,6 @@
 -- @description ReaProjects - Project Manager
 -- @author mrtnz
--- @version 0.1.18-alpha
+-- @version 0.1.19-alpha
 -- @changelog
 --  Beta
 -- @provides
@@ -13,7 +13,7 @@
 
 
 
-if reaper.ShowMessageBox("This is an alpha version of the script that is not yet suitable for use, you can only superficially familiarize yourself. Click 'OK' to continue or 'CANCEL' to exit.",  "WARNING!", 1) == 1 then else return end
+--if reaper.ShowMessageBox("This is an alpha version of the script that is not yet suitable for use, you can only superficially familiarize yourself. Click 'OK' to continue or 'CANCEL' to exit.",  "WARNING!", 1) == 1 then else return end
 function print(...) local t = {...} for i = 1, select('#', ...) do t[i] = tostring(t[i]) end reaper.ShowConsoleMsg(table.concat(t, '\t') .. '\n') end
 --- collect paths ---
 sep          = package.config:sub(1,1)
@@ -46,7 +46,10 @@ def_bg_color              = rtk.color.get_reaper_theme_bg()
 def_pad_color             = hex_darker (def_bg_color, -0.46)
 ic, img                   = loadIcons(icon_path)
 data_files                = loadIniFiles(data_path)
-params_data               = data_files.data_path
+
+collections_file          = data_files.collections
+workspace_file            = data_files.workspaces
+archives_file             = data_files.archives
 params_file               = data_files.params
 settings_file             = data_files.settings
 -------------------
@@ -62,11 +65,15 @@ rtk.double_click_delay    = 0.23
 -----------------
 
 BACKUPS_CURRENT           = true
-scale   = 1
+scale   = 1.0
 preview = nil
 
 
 MAIN_PARAMS               = update_params(MAIN_PARAMS, settings_file)
+CURRENT_media_path        = MAIN_PARAMS.current_media_path
+GENERAL_media_path        = MAIN_PARAMS.general_media_path
+INDIVIDUAL_media_path     = MAIN_PARAMS.individ_media_path
+TYPE_module               = MAIN_PARAMS.last_type_opened
 --- return projects ---
 new_paths, all_paths_list = get_recent_projects(ini_path)
 sorted_paths              = sort_paths(new_paths, all_paths_list, MAIN_PARAMS.sort, MAIN_PARAMS.sort_dir)
@@ -74,7 +81,7 @@ sorted_paths              = sort_paths(new_paths, all_paths_list, MAIN_PARAMS.so
 --create window
 
 
-local wnd = rtk.Window{borderless=false, x=MAIN_PARAMS.last_x,y=MAIN_PARAMS.last_y,bg=COL0, expand=1, w=MAIN_PARAMS.wnd_w, h=MAIN_PARAMS.wnd_h, padding=10, minh=670, minw=500, } 
+local wnd = rtk.Window{opacity=0.97, borderless=false, x=MAIN_PARAMS.last_x,y=MAIN_PARAMS.last_y,bg=COL0, expand=1, w=MAIN_PARAMS.wnd_w, h=MAIN_PARAMS.wnd_h, padding=10, minh=670, minw=500, } 
 wnd.onresize = function(self, w, h)
     self:reflow()
 end 
@@ -84,6 +91,8 @@ if MAIN_PARAMS.last_x < 0 then
 end
 
 wnd:open()
+
+
 
 wnd.onclose = function() 
     MAIN_PARAMS.last_x, MAIN_PARAMS.last_y,MAIN_PARAMS.wnd_w, MAIN_PARAMS.wnd_h = wnd.x, wnd.y, wnd.calc.w, wnd.calc.h
@@ -98,7 +107,7 @@ if rtk.scale.value ~= 1.0 then
 end
 
 --local WND_vbox=wnd:add(rtk.VBox{spacing=def_spacing})
-local main_vbox_window = wnd:add(rtk.VBox{minh=670, minw=470, spacing=def_spacing},{})
+local main_vbox_window = wnd:add(rtk.VBox{minh=670, minw=370, spacing=def_spacing},{})
 
 local app_main_hbox = main_vbox_window:add(rtk.HBox{w=1, h=32})
 
@@ -136,146 +145,164 @@ rtk.Spacer{w=1, bborder='2px '..COL11},
 })
 
 
+local function update_defrender_path()
+    local defrender_path = MAIN_PARAMS.general_media_path[2]
+    local param_ini = get_param_ini('defrenderpath')
+    -- Если defrender_path пуст, тогда используем param_ini
+    if (defrender_path == nil or defrender_path == "") and param_ini ~= nil and param_ini ~= "" then
+        MAIN_PARAMS.general_media_path[2] = param_ini
+        defrender_path = MAIN_PARAMS.general_media_path[2]
+    end
+    return defrender_path
+end
 
-buttons_settings = {}
 local VB_media=cont_player.refs.player:add(rtk.VBox{padding=30, halign='center', w=1, tmargin=1, spacing=5, ref='vb',rtk.Heading{fontsize=22,font='Verdena', ""}, },{})
-ic_on = ic.on:scale(120,120,22,4):blur(1) ic_off = ic.off:scale(120,120,22,4):blur(22)ic_on:recolor('white#40')
-
-local hb_ind = VB_media:add(rtk.HBox{h=35, w=1})
-buttons_settings.self_inst = hb_ind:add(create_b_set("selfinst","Self-installation"))
-
-local hb_gen = VB_media:add(rtk.HBox{h=35, w=1})
-buttons_settings.gen_dir = hb_gen:add(create_b_set("gen","General directory"))
-
-local hb_entry = VB_media:add(rtk.HBox{y=3, spacing=10, h=35, w=1})
-local entry_custom_path, custom_path_cont = rtk_Entry(hb_entry, COL10, COL13, 3, "Custom media path") 
-custom_path_cont:attr('lmargin', 50)custom_path_cont:attr('x', 18)custom_path_cont:resize(1, 30)
 
 
-local defrender_path = MAIN_PARAMS.general_media_path[2]
-local param_ini = get_param_ini('defrenderpath')
 
--- Если defrender_path пуст, тогда используем param_ini
-if (defrender_path == nil or defrender_path == "") and param_ini ~= nil and param_ini ~= "" then
-    MAIN_PARAMS.general_media_path[2] = param_ini
-    defrender_path = MAIN_PARAMS.general_media_path[2]
-end
+local self_inst = VB_media:add(RoundButton{round=14, halign='left', color='#5a5a5a', h=30, w=1, fontsize=22, text="Self-installation"})
+local gen_dir = VB_media:add(RoundButton{round=14, halign='left', color='#5a5a5a', h=30, w=1, fontsize=22, text="General directory"})
 
-entry_custom_path:attr('value', defrender_path)
-
-entry_custom_path.onchange=function(self,event)
-    MAIN_PARAMS.general_media_path[2] = self.value
-end
+local hb_entry = VB_media:add(rtk.HBox{bmargin=4,spacing=20, h=30, w=1})
+hb_entry:add(rtk.Heading{x=10,fontsize=22, valign='center', h=1, "Default render path:"})
+--hb_entry:add(rtk.Spacer{w=95})
+local entry_custom_path, custom_path_cont = rtk_Entry(hb_entry, COL10, COL13, 6, "Custom media path");entry_custom_path:attr('value', update_defrender_path())
+entry_custom_path:attr('value', update_defrender_path())
+local cont_button_finder = create_b(hb_entry, "DIR", 40, 30, true, ic.dir:scale(120,120,22,5):recolor("white"), false);cont_button_finder:move(-10, 2)
 
 
---hb_entry:add(rtk.Box.FLEXSPACE)
-local cont_button_finder = create_b(hb_entry, "DIR", 40, 32, true, ic.dir:scale(120,120,22,5):recolor("white"), false) cont_button_finder:move(18, -1.5)
-custom_path_cont.onkeypress=function(self, event)
-    if event.keycode == rtk.keycodes.ENTER and entry_custom_path.focused  then
-        entry_custom_path:blur()
+local current_inst = VB_media:add(RoundButton{round=14, halign='left', color='#5a5a5a', h=30, w=1, fontsize=22, "Path to rpp"})
+
+
+local one_name_b = VB_media:add(RoundButton{round=14, halign='left', h=30, w=0.8, color='#5a5a5a', fontsize=22, text="One similar last name"},{})
+local all_similar_b = VB_media:add(RoundButton{round=14, halign='left', color='#5a5a5a', h=30, w=0.8, fontsize=22, text="All similar names (by date)"})
+local all_names_dir = VB_media:add(RoundButton{state='on', round=14, halign='left', color='#5a5a5a', h=30, w=0.8, fontsize=22, "All names"})
+
+
+
+local media_buttons = {current_inst, self_inst, gen_dir}
+local curr_childs = {one_name_b, all_similar_b, all_names_dir}
+
+function LBM(event)
+    if event then
+        return event.button == lbm 
+    else
+        return true 
     end
 end
 
+local function reset_m_b(self, event, tab)
+    if LBM(event)then
+        for _, b in ipairs(tab) do
+            b:attr('state', 'off')
+        end
+        GENERAL_media_path[1] = false
+        MAIN_PARAMS.general_media_path[1] = GENERAL_media_path[1]
+        
+        INDIVIDUAL_media_path = false
+        MAIN_PARAMS.individ_media_path = INDIVIDUAL_media_path
+        
+        CURRENT_media_path = false
+        MAIN_PARAMS.current_media_path = CURRENT_media_path
+    end
+    
+end
 
-cont_button_finder.onclick=function(self,event)
+gen_dir.onmousedown=function(self,event)
+    reset_m_b(self, event, media_buttons)
+    GENERAL_media_path[1] = true
+    MAIN_PARAMS.general_media_path[1] = GENERAL_media_path[1]
+end
+self_inst.onmousedown=function(self,event)
+    reset_m_b(self, event, media_buttons)
+    INDIVIDUAL_media_path = true
+    MAIN_PARAMS.individ_media_path = INDIVIDUAL_media_path
+end
+current_inst.onmousedown=function(self,event)
+    reset_m_b(self, event, media_buttons)
+    CURRENT_media_path = true
+    MAIN_PARAMS.current_media_path = CURRENT_media_path
+end
+
+
+one_name_b.onmousedown=function(self,event)
+    reset_m_b(self, event, curr_childs)
+end
+all_similar_b.onmousedown=function(self,event)
+    reset_m_b(self, event, curr_childs)
+end
+all_names_dir.onmousedown=function(self,event)
+    reset_m_b(self, event, curr_childs)
+end
+
+
+custom_path_cont.onkeypress = function(self, event)
+    if event.keycode == rtk.keycodes.ENTER and entry_custom_path.focused then
+        entry_custom_path:blur()
+    end
+end
+cont_button_finder.onclick = function(self,event)
     local rv, new_file = reaper.JS_Dialog_BrowseForFolder('Select preview directory', '')
     if rv then
         entry_custom_path:attr('value', new_file)
     end
 end
-local hb_cur_path = VB_media:add(rtk.HBox{h=35, w=1})
-buttons_settings.cur_path_to_rpp = hb_cur_path:add(create_b_set("cur", "Current path to rpp"))
-
-
-b_cur_paths = {}
-local VB_child_curpath = VB_media:add(rtk.VBox{x=18, rmargin=65, lmargin=50, h=105},{disabled=true})
-b_cur_paths.one_name = VB_child_curpath:add(create_b_set("one_name","Same name (name of rpp and media file)"),{fillh=true})
-b_cur_paths.similar = VB_child_curpath:add(create_b_set("similar","Use similar names (for example my_project-001, etc.)"),{fillh=true})
-b_cur_paths.all_media = VB_child_curpath:add(create_b_set("all_media","All media"),{fillh=true})
------------------
-
-
-local function reset_buttons(buttons_settings)
-    for _, b in pairs(buttons_settings) do
-        b:attr('flat', true)
-        b:attr('hover', false)
-        b:attr('icon', ic_off)
-        b:attr('bg', '#3a3a3a10')
-        b:attr('surface', true)
-        b:attr('disabled, ', false)
-    end
-end
-
-local function activate_buttons(ref, buttons_settings)
-    reset_buttons(buttons_settings)
-    for _, b in pairs(buttons_settings) do
-        if b.ref == ref then
-            b:attr('flat', false);b:attr('icon', ic_on);b:attr('hover', true);b:attr('bg', '#ffffff40');b:attr('surface', false);
-        end
-    end
-    MAIN_PARAMS.current_media_path = false
-    MAIN_PARAMS.general_media_path[1] = false
-    MAIN_PARAMS.individ_media_path = false
-end
-
-for _, b in pairs(buttons_settings) do
-    b.onclick=function(self,event)
-        activate_buttons(self.ref, buttons_settings)
-        local rf = self.ref
-        VB_child_curpath:attr('alpha',0.4)
-        hb_entry:attr('alpha',0.4)
-        if rf == "selfinst" then
-            MAIN_PARAMS.current_media_path = true
-        elseif rf == "gen" then
-            hb_entry:attr('alpha',1)
-            MAIN_PARAMS.general_media_path[1] = true
-        elseif rf == "cur" then
-            VB_child_curpath:attr('alpha',1)
-            MAIN_PARAMS.current_media_path = true
-        else
-            
-        end
-        
-        CURRENT_media_path     = MAIN_PARAMS.current_media_path
-        GENERAL_media_path     = MAIN_PARAMS.general_media_path
-        INDIVIDUAL_media_path  = MAIN_PARAMS.individ_media_path
-        
-        save_parameter("MAIN", MAIN_PARAMS, settings_file)
-    end
-    b:onclick()
+entry_custom_path.onchange=function(self,event)
+    MAIN_PARAMS.general_media_path[2] = self.value
 end
 
 
-
-for _, b in pairs(b_cur_paths) do
-    b.onclick=function(self,event)
-        activate_buttons(self.ref, b_cur_paths)
-        local rf = self.ref
-        if rf == "one_name" then
-        
-        elseif rf == "similar" then
-        
-        elseif rf == "all_media" then
-            
-        end
-        
-    end
+if INDIVIDUAL_media_path then
+    self_inst:attr('state', 'on')
+elseif GENERAL_media_path[1] then
+    gen_dir:attr('state', 'on')
+elseif CURRENT_media_path then
+    current_inst:attr('state', 'on')
 end
 
-if CURRENT_media_path == true then
-    activate_buttons('cur', buttons_settings)
-elseif GENERAL_media_path[1] == true then
-    activate_buttons('gen', buttons_settings)
-elseif INDIVIDUAL_media_path == true then
-    activate_buttons('selfinst', buttons_settings)
-end
 
-activate_buttons('all_media', b_cur_paths)
 --[[
-self_inst
-gen_dir
-cur_path_to_tpp
+local checkboxes={self_inst, gen_dir, current_inst}
+
+function reset_checks(self)
+    for _, b in ipairs(checkboxes) do
+        b:attr('border',false)
+    end
+    self:attr('border','red')
+end
+
+self_inst.onclick=function(self,event)
+    reset_checks(self, checkboxes)
+end
+
+gen_dir.onclick=function(self,event)
+    reset_checks(self, checkboxes)
+end
+
+current_inst.onclick=function(self,event)
+    reset_checks(self, checkboxes)
+end
 ]]
+--[[
+
+    --upd_checks()
+    
+    
+    GENERAL_media_path[1] = true
+    MAIN_PARAMS.general_media_path[1] = true
+    
+    
+    INDIVIDUAL_media_path = false
+    MAIN_PARAMS.individ_media_path = false
+    CURRENT_media_path = false
+    MAIN_PARAMS.current_media_path = false
+    
+    
+-- Инициализация
+
+]]
+
+
 
 
 
@@ -300,7 +327,7 @@ settings_app.onclick = function(self, event)
 end
 
 ---------LEFT SIDE SECTION---------
-local GRP_minw,GRP_maxw,GRP_minh,GRP_w=95,150,145,0.25
+local GRP_minw,GRP_maxw,GRP_minh,GRP_w=95,175,145,0.25
 local OPEN_container, OPEN_heading, OPEN_vp_vbox = create_container({minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, h=0.25, w=GRP_w}, left_vbox_sect,'OPEN PROJECTS')
 local NEW_container, NEW_heading, NEW_vp_vbox = create_container({minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, h=0.335, w=GRP_w}, left_vbox_sect, 'NEW PROJECTS')
 local GROUP_container, group_heading, group_vp_vbox = create_container({minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, h=1, w=GRP_w}, left_vbox_sect, 'GROUPS')
@@ -361,9 +388,45 @@ end
 local main_vbox_list = main_hbox_window:add(rtk.VBox{ spacing=def_spacing},{fillh=true, fillh=true})
 
 local hbox_sorting_modul = main_vbox_list:add(rtk.HBox{x=8, spacing=def_spacing, h=25})
+
+local hbox_listmode = hbox_sorting_modul:add( rtk.HBox{cursor=rtk.mouse.cursors.HAND, w=150, lhotzone=5, hotzone=15, lmargin=5, spacing=5, rtk.Button{disabled=true, color='#ffffff50', ref='b', circular=true}, rtk.Text{ref='t', x=5, y=1,"List mode"}, } )
 hbox_sorting_modul:add(rtk.Box.FLEXSPACE)
 hbox_sorting_modul:add(rtk.Text{y=1, fontsize=19, valign='center', h=1, "SORT BY"})
 
+
+if TYPE_module == 0 then
+    hbox_listmode.refs.t:attr('text', 'Block mode')
+else 
+    hbox_listmode.refs.t:attr('text', 'List mode')
+end
+
+hbox_listmode.onmouseenter=function(self,event)
+    --for i, elems in ipairs(self.children) do
+    --    
+    --end
+    self.refs.b:attr('color', 'orange')
+    self.refs.t:attr('color', 'orange')
+    return true
+end
+
+hbox_listmode.onclick=function(self,event)
+    if TYPE_module == 1 then
+        TYPE_module = 0
+        MAIN_PARAMS.last_type_opened = 0
+        self.refs.t:attr('text', 'Block mode')
+    else 
+        TYPE_module = 1
+        MAIN_PARAMS.last_type_opened = 1
+        self.refs.t:attr('text', 'List mode')
+    end
+
+    save_parameter("MAIN", MAIN_PARAMS, settings_file)
+    main_run()
+end
+hbox_listmode.onmouseleave=function(self,event)
+    self.refs.b:attr('color', '#ffffff50')
+    self.refs.t:attr('color', '#ffffff')
+end
 menu = {
     {'New ➤ Old', 'date', 1},
     {'Old ➤ New', 'date', 0},
@@ -377,9 +440,9 @@ menu = {
 
 local HB_sort = hbox_sorting_modul:add(rtk.VBox{})
 local option_menu = HB_sort:add(OptionMenu{ pos='left', minw=140, current=MAIN_PARAMS.sort_type, menu=menu, cursor=rtk.mouse.cursors.HAND, color=COL8, h=25,w=0.3},{})
-local VB_RVB = RoundrectVBox({y=3, margin=-12, w=1, h=200}, "#4a4a4a", 8)
+local VB_RVB = RoundrectVBox({y=3, margin=-12, w=1, h=200}, "#353535", 8)
  
-option_menu.onclick=function(self,event)
+option_menu.onmousedown=function(self,event)
     if popupOption.opened then
         popupOption:close()
     else
@@ -394,6 +457,7 @@ option_menu.onclick=function(self,event)
             main_run(TYPE)
         end
     end
+    return true
 end
 
 local list_container, container_heading, list_vbox_group, vp_main_list = create_container({h=1, fillw=true}, main_vbox_list) 
@@ -456,23 +520,32 @@ local surface = false
 rait_icons = icons_raiting(34, icons_cols)
 
 
-local vbox_popup = rtk.VBox{spacing=1, h=1}, {fillh=true}
+local vbox_popup = rtk.VBox{h=1}, {fillh=true}
 
-local popup_by_path = rtk.Popup{x=1, y=1, alpha=0.9, bg=COL9, padding=2,shadow="#1a1a1a90",border=COL9, child=vbox_popup, w=145, h=188, overlay=COL4..40}
+local popup_by_path = rtk.Popup{margin=-10,padding=0,x=1, y=1, alpha=0.9, bg=COL9, padding=2,shadow="#1a1a1a90",border=COL9, child=vbox_popup, w=145, h=188, overlay=COL4..40}
 
 
 all_windows = rtk.VBox{z=10}
 popup_backups = rtk.Popup{z=10, autofocus=true, autoclose=true, child=all_windows}
 
+local function nm_button(name)
+    return rtk.Button{gradient=0, h=25,padding=2, color="#6a6a6a30",label=name, w=1}
+end
 function native_menu(n)
     vbox_popup:remove_all()
+    vbox_popup:attr()
     popup_by_path:open{}
-    local open_cur_proj_b = vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"OPEN", w=1})
-    local new_tab_proj_b = vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"NEW TAB", w=1})
-    local b_offline = vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"OFFLINE", w=1})
-    local b_backups_open = vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"BACKUPS", w=1})
-    vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"PREVIEW", w=1})
-    vbox_popup:add(rtk.Button{color=THEME_darker,flat=true,"SETTINGS", w=1},{})
+    local open_cur_proj_b = vbox_popup:add(nm_button("OPEN"))
+    local new_tab_proj_b = vbox_popup:add(nm_button("NEW TAB"))
+    local b_offline = vbox_popup:add(nm_button("OFFLINE"))
+    local b_backups_open = vbox_popup:add(nm_button("BACKUPS"))
+    
+    vbox_popup:add(nm_button("PREVIEW"))
+    vbox_popup:add(nm_button("SETTINGS"))
+    vbox_popup:add(nm_button("REMOVE"))
+    
+
+
     
     new_tab_proj_b.onclick=function(self,event)
         OPEN_selected_projects_newt:onclick()
@@ -505,7 +578,7 @@ local HEADING_types_hbox = rtk.HBox{ref='heading', y=-6.5,}
 
 function create_block_list()
     
-    local flowbox_main = rtk_FlowBox({margin=4, expand=4, spacing=-2, w=1})
+    local flowbox_main = rtk_FlowBox({lmargin=4, expand=4, spacing=-1, w=1})
     --local flowbox_main = rtk.FlowBox{margin=4, expand=4, spacing=-2, w=1}
     flowbox_main:remove_all()
     list_vbox_group:remove_all()
@@ -518,7 +591,7 @@ function create_block_list()
         
         local data = n.DATA or {
             progress = 0,
-            padcolor = "#6a6a6a",
+            padcolor = "#7a7a7a",
             rating = 0,
             comment = "",
             dl="",
@@ -534,19 +607,23 @@ function create_block_list()
         def_padcol = data.padcolor or "#6a6a6a"
         norm_prog_val = data.progress/100 or 0
         
+        local BG_COL = shift_color(def_padcol, 1.0, 0.5, 1)
+        local PAD_COL = shift_color(def_padcol, 1.0, 0.35, 0.7)
+        local HOVER_COL = shift_color(def_padcol, 1.0, 1, 0.6)
+        local SELECTED_COL = shift_color(def_padcol, 1.0, 0.9, 1.1)
         
         
         local odd_col_bg = i % 2 == 0 and '#3a3a3a' or '#323232'
 
-        local container_hbox = flowbox_main:add(rtk.Container{minw=230, hotzone=-3, expand=3, h=130,padding=4,},{fillw=true})
-        local bg_roundrect = create_spacer(container_hbox, odd_col_bg, odd_col_bg, round_rect_list) bg_roundrect:attr('ref', 'bg_spacer')
+        local container_hbox = flowbox_main:add(rtk.Container{minw=230, hotzone=-3, expand=3, h=135,padding=4,},{fillw=true})
+        local bg_roundrect = create_spacer(container_hbox, odd_col_bg, odd_col_bg, round_rect_list+5) bg_roundrect:attr('ref', 'bg_spacer')
         local def_vb = container_hbox:add(rtk.HBox{w=1, h=1})
         
-        local left_img_progress=def_vb:add(rtk.VBox{h=1, w=0.45})
+        local left_img_progress=def_vb:add(rtk.VBox{y=1, h=1, w=130})
         
         
         local image = rtk.Image():load(CUSTOM_IMAGE_local .. image)
-        local cont_img=left_img_progress:add(rtk.Container{lmargin=5, h=100, w=100},{fillh=true})
+        local cont_img=left_img_progress:add(rtk.Container{lmargin=5, h=125, w=125},{fillh=true})
         local img = cont_img:add(rtk.ImageBox{padding=4,image=image,}, {}) 
         cont_img.onclick=function(self,event)
             
@@ -559,25 +636,31 @@ function create_block_list()
         end
         
         local slider_length_audio = left_img_progress:add(SimpleSlider{
-        w=cont_img.calc.w, y=2, value=norm_prog_val, maxh=18,z=10, scroll_on_drag=false, color=def_padcol, 
-        tmargin=-2, rmargin=8, x=-2, lmargin=8,hotzone=5, roundrad=round_rect_list, ttype=3, textcolor="#ffffff80",
+        y=-25, x=17, w=100, value=norm_prog_val, maxh=18,z=10, scroll_on_drag=false, color=PAD_COL, 
+        hotzone=5, roundrad=round_rect_list, ttype=3, z=15, minh=18, textcolor="#ffffff80",
         onchange=function(val)
             data.progress=val
             save_parameter(n.path, data)
         end,
         },{fillh=true})
+        slider_length_audio:hide()
         
-        right_section = def_vb:add(rtk.VBox{})
-        local HD_name = right_section:add(rtk.Heading{autofocus=-1, spacing=-5, fontflags=rtk.font.BOLD, fontsize=20,halign='center' , h=0.45, wrap=true, text=n.filename})
+        
+        local right_sect_cont = def_vb:add(rtk.Container{x=-2, margin=2,},{fillw=true, fillh=true})
+        local in_box_spacer = create_spacer(right_sect_cont, PAD_COL, PAD_COL, 16) in_box_spacer:attr('ref', 'bg_in')
+        
+        local right_section = right_sect_cont:add(rtk.VBox{padding=4,})
+        local HD_name = right_section:add(rtk.Heading{autofocus=-1, spacing=-5, fontflags=rtk.font.BOLD, fontsize=21,halign='center' , h=0.45, wrap=true, text=n.filename})
         local HD_date = right_section:add(rtk.Heading{autofocus=-1, tborder='2px white#10', fontsize=20, w=1, wrap=true, text=n.form_date:gsub(", %d%d:%d%d", "")})
         
         --raiting  
-        local icon_raiting_proj = right_section:add(rtk.Button{cursor=rtk.mouse.cursors.HAND,color='red',z=8, elevation=0,alpha=0.5, circular=true, lpadding=6, flat=true,icon=rait_icons.angry, w=40, h=32}) 
+        local icon_raiting_proj = right_section:add(rtk.Button{cursor=rtk.mouse.cursors.HAND,color='red',z=8, elevation=0,alpha=0.9, circular=true, lpadding=6, flat=true,icon=rait_icons.angry, w=40, h=32}) 
         
         local rait_hbox = rtk.Container{}
         local pop_up_raiting = rtk.Popup{w=50, y=100, margin=-2, shadow="transparent", bg="transparent", border="transparent", padding=1, child=rait_hbox, --[[anchor=icon_raiting_proj]]}
         local rait_cont, rait_heading, rait_vp, VP_1 = create_container({halign='right', w=1, h=150}, rait_hbox, " ") rait_vp:attr('x', 2)
         recolor(rait_cont.refs.BG, def_padcol, "#5a5a5a80")
+        
         local heading=rait_cont.refs.VBOX.refs.HEAD rait_cont.refs.VBOX:remove(heading)
          
         ---------
@@ -616,18 +699,20 @@ function create_block_list()
                 end
                 if event.ctrl then
                     if n.sel == 1 then --unselect
-                        recolor(bg_roundrect, odd_col_bg, odd_col_bg)
+                        recolor(bg_roundrect, BG_COL, BG_COL)
+                        
+                        
                         
                         n.sel = 0
                     else --select
-                        recolor(bg_roundrect, "#8a8a8a", hex_darker("#8a8a8a", 0.2))
+                        recolor(bg_roundrect, SELECTED_COL, SELECTED_COL)
                         n.sel = 1
                     end
                 elseif event.shift then
                     
                 else
-                    unselect_all_path()
-                    recolor(bg_roundrect, "#8a8a8a", hex_darker("#8a8a8a", 0.2))
+                    unselect_all_path(BG_COL)
+                    recolor(bg_roundrect, SELECTED_COL, hex_darker(SELECTED_COL, 0.2))
                     n.sel = 1
                 end
             elseif event.button == rbm then
@@ -635,7 +720,7 @@ function create_block_list()
                 local x_offset = rtk.mouse.x-wnd.calc.w+popup_by_path.calc.w
                 local y_offset = rtk.mouse.y-wnd.calc.h+popup_by_path.calc.h
                 
-                OFFSETX, OFFSETY = 24.5, 24.5 -- when scale default
+                OFFSETX, OFFSETY = 0,0 --24.5, 24.5 -- when scale default
                 
                 local x_norm = rtk.mouse.x-OFFSETX-(x_offset > -1 and x_offset or 0)
                 local y_norm = rtk.mouse.y-OFFSETY-(y_offset > -1 and y_offset or 0)
@@ -653,19 +738,12 @@ function create_block_list()
                 if n.sel == 0 then
                     unselect_all_path()
                 end
-                recolor(bg_roundrect, "#9a9a9a", smooth)
+                recolor(bg_roundrect, SELECTED_COL, smooth)
                 n.sel = 1
-                
                 native_menu(n)
-                
-                
             end
-            
             --get_selected_path()
         end
-        
-        
-        
         
         VP_1:scrollto(0, 0, false)
         icon_raiting_proj:attr('icon', rait_icons[icons_row1[raiting]])
@@ -704,21 +782,23 @@ function create_block_list()
         if i == 1 then 
             update_player(n)
             n.sel = 1
-            recolor(bg_roundrect, "#9a9a9a", hex_darker("#9a9a9a", 0.2))
+            recolor(bg_roundrect, SELECTED_COL, hex_darker(SELECTED_COL, 0.2))
         end
         
         -------
-        
+
         new_cont.onmouseenter=function(self,event)
             if n.sel == 0 then
-                recolor(bg_roundrect, "#6a6a6a", hex_darker("#6a6a6a", 0.2))
+                recolor(bg_roundrect, HOVER_COL, hex_darker(HOVER_COL, 0.2))
             end
+            
             return true
         end
         new_cont.onmouseleave=function(self,event)
             if n.sel == 0 then
                 recolor(bg_roundrect, odd_col_bg, odd_col_bg)
             end
+            
         end
         local function update_hover()--[[
             if new_cont.mouseover
@@ -731,6 +811,7 @@ function create_block_list()
                     recolor(bg_roundrect, odd_col_bg, odd_col_bg)
                 end
             end]]
+
             val_touchscroll = get_modifier_value(KEY_FOR_TOUCHSCROLL)
             mouse_state = reaper.JS_Mouse_GetState(val_touchscroll)  
             rtk.touchscroll = (mouse_state == val_touchscroll) -- true or false
@@ -864,7 +945,7 @@ function create_list()
                 local y_offset = rtk.mouse.y-wnd.calc.h+popup_by_path.calc.h
                 
                 
-                OFFSETX, OFFSETY = 24.5, 24.5 -- when scale default
+                OFFSETX, OFFSETY = 0, 0--24.5, 24.5 -- when scale default
                 
                 
                 local x_norm = rtk.mouse.x-OFFSETX-(x_offset > -1 and x_offset or 0) --(popup_by_path.calc.w - wnd.calc.w)/2+rtk.mouse.x - (x_offset > -1 and x_offset or 0) 
@@ -981,7 +1062,7 @@ function create_list()
             progress_val=0
             recolor(self, padcolor, padcolor, progress_val)
             --[[
-            clear_parameter(n.path) 
+            
             data.dl = "2024.04.29 18:00:00"
             data.raiting = 4
             data.comment = "last version"
@@ -1037,28 +1118,33 @@ function create_list()
     new_paths[sorted_paths[1]].hbox.refs.date.onreflow = function(self, event)
         update_window(wnd, wnd.w, wnd.h)
     end
+    
+    entry_find:onchange()
 end
 
 
 
---[[
+
 collection_all = {
-name="Искушённый соблазном",
+name="Искушённый соблазномzsd",
 sec_name="Грустный",
-img="удалю_фыв.png",
+img="1.png",
 list={
 "F:\\Projects Reaper\\Тима Проекты\\Ливнем от дождя\\Ливнем от дождя.RPP",
 "F:\\Projects Reaper\\Тима Проекты\\Мелодия\\Мелодия.rpp",
 "F:\\Projects Reaper\\Тима Проекты\\Оставлю на врем я\\Оставлю на врем я.rpp",
-"F:\\Projects Reaper\\Тима Проекты\\Параллели судьбы\\Параллели судьбы.rpp",
+"F:\\Projects Reaper\\Тима Проекты\\Параллели судьбы\\Параллели судьбы.rpp",},
+tags={},
+comment="",
+raiting=3,
+bgcol="#7a7a7a"
 }
-}
-save_parameter("Искушённый соблазном",collection_all, params_data)
---get_all_names(params_data)
---]]
+--save_parameter("гавввно",collection_all, collections_file)
+--get_all_names(collections_file)
 
 
-function create_list_collection(vbox_list, str_list)
+
+function show_list_collection(vbox_list, str_list)
     vbox_list:remove_all()
     for i, projects in ipairs(str_list) do
         local filename, path = extract_name(projects)
@@ -1070,10 +1156,10 @@ function create_collection(vbox, vbox_list)
     
     vbox:remove_all()
     --Get all names in saved collections
-    all_names = get_all_names(params_data)
+    all_names = get_all_names(collections_file)
     for i, blan in pairs(all_names) do
         --import data info for collection
-        local DATA = get_parameter(blan, params_data)
+        local DATA = get_parameter(blan, collections_file)
         
         DATA = DATA or {
             name="",
@@ -1085,6 +1171,7 @@ function create_collection(vbox, vbox_list)
             list={""},
             tags={},
         }
+        
         local COL = DATA.bgcol
         local NEW_COL = shift_color(COL, 1.0, 0.7, 0.7)
         
@@ -1109,17 +1196,23 @@ function create_collection(vbox, vbox_list)
         local hbox_second_name =main_vbox_right:add(rtk.HBox{})
         hbox_second_name:add(rtk.Heading{fontflags=rtk.font.BOLD, fontsize=16, font='Arial', text=second_name})
         hbox_second_name:add(rtk.Box.FLEXSPACE)
-        local edit = hbox_second_name:add(rtk.Button{flat=true, icon=ic.draw, padding=-1})
+        local edit = hbox_second_name:add(rtk.Button{alpha=0.5, flat=true, icon=ic.draw, padding=2})
+        
+        local icon_raiting_proj = main_vbox_right:add(rtk.Button{cursor=rtk.mouse.cursors.HAND,color='red',z=8, elevation=0,alpha=0.5, circular=true, lpadding=6, flat=true,icon=rait_icons.angry, w=40, h=32}) 
         
         edit.onclick=function(self, event)
             local ret, col = reaper.GR_SelectColor(wnd.hwnd)
             if ret then 
+                if col == 0 then return end
                 local col_hex = rtk.color.int2hex(col, true)
+                DATA.bgcol = col_hex
+                COL = DATA.bgcol
+                NEW_COL = shift_color(COL, 1.0, 0.7, 0.7)
                 
                 recolor(first_bg_spacer, COL)
                 recolor(info_bg_spacer, NEW_COL)
                 
-                save_parameter(DATA.name, DATA, params_data)
+                save_parameter(DATA.name, DATA, collections_file)
             end
             
         end
@@ -1130,20 +1223,20 @@ function create_collection(vbox, vbox_list)
         --hbox tags secton (maybe viewport)
         local hbox_tags = main_vbox_right:add(rtk.HBox{bmargin=-24,spacing=2, valign='bottom', halign='center'},{valign='bottom', halign='center'})
         
-        local entry_tag, cont_tag = rtk_Entry(hbox_tags, "#3a3a3a", "#3a3a3a", 5, "#tag") cont_tag:resize(1, 27) entry_tag:resize(1, 27)
-        entry_tag:attr('value', DATA.comment)
+        --[[local entry_tag, cont_tag = rtk_Entry(hbox_tags, "#3a3a3a", "#3a3a3a", 5, "#tag") cont_tag:resize(1, 27) entry_tag:resize(1, 27)
+        --entry_tag:attr('value', DATA.comment)
         
         cont_tag.onkeypress=function(self, event)
             if event.keycode == rtk.keycodes.ENTER and entry_tag.focused  then
                 DATA.comment=entry_tag.value
                 entry_tag:blur()
-                save_parameter(DATA.name, DATA, params_data)
+                save_parameter(DATA.name, DATA, collections_file)
             end
             return true
         end
-        
+        ]]
         cont_collections.onclick=function(self, event)
-            create_list_collection(vbox_list, DATA.list)
+            show_list_collection(vbox_list, DATA.list)
         end
     end
 end
@@ -1157,30 +1250,36 @@ local cont_group, hb_heading_group, vp_group = create_container({halign='right',
 
 
 
-local hbox_head_grp=hb_heading_group:add(rtk.HBox{w=0.3})
+local hbox_head_grp=hb_heading_group:add(rtk.HBox{w=1})
 
 back_from_grp=create_b(hbox_head_grp, '←   back', 70, 27, nil, nil, false) back_from_grp:move(4,3) 
 
-main_vbox_COLLECTIONS = vp_group:add(rtk.VBox{border='red', w=1, h=90})
+main_vbox_COLLECTIONS = vp_group:add(rtk.VBox{border='aqua', w=1, h=90})
 
 --HBOX AND BUTTONS TAB COLLECTIONS\WORKSPACE\ARCHIVE
 tab_group_hbox = main_vbox_COLLECTIONS:add(rtk.HBox{spacing=def_spacing})
 button_create_collect = tab_group_hbox:add(rtk.Button{halign='center', 'Collection'},{fillw=true})
-button_create_workspace = tab_group_hbox:add(rtk.Button{halign='center', 'Workspace'},{fillw=true})
-button_create_unused = tab_group_hbox:add(rtk.Button{halign='center', 'Archive'},{fillw=true})
+button_create_workspace = tab_group_hbox:add(rtk.Button{disabled=true, halign='center', 'Workspace'},{fillw=true})
+button_create_unused = tab_group_hbox:add(rtk.Button{disabled=true, halign='center', 'Archive'},{fillw=true})
 
+--HBOX BUTTONS CREATE MODUL
+ORGANIZE_BUTTONS_HB = main_vbox_COLLECTIONS:add(rtk.HBox{spacing=def_spacing},{ valign='bottom', fillh=true, fillw=true})
+ORGANIZE_BUTTONS_HB:add(rtk.Button{'Create',})
+ORGANIZE_BUTTONS_HB:add(rtk.Button{'Remove'})
 --RIGHT AND LEFT SECTIONS
 collections_main = vp_group:add(rtk.HBox{spacing=def_spacing})
-COLLECTIONS_VB=collections_main:add(rtk.VBox{w=0.56, h=0.7, },{})
+COLLECTIONS_VB=collections_main:add(rtk.VBox{w=0.6, h=0.6, },{})
 
 COLL_LIST_VB=collections_main:add(rtk.VBox{border='red', h=0.7, },{fillw=true})
 
 --MAIN VBOX LIST PROJECTS
 COLLECTIONS_VB_child=rtk.FlowBox{hspacing=def_spacing, vspacing=def_spacing, w=1}
+--COLLECTIONS_VB_child=rtk_FlowBox({spacing=def_spacing, w=1})
 COLLECTIONS_VB_VIEWPORT=COLLECTIONS_VB:add(rtk.Viewport{child=COLLECTIONS_VB_child})
 
 --EXTRACT ALL SAVED COLLECTIONS
 create_collection(COLLECTIONS_VB_child, COLL_LIST_VB)
+
 
 
 --BOTTOM SECTION UNDER list
@@ -1197,6 +1296,7 @@ end
 pop_up_editor.onclose=function(self,event)
     main_vbox_window:show()
 end
+
 --open_group_editor:onclick()
 
 
@@ -1210,7 +1310,7 @@ local bottom_hbox_section = bottom_section_vb:add(rtk.HBox{spacing=def_spacing})
 local player_container = bottom_hbox_section:add(rtk.Container{minw=220, h=110},{valign='center', fillw=true})
 
 local bottom_right_section = bottom_hbox_section:add(rtk.VBox{h=110, spacing=def_spacing},{fillw=true})
-local entry_find, cont = rtk_Entry(bottom_right_section, COL9, COL9, nil, "Find project") cont:resize(1, 30) entry_find:focus()
+entry_find, cont = rtk_Entry(bottom_right_section, COL9, COL9, nil, "Find project") cont:resize(1, 30) entry_find:focus()
 
 
 local comment_widgets_hbox = bottom_right_section:add(rtk.HBox{spacing=5, })
@@ -1218,6 +1318,18 @@ local comment_widgets_hbox = bottom_right_section:add(rtk.HBox{spacing=5, })
 --DEAD LINE CONTAINER
 local cont_bg_right_sect = comment_widgets_hbox:add(rtk.Container{minw=70,w=0.3})
 create_spacer(cont_bg_right_sect, COL1, COL3, round_rect_window)
+
+wnd.onresize = function() 
+    if wnd.w < 550 then
+        if cont_bg_right_sect.visible then
+            cont_bg_right_sect:hide()
+        end
+    else
+        if not cont_bg_right_sect.visible then
+            cont_bg_right_sect:show()
+        end
+    end
+end
 
 
 --TAGS BLOCK
@@ -1517,7 +1629,7 @@ function update_player(all_info)
             spacer:hide()
         end
         
-        update_state(vp_images2, wnd, img)
+        --update_state(vp_images2, wnd, img)
 
         if preview and draging then
             time, want_pos, position, length = get_play_info(preview)
