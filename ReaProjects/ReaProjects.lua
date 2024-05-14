@@ -1,6 +1,6 @@
 -- @description ReaProjects - Project Manager
 -- @author mrtnz
--- @version 0.1.21-alpha
+-- @version 0.1.22-alpha
 -- @changelog
 --  Fix interface bugs
 --  Added group editor (beta)
