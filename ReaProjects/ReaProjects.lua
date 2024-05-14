@@ -1,8 +1,8 @@
 -- @description ReaProjects - Project Manager
 -- @author mrtnz
--- @version 0.1.22-alpha
+-- @version 0.1.23-alpha
 -- @changelog
---  Fix interface bugs
+--  Fix error with nil files
 --  Added group editor (beta)
 -- @provides
 --   libs/*.lua
@@ -38,8 +38,8 @@ all_paths_list = {}
 
 --- modules ---
 dofile(cur_path.."modules"..sep.."widgets.lua")
-dofile(cur_path.."modules"..sep.."func.lua");if check_exts() then return end
-dofile(cur_path.."modules"..sep.."variables.lua")
+dofile(cur_path.."modules"..sep.."func.lua");                 if check_exts() then return end; 
+dofile(cur_path.."modules"..sep.."variables.lua")                check_and_create_files(data_path)
 rtk.add_image_search_path(cur_path..sep.."icons", 'dark')
 --------------------
 --- initialize ---
@@ -48,7 +48,7 @@ def_pad_color             = hex_darker (def_bg_color, -0.46)
 ic, img                   = loadIcons(icon_path)
 data_files                = loadIniFiles(data_path)
 
-                            check_and_create_files(data_path)
+                            
 collections_file          = data_files.collections
 workspace_file            = data_files.workspaces
 archives_file             = data_files.archives
@@ -2056,4 +2056,3 @@ for i = 1,26 do
     end
 end
 ]]
-
