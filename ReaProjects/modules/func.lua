@@ -261,6 +261,16 @@ function sort_paths(new_paths, all_paths_list, sort_type, direction)
     return all_paths_list
 end
 
+function update_defrender_path()
+    local defrender_path = MAIN_PARAMS.general_media_path[2]
+    local param_ini = get_param_ini('defrenderpath')
+    if (defrender_path == nil or defrender_path == "") and param_ini ~= nil and param_ini ~= "" then
+        MAIN_PARAMS.general_media_path[2] = param_ini
+        defrender_path = MAIN_PARAMS.general_media_path[2]
+    end
+    return defrender_path
+end
+
 function loadIcons(directory)
     local icons = {}
     local img = {}
@@ -459,7 +469,7 @@ end
 ------------------------------------------------------------------------
 ------------------------------------------------------------------------
 
-local function check_rpp_files(dirPath)
+function check_rpp_files(dirPath)
     local rppFiles = {}
     local i, j = 0, 0
 
@@ -489,6 +499,8 @@ local function check_rpp_files(dirPath)
     end
     return rppFiles
 end
+
+
 
 function check_and_create_files(dirPath)
     for _, fileName in ipairs(data_files) do
@@ -795,43 +807,65 @@ function LEAVE(self, event)
     self:attr('bg', "transparent")
 end
 
-
-function create_state_updater()
-    local LEFT_MOUSE_BUTTON = 1
-    local waiting_for_release = false
-    local started_outside = false
-    local drag_started = false
-
-    local function reset_all(img)
-        waiting_for_release = false
-        started_outside = false
-        drag_started = false
-        img:attr('border', 'transparent')
+function LBM(event)
+    if event then
+        return event.button == lbm 
+    else
+        return true 
     end
+end
 
-    return function(vp_images2, wnd, img)
-        local state = reaper.JS_Mouse_GetState(1)
-        local x, y = reaper.GetMousePosition()
+function RBM(event)
+    if event then
+        return event.button == rbm 
+    else
+        return true 
+    end
+end
 
-        local is_in_container = rtk.point_in_box(x, y, vp_images2.clientx + wnd.x, vp_images2.clienty + wnd.y, vp_images2.calc.w, vp_images2.calc.h)
-        if state == LEFT_MOUSE_BUTTON and not is_in_container then
-            started_outside = true
+function update_visibility(data, query, new_paths)
+    query = tolower(query, 1)
+    local first_visible = nil
+    for i, item in ipairs(data) do
+        local n = new_paths and new_paths[item] or item
+        local path = n.path and tolower(n.path, 1)
+        local filename = n.filename and tolower(n.filename, 1)
+        local date = n.form_date and tolower(n.form_date, 1)
+        n.sel = 0
+        
+        local tags, comments
+        if new_paths then
+            tags = n.DATA.tags and tolower(table.concat(n.DATA.tags), 1) or ""
+            comments = n.DATA.comments and lower(n.DATA.comments, 1) or ""
         end
-
-        if state == LEFT_MOUSE_BUTTON and is_in_container and started_outside then
-            if not drag_started then
-                drag_started = true
+        -- find matching
+        if path:find(query)
+          or filename:find(query)
+          or date:find(query)
+          or (tags and tags:find(query))
+          or (comments and comments:find(query)) then
+            if new_paths then
+                n.cont:show()
             else
-                waiting_for_release = true
-                img:attr('border', '5px red#30')
+                item:show()
             end
-        elseif waiting_for_release and not is_in_container then
-            img:attr('border', 'transparent')
-        elseif waiting_for_release and state ~= LEFT_MOUSE_BUTTON and is_in_container then
-            --reaper.ShowConsoleMsg("DROP.\n")
-            --RESET ALL--
-            reset_all(img)
+            if not first_visible then
+                first_visible = n
+            end
+        else
+            if new_paths then
+                n.cont:hide()
+            else
+                item:hide()
+            end
         end
+    end
+    
+    if first_visible then
+        update_player(first_visible)
+        unselect_all_path()
+        first_visible.sel = 1
+        recolor(first_visible.cont.refs.bg_spacer, "#8a8a8a", hex_darker("#8a8a8a", 0.2))
     end
 end
 
