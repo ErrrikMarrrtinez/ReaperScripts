@@ -2,7 +2,8 @@
 -- @author mrtnz
 -- @version 0.1.21-alpha
 -- @changelog
---  Beta
+--  Fix interface bugs
+--  Added group editor (beta)
 -- @provides
 --   libs/*.lua
 --   modules/*.lua
@@ -13,7 +14,7 @@
 
 
 
---if reaper.ShowMessageBox("This is an alpha version of the script that is not yet suitable for use, you can only superficially familiarize yourself. Click 'OK' to continue or 'CANCEL' to exit.",  "WARNING!", 1) == 1 then else return end
+if reaper.ShowMessageBox("This is an alpha version of the script that is not yet suitable for use, you can only superficially familiarize yourself. Click 'OK' to continue or 'CANCEL' to exit.",  "WARNING!", 1) == 1 then else return end
 function print(...) local t = {...} for i = 1, select('#', ...) do t[i] = tostring(t[i]) end reaper.ShowConsoleMsg(table.concat(t, '\t') .. '\n') end
 --- collect paths ---
 sep          = package.config:sub(1,1)
@@ -148,7 +149,7 @@ cont_player.refs.player:add(
     rtk.HBox{
         spacing=20,
         valign='center',
-        rtk.Spacer{w=0.1, bborder='2px '..COL11},
+        rtk.Spacer{w=0.43, bborder='2px '..COL11},
         rtk.Heading{fontsize=24,
             font='Verdena', 
             "Media Player Paths"
@@ -160,18 +161,25 @@ cont_player.refs.player:add(
 })
 
 
-local function update_defrender_path()
-    local defrender_path = MAIN_PARAMS.general_media_path[2]
-    local param_ini = get_param_ini('defrenderpath')
-    -- Если defrender_path пуст, тогда используем param_ini
-    if (defrender_path == nil or defrender_path == "") and param_ini ~= nil and param_ini ~= "" then
-        MAIN_PARAMS.general_media_path[2] = param_ini
-        defrender_path = MAIN_PARAMS.general_media_path[2]
-    end
-    return defrender_path
-end
 
-local VB_media=cont_player.refs.player:add(rtk.VBox{padding=30, halign='center', w=1, tmargin=1, spacing=5, ref='vb',rtk.Heading{fontsize=22,font='Verdena', ""}, },{})
+local VB_media=cont_player.refs.player:add(
+    rtk.VBox{
+        minw=420,
+        maxw=600,
+        padding=30,
+        halign='center', 
+        w=1, 
+        tmargin=1,
+        spacing=5,
+        ref='vb',
+            rtk.Heading{
+                fontsize=22,
+                font='Verdena',
+                "Preview mode"
+            }, 
+        },
+    {halign='center',}
+)
 
 
 
@@ -180,7 +188,7 @@ local gen_dir = VB_media:add(RoundButton{round=14, halign='left', color='#5a5a5a
 
 local hb_entry = VB_media:add(rtk.HBox{bmargin=4,spacing=20, h=30, w=1})
 hb_entry:add(rtk.Heading{x=10,fontsize=22, valign='center', h=1, "Default render path:"})
---hb_entry:add(rtk.Spacer{w=95})
+
 local entry_custom_path, custom_path_cont = rtk_Entry(hb_entry, COL2, COL0, 6, "Custom media path")
 entry_custom_path:attr('value', update_defrender_path());entry_custom_path:attr("caret", 0)
 
@@ -189,6 +197,13 @@ local cont_button_finder = create_b(hb_entry, "DIR", 40, 30, true, ic.dir:scale(
 
 local current_inst = VB_media:add(RoundButton{round=14, halign='left', color='#5a5a5a', h=30, w=1, fontsize=22, "Path to rpp"})
 
+VB_media:add(
+    rtk.Heading{
+        fontsize=22,
+        font='Verdena',
+        "Name"
+    }
+)
 
 local one_name_b = VB_media:add(RoundButton{round=14, halign='left', h=30, w=0.8, color='#5a5a5a', fontsize=22, text="One similar last name"},{})
 local all_similar_b = VB_media:add(RoundButton{round=14, halign='left', color='#5a5a5a', h=30, w=0.8, fontsize=22, text="All similar names (by date)"})
@@ -199,13 +214,6 @@ local all_names_dir = VB_media:add(RoundButton{state='on', round=14, halign='lef
 local media_buttons = {current_inst, self_inst, gen_dir}
 local curr_childs = {one_name_b, all_similar_b, all_names_dir}
 
-function LBM(event)
-    if event then
-        return event.button == lbm 
-    else
-        return true 
-    end
-end
 
 local function reset_m_b(self, event, tab)
     if LBM(event)then
@@ -221,7 +229,6 @@ local function reset_m_b(self, event, tab)
         CURRENT_media_path = false
         MAIN_PARAMS.current_media_path = CURRENT_media_path
     end
-    
 end
 
 gen_dir.onmousedown=function(self,event)
@@ -623,7 +630,7 @@ end
 local HEADING_types_hbox = rtk.HBox{ref='heading', y=-6.5,}
 
 function create_block_list()
-    
+    HEADING_types_hbox:hide()
     local flowbox_main = rtk_FlowBox({lmargin=4, expand=4, spacing=-1, w=1})
     --local flowbox_main = rtk.FlowBox{margin=4, expand=4, spacing=-2, w=1}
     flowbox_main:remove_all()
@@ -690,7 +697,7 @@ function create_block_list()
             save_parameter(n.path, data)
         end,
         },{fillh=true})
-        --slider_length_audio:hide()
+        slider_length_audio:hide()
         
         
         local right_sect_cont = def_vb:add(rtk.Container{x=-2, margin=2,},{fillw=true, fillh=true})
@@ -834,6 +841,13 @@ function create_block_list()
             mouse_state = reaper.JS_Mouse_GetState(val_touchscroll)  
             rtk.touchscroll = (mouse_state == val_touchscroll) -- true or false
             isRunning = false
+            
+            if n.sel == 1 and slider_length_audio.visible == false then
+                slider_length_audio:show()
+            elseif n.sel ~= 1 and slider_length_audio.visible == true then 
+                slider_length_audio:hide()
+            end
+            
             rtk.defer(update_hover)
         end
         
@@ -844,7 +858,7 @@ end
 
 
 function create_list()
-    
+    HEADING_types_hbox:show()
     list_vbox_group:remove_all()
     container_heading:remove(HEADING_types_hbox)
     vp_main_list:attr('child', list_vbox_group)
@@ -907,7 +921,10 @@ function create_list()
             end
         end
         b_path.ondoubleclick=function(self,event)
-            reaper.CF_LocateInExplorer(self.ref)
+            local lbm = event.button == lbm
+            if lbm then
+                reaper.CF_LocateInExplorer(self.ref)
+            end
         end
         
         n.form_date_1 = n.form_date:gsub(" %d+, %d+:%d+", "")
@@ -993,10 +1010,13 @@ function create_list()
             --get_selected_path()
         end
         hbox_projects.ondoubleclick=function(self, event)
-            local paths = get_selected_path()
-            for i, path in ipairs(paths) do
-                if i == #paths then
-                    reaper.Main_openProject(path)
+            local lbm = event.button == lbm
+                if lbm then
+                local paths = get_selected_path()
+                for i, path in ipairs(paths) do
+                    if i == #paths then
+                        reaper.Main_openProject(path)
+                    end
                 end
             end
         end
@@ -1037,8 +1057,6 @@ function create_list()
             return
         end
         
-        pad_status:ondragmousemove()
-        
         pad_status.onmousewheel = function(self, event)
             progress_val = math.floor(math.max(0, math.min(100, progress_val - event.wheel * 4)))
             local progress_val_col = lerp(-0.2, 0.2, 0.2 - ( progress_val / 100 ))
@@ -1078,18 +1096,23 @@ function create_list()
             
         end
         
+        pad_status:ondragmousemove()
+        
         pad_status.ondoubleclick = function(self, event)
-            progress_val=0
-            recolor(self, padcolor, padcolor, progress_val)
-            --[[
-            
-            data.dl = "2024.04.29 18:00:00"
-            data.raiting = 4
-            data.comment = "last version"
-            data.tags = {"#OLDEST", "#TEST", "#WARIOUS"}
-            print(n.path, data.dl, data.raiting, data.comment, table.concat(data.tags) )
-            ]]
-            save_parameter(n.path, data)
+            local lbm = event.button == lbm
+            if lbm then
+                progress_val=0
+                recolor(self, padcolor, padcolor, progress_val)
+                --[[
+                
+                data.dl = "2024.04.29 18:00:00"
+                data.raiting = 4
+                data.comment = "last version"
+                data.tags = {"#OLDEST", "#TEST", "#WARIOUS"}
+                print(n.path, data.dl, data.raiting, data.comment, table.concat(data.tags) )
+                ]]
+                save_parameter(n.path, data)
+            end
         end
         
         if data.dl ~= "" then 
@@ -1153,7 +1176,26 @@ sec_name="Грустный",
 img="1.png",
 list={
 "F:\\Projects Reaper\\Тима Проекты\\Ливнем от дождя\\Ливнем от дождя.RPP",
+"F:\\Projects Reaper\\Тима Проекты\\Ливнем от дождя\\Ливнем от дождя.RPP",
+"F:\\Projects Reaper\\Тима Проекты\\Ливнем от дождя\\Ливнем от дождя.RPP",
+"F:\\Projects Reaper\\Тима Проекты\\Ливнем от дождя\\Ливнем от дождя.RPP",
+"F:\\Projects Reaper\\Тима Проекты\\Ливнем от дождя\\Ливнем от дождя.RPP",
 "F:\\Projects Reaper\\Тима Проекты\\Мелодия\\Мелодия.rpp",
+"F:\\Projects Reaper\\Тима Проекты\\Мелодия\\Мелодия.rpp",
+"F:\\Projects Reaper\\Тима Проекты\\Мелодия\\Мелодия.rpp",
+"F:\\Projects Reaper\\Тима Проекты\\Мелодия\\Мелодия.rpp",
+"F:\\Projects Reaper\\Тима Проекты\\Мелодия\\Мелодия.rpp",
+"F:\\Projects Reaper\\Тима Проекты\\Мелодия\\Мелодия.rpp",
+"F:\\Projects Reaper\\Тима Проекты\\Оставлю на врем я\\Оставлю на врем я.rpp",
+"F:\\Projects Reaper\\Тима Проекты\\Оставлю на врем я\\Оставлю на врем я.rpp",
+"F:\\Projects Reaper\\Тима Проекты\\Оставлю на врем я\\Оставлю на врем я.rpp",
+"F:\\Projects Reaper\\Тима Проекты\\Оставлю на врем я\\Оставлю на врем я.rpp",
+"F:\\Projects Reaper\\Тима Проекты\\Оставлю на врем я\\Оставлю на врем я.rpp",
+"F:\\Projects Reaper\\Тима Проекты\\Оставлю на врем я\\Оставлю на врем я.rpp",
+"F:\\Projects Reaper\\Тима Проекты\\Оставлю на врем я\\Оставлю на врем я.rpp",
+"F:\\Projects Reaper\\Тима Проекты\\Оставлю на врем я\\Оставлю на врем я.rpp",
+"F:\\Projects Reaper\\Тима Проекты\\Оставлю на врем я\\Оставлю на врем я.rpp",
+"F:\\Projects Reaper\\Тима Проекты\\Оставлю на врем я\\Оставлю на врем я.rpp",
 "F:\\Projects Reaper\\Тима Проекты\\Оставлю на врем я\\Оставлю на врем я.rpp",
 "F:\\Projects Reaper\\Тима Проекты\\Параллели судьбы\\Параллели судьбы.rpp",},
 tags={},
@@ -1161,46 +1203,215 @@ comment="",
 raiting=3,
 bgcol="#7a7a7a"
 }
---save_parameter("гавввно",collection_all, collections_file)
+--save_parameter("гавввsно",collection_all, workspace_file)
 --get_all_names(collections_file)
 
+function initialize_data(name, file)
+    local data = get_parameter(name, file)
+    return data or {
+        name = "Empty Name",
+        sec_name = "Empty Name",
+        bgcol = "#7a7a7a",
+        rating = 0,
+        comment = "",
+        img = "",
+        list = {""},
+        tags = {},
+    }
+end
 
 
-function show_list_collection(vbox_list, str_list)
+
+function create_popup_grp(b)
+    --popup_group:attr('anchor', b)
+    --popup_group:open
+end
+
+function show_list_group(vbox_list, str_list)
     vbox_list:remove_all()
+    
     for i, projects in ipairs(str_list) do
         local filename, path = extract_name(projects)
-        vbox_list:add(rtk.Button{filename})
+        vbox_list:add(
+            rtk.HBox{
+                spacing=4,
+                ref='hb',
+                rmargin=-10,
+                w=1,
+                }
+        )
+        local btn_name = vbox_list.refs.hb:add(
+            RoundButton{
+                ref='b',
+                round=8,
+                fillw=true,
+                color='#6a6a6a', 
+                halign='center', 
+                y=-1,
+                fillw=true,
+                h=25,
+                toggle=false,
+                text=filename,
+                
+                }, { fillw=true} )
+        vbox_list.refs.hb:add(
+            RoundButton{
+                ref='edit',
+                round=8,
+                color='#6a6a6a', 
+                halign='center', 
+                y=-1,
+                w=25,
+                h=25,
+                toggle=false,
+                fontsize=27,
+                text="✎"
+                } )
+          vbox_list.refs.hb:add(
+              RoundButton{
+                  ref='delete',
+                  round=8,
+                  color='#ba1515', 
+                  halign='center', 
+                  y=-1,
+                  w=25,
+                  h=25,
+                  toggle=false,
+                  fontsize=19,
+                  text="✖"
+                  } )
+                    
+            btn_name.onclick=function(self,event)
+                if LBM(event) then
+                    --
+                elseif RBM(event) then
+                    --
+                end
+            end
+    end
+    
+    
+    
+end
+
+function create_group_container(vbox, data, height, color_shift)
+    local COL = data.bgcol
+    local NEW_COL = shift_color(COL, 1.0, color_shift, color_shift)
+    
+    local cont_collections = vbox:add(rtk.Container{h=height},{fillw=true})
+    local first_bg_spacer = create_spacer(cont_collections, NEW_COL, NEW_COL, round_rect_window)
+    first_bg_spacer:attr('ref', 'first_bg_spacer')
+    
+    return cont_collections, NEW_COL
+end
+
+function create_workspace(vbox, vbox_list)
+    vbox:remove_all()
+    local all_tabs = {}
+    
+    local all_names = get_all_names(workspace_file)
+    for i, group in pairs(all_names) do
+        --import data info
+        local DATA = initialize_data(group, workspace_file)
+        
+        local COL = DATA.bgcol
+        local NEW_COL = shift_color(COL, 1.0, 0.7, 0.8)
+        
+        local image, name, second_name, tags = DATA.img, DATA.name, DATA.sec_name, DATA.tags
+        local cont_collections, NEW_COL = create_group_container(vbox, DATA, 80, 0.8);local fbg_spacer = cont_collections.refs.first_bg_spacer
+        
+        --main horisontal container
+        local vbox_grp = cont_collections:add(rtk.VBox{spacing=def_spacing, h=1, padding=5, },{})
+        local cont_hbox = vbox_grp:add(rtk.Container{w=1})
+        
+        cont_hbox:add(RoundButton{disabled=true, ref='b', round=16, text="",color='#5a5a5a', halign='center', y=-1, h=40, w=1, toggle=false})
+        cont_hbox:add(rtk.Heading{padding=4, w=1, h=cont_hbox.refs.b.calc.h, wrap=true, fontflags=rtk.font.BOLD, fontsize=18, valign='center', halign='center', font='Verdena', text=name})
+        
+        vbox_grp:add(rtk.HBox{
+            RoundButton{
+                ref='b',
+                round=8,
+                color='#6a6a6a', 
+                halign='center', 
+                y=-1,
+                w=80,
+                disabled=true, 
+                h=25,
+                toggle=false,
+                text=#DATA.list .. " projects"
+                },
+            rtk.Box.FLEXSPACE,
+            RoundButton{
+                ref='edit',
+                round=8,
+                color='#6a6a6a', 
+                halign='center', 
+                y=-1,
+                w=35,
+                x=-2,
+                h=25,
+                toggle=false,
+                fontsize=27,
+                text="✎"
+                },
+            RoundButton{
+                ref='delete',
+                round=8,
+                color='#ba1515', 
+                halign='center', 
+                y=-1,
+                w=35,
+                h=25,
+                toggle=false,
+                fontsize=19,
+                text="✖"
+                },
+            
+            }
+        )
+        
+        local active_col = "#8a8a8a"
+        
+        cont_collections.onmouseenter = function(self, event)
+            recolor(fbg_spacer, active_col)
+            return true
+        end
+        
+        cont_collections.onmouseleave = function(self, event)
+            recolor(fbg_spacer, NEW_COL)
+        end
+        
+        cont_collections.onmousedown = function(self, event)
+            if LBM(event) then
+                for _, tab in ipairs(all_tabs) do
+                    tab.refs.b:attr('color', NEW_COL)
+                end
+                cont_hbox.refs.b:attr('color', active_col)
+                show_list_group(vbox_list, DATA.list)
+            end
+            return true
+        end
+        table.insert(all_tabs, cont_hbox)
     end
 end
 
 function create_collection(vbox, vbox_list)
-    
     vbox:remove_all()
     --Get all names in saved collections
-    all_names = get_all_names(collections_file)
+    local all_names = get_all_names(collections_file)
+    
+    
+    
     for i, blan in pairs(all_names) do
         --import data info for collection
-        local DATA = get_parameter(blan, collections_file)
-        
-        DATA = DATA or {
-            name="",
-            sec_name="",
-            bgcol = "#7a7a7a",
-            rating = 0,
-            comment = "",
-            img="",
-            list={""},
-            tags={},
-        }
+        local DATA = initialize_data(group, workspace_file)
         
         local COL = DATA.bgcol
         local NEW_COL = shift_color(COL, 1.0, 0.7, 0.7)
         
-        image, name, second_name, tags = DATA.img, DATA.name, DATA.sec_name, DATA.tags
+        local image, name, second_name, tags = DATA.img, DATA.name, DATA.sec_name, DATA.tags
         --create bg roundrect
-        local cont_collections=vbox:add(rtk.Container{ h=130,  w=1})
-        local first_bg_spacer = create_spacer(cont_collections, NEW_COL, NEW_COL, round_rect_window)
+        local cont_collections, NEW_COL = create_group_container(vbox, DATA, 130, 0.7);local fbg_spacer = cont_collections.refs.first_bg_spacer
         --main horisontal container
         local cont_hbox = cont_collections:add(rtk.HBox{padding=4,w=1})
         --create image
@@ -1231,7 +1442,7 @@ function create_collection(vbox, vbox_list)
                 COL = DATA.bgcol
                 NEW_COL = shift_color(COL, 1.0, 0.7, 0.7)
                 
-                recolor(first_bg_spacer, COL)
+                recolor(fbg_spacer, COL)
                 recolor(info_bg_spacer, NEW_COL)
                 
                 save_parameter(DATA.name, DATA, collections_file)
@@ -1240,8 +1451,6 @@ function create_collection(vbox, vbox_list)
         end
         
         main_vbox_right:add(rtk.Box.FLEXSPACE)
-        
-        
         --hbox tags secton (maybe viewport)
         local hbox_tags = main_vbox_right:add(rtk.HBox{bmargin=-24,spacing=2, valign='bottom', halign='center'},{valign='bottom', halign='center'})
         
@@ -1258,13 +1467,16 @@ function create_collection(vbox, vbox_list)
         end
         ]]
         cont_collections.onclick=function(self, event)
-            show_list_collection(vbox_list, DATA.list)
+            show_list_group(vbox_list, DATA.list)
         end
     end
 end
 
 
-local open_group_editor = group_heading:add(rtk.Button{rmargin=14,">",tmargin=-7},{valign='center',  halign='right'})
+
+local open_group_editor = group_heading:add(RoundButton{halign='center', y=-1, h=26, w=36, toggle=false, color='#9a9a9a', lmargin=14,"<",tmargin=-7},{valign='center',  halign='left'})
+local open_group_editor = group_heading:add(RoundButton{halign='center', y=-1, h=26, w=36, toggle=false, color='#9a9a9a', rmargin=14,">",tmargin=-7},{valign='center',  halign='right'})
+
 
 local group_editor = rtk.Container{w=1,h=1}
 local pop_up_editor = rtk.Popup{margin=6, autoclose=false, border='transparent', padding=2, bg='transparent', child=group_editor}
@@ -1276,33 +1488,53 @@ local hbox_head_grp=hb_heading_group:add(rtk.HBox{w=1})
 
 back_from_grp=create_b(hbox_head_grp, '←   back', 70, 27, nil, nil, false) back_from_grp:move(4,3) 
 
-main_vbox_COLLECTIONS = vp_group:add(rtk.VBox{border='aqua', w=1, h=90})
+local main_vbox_COLLECTIONS = vp_group:add(rtk.VBox{spacing=def_spacing, border='aqua', w=1, h=90})
 
 --HBOX AND BUTTONS TAB COLLECTIONS\WORKSPACE\ARCHIVE
-tab_group_hbox = main_vbox_COLLECTIONS:add(rtk.HBox{spacing=def_spacing})
-button_create_collect = tab_group_hbox:add(rtk.Button{halign='center', 'Collection'},{fillw=true})
-button_create_workspace = tab_group_hbox:add(rtk.Button{disabled=true, halign='center', 'Workspace'},{fillw=true})
-button_create_unused = tab_group_hbox:add(rtk.Button{disabled=true, halign='center', 'Archive'},{fillw=true})
+local tab_group_hbox = main_vbox_COLLECTIONS:add(rtk.HBox{spacing=def_spacing})
+local button_create_collect = tab_group_hbox:add(rtk.Button{halign='center', 'Collection'},{fillw=true})
+local button_create_workspace = tab_group_hbox:add(rtk.Button{disabled=true, halign='center', 'Workspace'},{fillw=true})
+local button_create_unused = tab_group_hbox:add(rtk.Button{disabled=true, halign='center', 'Archive'},{fillw=true})
 
 --HBOX BUTTONS CREATE MODUL
-ORGANIZE_BUTTONS_HB = main_vbox_COLLECTIONS:add(rtk.HBox{spacing=def_spacing},{ valign='bottom', fillh=true, fillw=true})
-ORGANIZE_BUTTONS_HB:add(rtk.Button{'Create',})
-ORGANIZE_BUTTONS_HB:add(rtk.Button{'Remove'})
+local ORGANIZE_BUTTONS_HB = main_vbox_COLLECTIONS:add(rtk.HBox{spacing=def_spacing},{ valign='bottom', fillh=true, fillw=true})
+ORGANIZE_BUTTONS_HB:add(RoundButton{round=6, halign='center', y=-1, h=26, w=120, toggle=false, color='#9a9a9a', 'Create',})
+ORGANIZE_BUTTONS_HB:add(RoundButton{round=6, halign='center', y=-1, h=26, w=120, toggle=false, color='#9a9a9a', 'Remove'})
 --RIGHT AND LEFT SECTIONS
-collections_main = vp_group:add(rtk.HBox{spacing=def_spacing})
-COLLECTIONS_VB=collections_main:add(rtk.VBox{w=0.6, h=0.6, },{})
+local collections_main = vp_group:add(rtk.HBox{spacing=def_spacing})
+local COLLECTIONS_VB=collections_main:add(rtk.VBox{border='aqua', w=0.5, h=0.64, },{})
 
-COLL_LIST_VB=collections_main:add(rtk.VBox{border='red', h=0.7, },{fillw=true})
+local vb_right_sect_grp = collections_main:add(rtk.VBox{},{})
+
+local COLL_LIST_VB = rtk.VBox{padding=6, spacing=2, w=1}
+local VB_COLL_LIST = vb_right_sect_grp:add( rtk.Viewport{scrollbar_size=8, border='red', h=0.64, w=1, child = COLL_LIST_VB} )
 
 --MAIN VBOX LIST PROJECTS
-COLLECTIONS_VB_child=rtk.FlowBox{hspacing=def_spacing, vspacing=def_spacing, w=1}
+local COLLECTIONS_VB_child=rtk.FlowBox{hspacing=def_spacing, vspacing=def_spacing, w=1}
 --COLLECTIONS_VB_child=rtk_FlowBox({spacing=def_spacing, w=1})
-COLLECTIONS_VB_VIEWPORT=COLLECTIONS_VB:add(rtk.Viewport{child=COLLECTIONS_VB_child})
+local COLLECTIONS_VB_VIEWPORT=COLLECTIONS_VB:add(rtk.Viewport{child=COLLECTIONS_VB_child})
+
+
+--[[
+vb_right_sect_grp:add(
+    RoundButton{
+        ref='dnd',
+        round=8,
+        color='#9a9a9a', 
+        halign='center', 
+        y=-60,
+        w=0.97,
+        font = 'Arial',
+        h=40,
+        toggle=false,
+        text="DROP PROJECTS HERE"
+    },{halign='center'} )
+]]
 
 --EXTRACT ALL SAVED COLLECTIONS
-create_collection(COLLECTIONS_VB_child, COLL_LIST_VB)
+--create_collection(COLLECTIONS_VB_child, COLL_LIST_VB)
 
-
+create_workspace(COLLECTIONS_VB_child, COLL_LIST_VB)
 
 --BOTTOM SECTION UNDER list
 vp_group:add(rtk.HBox{border='blue', rmargin=4, h=0.2,  w=1})
@@ -1320,9 +1552,6 @@ pop_up_editor.onclose=function(self,event)
 end
 
 --open_group_editor:onclick()
-
-
-
 
 
 
@@ -1448,51 +1677,6 @@ function create_tag(DATA, tags_hbox_widgets, all_info)
     end
 end
 
-function update_visibility(data, query, new_paths)
-    query = tolower(query, 1)
-    local first_visible = nil
-    for i, item in ipairs(data) do
-        local n = new_paths and new_paths[item] or item
-        local path = n.path and tolower(n.path, 1)
-        local filename = n.filename and tolower(n.filename, 1)
-        local date = n.form_date and tolower(n.form_date, 1)
-        n.sel = 0
-        
-        local tags, comments
-        if new_paths then
-            tags = n.DATA.tags and tolower(table.concat(n.DATA.tags), 1) or ""
-            comments = n.DATA.comments and lower(n.DATA.comments, 1) or ""
-        end
-        -- find matching
-        if path:find(query)
-          or filename:find(query)
-          or date:find(query)
-          or (tags and tags:find(query))
-          or (comments and comments:find(query)) then
-            if new_paths then
-                n.cont:show()
-            else
-                item:show()
-            end
-            if not first_visible then
-                first_visible = n
-            end
-        else
-            if new_paths then
-                n.cont:hide()
-            else
-                item:hide()
-            end
-        end
-    end
-    
-    if first_visible then
-        update_player(first_visible)
-        unselect_all_path()
-        first_visible.sel = 1
-        recolor(first_visible.cont.refs.bg_spacer, "#8a8a8a", hex_darker("#8a8a8a", 0.2))
-    end
-end
 
 entry_find.onchange = function(self, event)
     update_visibility(sorted_paths, self.value, new_paths)
@@ -1778,12 +1962,15 @@ function update_player(all_info)
     end
     
     volume_slider.ondoubleclick = function(self, event)
-        if GLOBAL_ANIMATE then
-            self:animate{'value', dst = 1, duration = 0.3, easing = "out-cubic"}
-        else
-            self:attr{'value', 1}
+        local lbm = event.button == lbm
+            if lbm then
+            if GLOBAL_ANIMATE then
+                self:animate{'value', dst = 1, duration = 0.3, easing = "out-cubic"}
+            else
+                self:attr{'value', 1}
+            end
+            reaper.CF_Preview_SetValue(preview, 'D_VOLUME', 1)
         end
-        reaper.CF_Preview_SetValue(preview, 'D_VOLUME', 1)
     end
     
     slider_length_audio.onmouseenter = function(self, event)

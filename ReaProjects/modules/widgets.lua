@@ -495,7 +495,7 @@ RoundButton = rtk.class('RoundButton', rtk.Text)
 
 RoundButton.register{
     color = rtk.Attribute{type='color', default='#3a3a3a'},
-    round = rtk.Attribute{default=10},
+    round = rtk.Attribute{default=6},
     h = rtk.Attribute{default=35},
     surface=false,
     pos = rtk.Attribute{default="left"},
@@ -520,7 +520,7 @@ function RoundButton:_draw(offx, offy, alpha, event, clipw, cliph, cltargetx, cl
         activ_col = '#085308'
     else
         color = color_bg
-        activ_col = '#5c0a1b'
+        activ_col = '#915d00'
     end
     --bg
     self:setcolor(color)
@@ -581,13 +581,10 @@ function RoundButton:_handle_mousedown(event)
     local h = math.round(calc.h)
     if event.button == lbm then
         self.color = shift_color(self.color, 1, 1, 0.8)
-        self.state = self.state == 'off' and 'on' or 'off'
-        self.new_x = self.state == 'off' and self.x_off or self.x_on
-        self:animate{
-            'new_x',
-            dst = self.new_x,
-            duration = 1
-        }
+        if self.toggle then
+            self.state = self.state == 'off' and 'on' or 'off'
+            self.new_x = self.state == 'off' and self.x_off or self.x_on
+        end
     end
 end
 
