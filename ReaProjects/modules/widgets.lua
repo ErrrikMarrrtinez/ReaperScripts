@@ -502,7 +502,8 @@ RoundButton.register{
     state = rtk.Attribute{default='off'},
     new_x = rtk.Attribute{default=0},
     toggle = rtk.Attribute{default=true},
-    cursor=rtk.mouse.cursors.HAND,
+    hotzone = rtk.Attribute{default=1},
+    cursor=rtk.Attribute{default=rtk.mouse.cursors.HAND},
 }
 
 function RoundButton:_draw(offx, offy, alpha, event, clipw, cliph, cltargetx, cltargety, parentx, parenty)
@@ -520,7 +521,7 @@ function RoundButton:_draw(offx, offy, alpha, event, clipw, cliph, cltargetx, cl
         activ_col = '#085308'
     else
         color = color_bg
-        activ_col = '#915d00'
+        activ_col = '#4a4a4a'
     end
     --bg
     self:setcolor(color)
@@ -535,8 +536,8 @@ function RoundButton:_draw(offx, offy, alpha, event, clipw, cliph, cltargetx, cl
 
 
     --circle
-    self.x_off = x+w-h-25
-    self.x_on = x+w-h-1
+    self.x_off = x+w-h-22
+    self.x_on = x+w-h-6
     self.new_x = self.state == 'off' and self.x_off or self.x_on
     self:setcolor(self.state == 'off' and color.."80" or '#ffffff70')
         gfx.circle(
@@ -570,7 +571,7 @@ end
 
 
 function RoundButton:_handle_mousedown(event)
-    local ok = rtk.Spacer._handle_mousedown(self, event)
+    local ok = rtk.Text._handle_mousedown(self, event)
     if ok ~= false then
         return ok
     end
@@ -589,16 +590,22 @@ function RoundButton:_handle_mousedown(event)
 end
 
 function RoundButton:_handle_mouseup(event)
-    self.color = self.hover_color
+    local ok = rtk.Text._handle_mouseup(self, event)
+    local hover_color = self.hover_color
+    if hover_color == nil then
+        hover_color = self.color
+    end
+    self.color = hover_color
 end
 
 function RoundButton:_handle_mouseenter(event)
     local ok = rtk.Text._handle_mouseenter(self, event)
+    local ok = rtk.Text.onmouseenter(self, event)
     if ok ~= nil then
         return ok
     end
     self.original_color = self.color
-    self.hover_color = shift_color(self.color, 1, 1, 1.2)
+    self.hover_color = shift_color(self.color, 1, 1, 1.1)
     self.color = self.hover_color
     
     return true
@@ -773,7 +780,7 @@ function create_container(params, parent, txt)
     local heading = vbox:add(rtk.Container{ref='HEAD', margin=0,h=40},{fillw=true})
     if txt then heading:add(rtk.Text{fontsize=18,fontflags=rtk.font.BOLD,y=heading.calc.h/5,txt,halign='center',h=1,w=1}) end
     local rect_heading = create_spacer(heading, COL1, COL2, round_rect_window)
-    local hiden_bottom = heading:add(rtk.Spacer{margin=0,y=32,h=35,w=1,bg=COL3})
+    local hiden_bottom = heading:add(rtk.Spacer{ref='HIDE', margin=0,y=32,h=35,w=1,bg=COL3})
     local bg_roundrect = create_spacer(container, COL1, COL3, round_rect_window)
     bg_roundrect:attr('ref','BG')
     local vp_vbox = rtk.VBox{spacing=def_spacing, padding=2, margin=2,w=1}
