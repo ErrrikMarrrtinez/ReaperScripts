@@ -176,8 +176,10 @@ end
 function extract_name(filePath)
     local path = filePath:match("(.*[/\\])")
     local filename = filePath:match("([^/\\]+)$")
-    local clean_name = filename:match("(.+)%..+%.") or filename:match("(.+)%.")
-    return clean_name, path
+    if filename then
+        local clean_name = filename:match("(.+)%..+%.") or filename:match("(.+)%.")
+        return clean_name, path
+    end
 end
 
 function get_param_ini(param)
@@ -512,7 +514,7 @@ function check_and_create_files(dirPath)
         else
             file = io.open(filePath, "w")
             if file then
-                print("Файл " .. filePath .. " успешно создан.")
+                --print("Файл " .. filePath .. " успешно создан.")
                 file:close()
             else
                 print("Не удалось создать файл " .. filePath)
