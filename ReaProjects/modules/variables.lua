@@ -30,7 +30,9 @@ MAIN_PARAMS = {
     global_animate     = true,
 
     max_visible_proj   = 150,
-    key_touchscroll    = "ctrl+shift"
+    key_touchscroll    = "ctrl+shift",
+
+    autoclean = true,
 }
 
 round_rect_window      = MAIN_PARAMS.def_round_rect_win
@@ -46,6 +48,7 @@ elevation_warning      = MAIN_PARAMS.elevation_warming
 DEF_IMG_W              = MAIN_PARAMS.default_img_w
 DEF_IMG_H              = MAIN_PARAMS.default_img_h
 
+AUTO_CLEAN_INFO        = MAIN_PARAMS.autoclean
 --
 
 
@@ -75,3 +78,5 @@ COl12 = "#9a9a9a" -- selected \9a9a9a
 
 COL13 = COL7 -- def pad color\ 
 COL18 = "#3a3a3a"
+
+active_col = "#8a8a8a"

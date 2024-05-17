@@ -495,6 +495,7 @@ RoundButton = rtk.class('RoundButton', rtk.Text)
 
 RoundButton.register{
     color = rtk.Attribute{type='color', default='#3a3a3a'},
+    textcolor = rtk.Attribute{type='color', default='#FFFFFF'},
     round = rtk.Attribute{default=6},
     h = rtk.Attribute{default=35},
     surface=false,
@@ -504,6 +505,9 @@ RoundButton.register{
     toggle = rtk.Attribute{default=true},
     hotzone = rtk.Attribute{default=1},
     cursor=rtk.Attribute{default=rtk.mouse.cursors.HAND},
+    clientx = rtk.Attribute{default=0},
+    disabled = rtk.Attribute{default=false},
+    autohover = rtk.Attribute{default=true},
 }
 
 function RoundButton:_draw(offx, offy, alpha, event, clipw, cliph, cltargetx, cltargety, parentx, parenty)
@@ -516,13 +520,23 @@ function RoundButton:_draw(offx, offy, alpha, event, clipw, cliph, cltargetx, cl
     local color_bg = shift_color(color, 1, 0.8, 0.6)
     local round = self.round
     local activ_col 
-    if self.state == 'on' then
+    self.clientx = cltargetx
+    self.clienty = cltargety
+    local textcolor = self.textcolor
+    if self.state == 'on' and self.toggle then
         color = color
         activ_col = '#085308'
     else
         color = color_bg
         activ_col = '#4a4a4a'
     end
+
+
+    if self.autohover and self.disabled == true then
+        color = shift_color(color_bg, 1, 0.7, 0.8)
+        self.textcolor = "#FFFFFF75"
+    end
+    
     --bg
     self:setcolor(color)
     rtk.gfx.roundrect(x,y,math.round(w),math.round(h),round,0,true)
@@ -564,14 +578,14 @@ function RoundButton:_draw(offx, offy, alpha, event, clipw, cliph, cltargetx, cl
         textx = x + 10
         texty = y + (h - texth) / 2
     end
-    self:setcolor("#FFFFFF")
+    self:setcolor(textcolor)
     font:draw(text, textx, texty)
 end
 
 
 
 function RoundButton:_handle_mousedown(event)
-    local ok = rtk.Text._handle_mousedown(self, event)
+    local ok = rtk.Widget._handle_mousedown(self, event)
     if ok ~= false then
         return ok
     end
@@ -587,6 +601,7 @@ function RoundButton:_handle_mousedown(event)
             self.new_x = self.state == 'off' and self.x_off or self.x_on
         end
     end
+    return true
 end
 
 function RoundButton:_handle_mouseup(event)

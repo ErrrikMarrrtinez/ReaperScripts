@@ -1,6 +1,6 @@
 -- @description ReaProjects - Project Manager
 -- @author mrtnz
--- @version 0.1.24-alpha
+-- @version 0.1.25-alpha
 -- @changelog
 --  Fix error with nil files
 --  Added group editor (beta)
@@ -38,8 +38,8 @@ all_paths_list = {}
 
 --- modules ---
 dofile(cur_path.."modules"..sep.."widgets.lua")
-dofile(cur_path.."modules"..sep.."func.lua");                 if check_exts() then return end; 
-dofile(cur_path.."modules"..sep.."variables.lua")                check_and_create_files(data_path)
+dofile(cur_path.."modules"..sep.."func.lua");                 check_and_create_files(data_path);if check_exts() then return end; 
+dofile(cur_path.."modules"..sep.."variables.lua")                
 rtk.add_image_search_path(cur_path..sep.."icons", 'dark')
 --------------------
 --- initialize ---
@@ -82,6 +82,7 @@ recent_projects_path      = get_recent_projects(ini_path)
 new_paths, all_paths_list = get_all_paths(recent_projects_path)
 sorted_paths              = sort_paths(new_paths, all_paths_list, MAIN_PARAMS.sort, MAIN_PARAMS.sort_dir)
 
+ALL_PROJECTS_INIT         = {}
 -----------------------
 -----create window-----
 -----------------------
@@ -138,28 +139,22 @@ local left_vbox_sect = main_hbox_window:add(rtk.VBox{B_heigh=27, spacing=def_spa
 
 --settings block--
 local main_settings_box = main_vbox_window:add(rtk.VBox{ref='set', w=1, visible=false})
-local VP_settings_vbox = rtk.VBox{spacing=def_spacing, padding=2, margin=2,w=1}
+local VP_settings_vbox = rtk.VBox{spacing=def_spacing, padding=2, w=1}
 local VP_settings = main_settings_box:add(rtk.Viewport{child = VP_settings_vbox, smoothscroll = true,scrollbar_size = 12,z=2})
 
 local cont_player = VP_settings_vbox:add(rtk.Container{w=1})
 cont_player:add(rtk.VBox{padding=12, ref='player', spacing=def_spacing})
 
-cont_player.refs.player:add(
-    rtk.HBox{
-        spacing=20,
-        valign='center',
-        rtk.Spacer{w=0.43, bborder='2px '..COL11},
-        rtk.Heading{fontsize=24,
-            font='Verdena', 
-            "Media Player Paths"
-        },
-        rtk.Spacer{
-            w=1,
-            bborder='2px ' .. COL11,
-        },
-})
 
 
+local hbox_settings_heading_1 = cont_player.refs.player:add(
+    rtk.HBox{spacing=20,valign='center',lmargin=50,})
+hbox_settings_heading_1:add(
+    rtk.Spacer{border='2px '..COL11},{fillw=true})
+hbox_settings_heading_1:add(
+    rtk.Heading{fontsize=24,font='Verdena', "Global settings"})
+hbox_settings_heading_1:add(
+    rtk.Spacer{bborder='4px '..COL11},{fillw=true})
 
 local VB_media=cont_player.refs.player:add(
     rtk.VBox{
@@ -179,6 +174,7 @@ local VB_media=cont_player.refs.player:add(
         },
     {halign='center',}
 )
+
 
 
 
@@ -352,7 +348,7 @@ end
 local GRP_minw,GRP_maxw,GRP_minh,GRP_w=95,175,145,0.25
 local OPEN_container, OPEN_heading, OPEN_vp_vbox = create_container({minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, h=0.25, w=GRP_w}, left_vbox_sect,'OPEN PROJECTS')
 local NEW_container, NEW_heading, NEW_vp_vbox = create_container({minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, h=0.335, w=GRP_w}, left_vbox_sect, 'NEW PROJECTS')
-local GROUP_container, group_heading, group_vp_vbox = create_container({minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, h=1, w=GRP_w}, left_vbox_sect, 'GROUPS')
+local GROUP_container, group_heading, group_vp_vbox = create_container({minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, h=1, w=GRP_w}, left_vbox_sect, 'GROUPS');group_vp_vbox:attr('spacing', 2)
 local IMG_container, IMG_head, vp_images2 = create_container({minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, h=1, w=GRP_w}, left_vbox_sect, '[<]   IMG   [>]')
 
 local OPEN_selected_project = create_b(OPEN_vp_vbox, "OPEN", 1, left_vbox_sect.B_heigh)
@@ -630,7 +626,7 @@ local HEADING_types_hbox = rtk.HBox{ref='heading', y=-6.5,}
 
 function create_block_list()
     HEADING_types_hbox:hide()
-    local flowbox_main = rtk_FlowBox({lmargin=4, expand=4, spacing=-1, w=1})
+    local flowbox_main = rtk_FlowBox({bmargin=6, expand=4, spacing=-1, w=1})
     --local flowbox_main = rtk.FlowBox{margin=4, expand=4, spacing=-2, w=1}
     flowbox_main:remove_all()
     list_vbox_group:remove_all()
@@ -771,9 +767,12 @@ function create_block_list()
                 popup_by_path:move(x_norm, y_norm)
                 popup_by_path:attr('shadow', SELECTED_COL.."35")
                 popup_by_path:attr('alpha', 0.94)
-                if isNotSelected then
-                    unselect_all_path()
+                if n.sel == 0 then
+                    if not ctrl then
+                        unselect_all_path()
+                    end
                 end
+                
                 recolor(bg_roundrect, SELECTED_COL, smooth)
                 n.sel = 1
                 native_menu(n)
@@ -836,7 +835,7 @@ function create_block_list()
             
         end
         local function update_hover()
-            val_touchscroll = get_modifier_value(KEY_FOR_TOUCHSCROLL)
+            local val_touchscroll = get_modifier_value(KEY_FOR_TOUCHSCROLL)
             mouse_state = reaper.JS_Mouse_GetState(val_touchscroll)  
             rtk.touchscroll = (mouse_state == val_touchscroll) -- true or false
             isRunning = false
@@ -1108,7 +1107,7 @@ function create_list()
                 data.raiting = 4
                 data.comment = "last version"
                 data.tags = {"#OLDEST", "#TEST", "#WARIOUS"}
-                print(n.path, data.dl, data.raiting, data.comment, table.concat(data.tags) )
+                p-rint(n.path, data.dl, data.raiting, data.comment, table.concat(data.tags) )
                 ]]
                 save_parameter(n.path, data)
             end
@@ -1170,7 +1169,7 @@ end
 
 
 collection_all = {
-name="Искушённый соблазномzsd",
+name="3",
 sec_name="Грустный",
 img="1.png",
 list={
@@ -1184,10 +1183,12 @@ list={
 tags={},
 comment="",
 raiting=3,
-bgcol="#7a7a7a"
+bgcol="#7a7a7a",
 }
---save_parameter("гdsавввxcvsно",collection_all, workspace_file)
+--save_parameter("Тридэ",collection_all, workspace_file)
 --get_all_names(collections_file)
+
+
 function initialize_data(name, file)
     local data
     local uuid
@@ -1203,16 +1204,14 @@ function initialize_data(name, file)
             rating = 0,
             comment = "",
             img = "",
-            list = {""},
+            list = {},
             tags = {},
-            num = 0,
         }
         uuid = rtk.uuid4()
     end
 
     return data, uuid
 end
-
 
 function move_button(src_button, target, box)
     local src_idx = box:get_child_index(src_button)
@@ -1224,50 +1223,140 @@ function move_button(src_button, target, box)
     end
 end
 
-
 function update_data_list(DATA, children)
     DATA.list = {}
     for i, hbox in ipairs(children) do
-        hbox=hbox[1]
+        local hbox=hbox[1]
         table.insert(DATA.list, hbox.inf)
     end
-    
 end
-          
-function show_list_group(vbox_list, DATA, hbox_buttons, group)
+
+function contains(table, element)
+    for _, value in ipairs(table) do
+        if value == element then
+            return true
+        end
+    end
+    return false
+end 
+
+function replace_tab(tab, old_name, new_name)
+    for i, value in ipairs(tab) do
+        if value == old_name then
+            tab[i] = new_name
+            return true
+        end
+    end
+    return false
+end
+
+function get_file_state(path)
+    local ret, 
+          _, 
+          _,
+          _, 
+          _, 
+          _, 
+          _, 
+          _, 
+          _, 
+          _, 
+          _, 
+          _ 
+          = reaper.JS_File_Stat(path)
+          return ret
+end
+
+function update_state(state, condition, vbox_list)
+    for i, elems in ipairs(vbox_list) do
+        local hbox = elems[1]
+        for j, elms in ipairs(hbox.children) do
+            if j == 2 then
+                local button = elms[1]
+                if condition(button) then
+                    button:attr('state', state)
+                end
+            end
+        end
+    end
+end
+        
+function browse_rpp_files(title)
+    local title = title or 'Select new project file'
+    local ext_list = "RPP files (*.rpp;*.RPP)\0*.rpp;*.RPP\0RTrackTemplate files (*.RTrackTemplate)\0*.RTrackTemplate\0\0"
+    local ret, path = reaper.JS_Dialog_BrowseForOpenFiles(
+                      title , 
+                      "", 
+                      projects, 
+                      ext_list, 
+                      false)
+    return ret, path
+end
+
+local menu_group_elems = rtk.NativeMenu()
+ 
+menu_group_elems:set({
+    {'Open path', id='path'},
+    {'Show folder', id='show_folder'},
+    {'Open project', id='open', submenu={
+        {'Open project', id='open_project'},
+        {'New tab', id='new_tab'},
+        {'Recovery', id='recovery'},
+    }},
+    rtk.NativeMenu.SEPARATOR,
+    {'Move to' , id='move_to', submenu={
+        rtk.NativeMenu.SEPARATOR,--{'Open project', id='open_project'},
+        rtk.NativeMenu.SEPARATOR,--{'New tab', id='new_tab'},
+        rtk.NativeMenu.SEPARATOR,--{'Recovery', id='recovery'},
+    }},
+    {'Show statistic (Does not work)' , id='stat'},
+    {'Remove' , id='remove'},
+})
+
+function show_list_group(vbox_list, DATA, hbox_buttons, group, parent)
     vbox_list:remove_all()
     local col = "#9a9a9a"
     local dragging = nil
     local str_list = DATA.list
+    local not_founded = 0
     hbox_buttons:remove_all()
     --
+    
+    
     
     hbox_buttons:add(RoundButton{ref='add', round=8, halign='center', h=1, toggle=false, color='#9a9a9a', 'ADD PATH'},{fillw=true})
     hbox_buttons:add(RoundButton{z=2, rmargin=-6, lmargin=-6, round=0, halign='center', h=1, toggle=false, color='#9a9a9a', 'COPY'},{fillw=true})
     hbox_buttons:add(RoundButton{disabled=true, z=2, rmargin=-6, lmargin=-6, round=0, halign='center', h=1, toggle=false, color='#9a9a9a', 'PAST'},{fillw=true})
     hbox_buttons:add(RoundButton{round=8, halign='center', h=1, toggle=false, color='#9a9a9a', 'REMOVE ALL'},{fillw=true})
     
-    hbox_buttons.refs.add.onclick=function(self,event)
-         local ret, dir = reaper.JS_Dialog_BrowseForFolder("Select a folder to scan the rpp", "" )
-         if ret then
+    hbox_buttons.refs.add.onclick = function(self, event)
+        local ret, dir = reaper.JS_Dialog_BrowseForFolder("Select a folder to scan the rpp", "")
+        if ret then
             local paths = check_rpp_files(dir)
             for _, path in ipairs(paths) do
-                table.insert(str_list, path)
+                if not contains(str_list, path) then
+                    table.insert(str_list, path)
+                end
             end
             save_parameter(group, DATA, workspace_file)
-            show_list_group(vbox_list, DATA, hbox_buttons, group)
-         end
+            show_list_group(vbox_list, DATA, hbox_buttons, group, parent)
+        end
     end
     
+    
     for i, projects in ipairs(str_list) do
+        if i == #str_list then vbox_list:focus() end
         local filename, path = extract_name(projects)
+        local title
+        
         local hbox = vbox_list:add(
             rtk.HBox{
                 spacing=4,
                 ref='hb',
                 inf = projects,
-                rmargin=-5,
-                h=24,
+                h=23,
+                --padding=2,
+                z=10,
                 w=1,
                 }
         )
@@ -1277,7 +1366,6 @@ function show_list_group(vbox_list, DATA, hbox_buttons, group)
                 ref='edit',
                 round=8,
                 halign='center', 
-                y=-1,
                 color = 'transparent',
                 w=30,
                 h=1,
@@ -1292,20 +1380,20 @@ function show_list_group(vbox_list, DATA, hbox_buttons, group)
                 ref='b',
                 round=8,
                 color=col, 
-                halign='center', 
-                y=-1,
+                halign='left', 
+                z=5,
                 h=1,
-                toggle=false,
-                text=filename,
+                autohover=false, 
+                toggle=true,
+                text= filename,
                 }, { fillw=true} )
                 
-        vbox_list.refs.hb:add(
+        local edit_b = vbox_list.refs.hb:add(
             RoundButton{
                 ref='edit',
                 round=8,
                 color=col, 
                 halign='center', 
-                y=-1,
                 w=25,
                 h=1,
                 toggle=false,
@@ -1313,64 +1401,202 @@ function show_list_group(vbox_list, DATA, hbox_buttons, group)
                 text="✎"
                 } )
                 
-          vbox_list.refs.hb:add(
-              RoundButton{
-                  ref='delete',
-                  round=8,
-                  color='#ba1515', 
-                  halign='center', 
-                  y=-1,
-                  w=25,
-                  h=1,
-                  toggle=false,
-                  fontsize=19,
-                  text="✖"
-                  } )
-          
-          drag_n_drop_b.ondragstart = function(self, event)
-               btn_name:attr('color', 'red')
-               btn_name:blur()
-               self:attr('color', 'crimson')
-               dragging = hbox
-               return true
-          end
-          
-          drag_n_drop_b.ondragend = function(self, event)
-              btn_name:attr('color', col)
-              self:attr('color', 'transparent')
-              dragging = nil
-              update_data_list(DATA, vbox_list.children)
-              save_parameter(group, DATA, workspace_file)
-              return true
-          end
-          
-          vbox_list.refs.hb.refs.delete.onclick = function(self, event)
-              vbox_list:remove_index(i)
-              update_data_list(DATA, vbox_list.children)
-              save_parameter(group, DATA, workspace_file)
-          end
-          
-          drag_n_drop_b.ondropfocus = function(self, event, _, src_button)
-              return true
-          end
-          
-          drag_n_drop_b.ondropmousemove = function(self, event, _, src_button)
-              if dragging ~= nil then
-                  move_button(dragging , hbox , vbox_list)
-              end
-              return true
-          end
-          
-          drag_n_drop_b.onclick=function(self,event)
-              for i, elem in ipairs(DATA.list) do
-                  print(elem)
-              end
-          end
-          
-          btn_name.ondropfocus = drag_n_drop_b.ondropfocus
-          
-          btn_name.ondropmousemove = drag_n_drop_b.ondropmousemove
+        local delete_b = vbox_list.refs.hb:add(
+            RoundButton{
+                ref='delete',
+                round=8,
+                color='#ba1515', 
+                halign='center', 
+                w=25,
+                h=1,
+                toggle=false,
+                fontsize=19,
+                text="✖"
+                } )
+
+        drag_n_drop_b.ondragstart = function(self, event)
+            if LBM(event) and #str_list > 1 then
+                btn_name:attr('toggle', false)
+                btn_name:attr('color', 'red')
+                btn_name:attr('disabled', true)
+                btn_name:blur()
+                hbox:attr('border','orange#20')
+                edit_b:hide()
+                delete_b:hide()
                 
+                self:attr('color', 'crimson')
+                self:attr('rmargin', 30)
+                dragging = hbox
+            end
+            return true
+        end
+        
+        drag_n_drop_b.ondragend = function(self, event)
+            btn_name:attr('color', col)
+             btn_name:attr('toggle', true)
+            btn_name:attr('disabled', false)
+            self:attr('color', 'transparent')
+            hbox:attr('border', false)
+            self:attr('rmargin', 0)
+            edit_b:show()
+            delete_b:show()
+            dragging = nil
+            update_data_list(DATA, vbox_list.children)
+            save_parameter(group, DATA, workspace_file)
+            return true
+        end
+        
+        edit_b.onclick = function(self, event)
+            local ret, path = browse_rpp_files(title)
+            if ret == 1 then
+                replace_tab(DATA.list, projects, path)
+                save_parameter(group, DATA, workspace_file)
+                show_list_group(vbox_list, DATA, hbox_buttons, group, parent)
+            end
+            
+        end
+        
+        vbox_list.refs.hb.refs.delete.onclick = function(self, event)
+            vbox_list:remove_index(i)
+             
+            update_data_list(DATA, vbox_list.children)
+            save_parameter(group, DATA, workspace_file)
+            show_list_group(vbox_list, DATA, hbox_buttons, group, parent)
+            for i, n in ipairs(parent.children) do
+                local b = n[1]
+                if b.ref == 'b' then
+                    b:attr('text', #str_list .. " projects")
+                end
+            end
+        end
+        
+        drag_n_drop_b.ondropfocus = function(self, event, _, src_button)
+            return true
+        end
+        
+        drag_n_drop_b.ondropmousemove = function(self, event, _, src_button)
+            if dragging ~= nil then
+                move_button(dragging , hbox , vbox_list)
+            end
+            return true
+        end
+        
+        local vbox_children = vbox_list.children
+
+        btn_name.onmousedown = function(self, event)
+            local shift = event.shift
+            local alt = event.alt
+            local ctrl = event.ctrl
+            if LBM(event) then
+                self:attr('state', self.state == 'off' and 'on' or 'off')
+                if shift then
+                    local idx_current
+                    local last_idx = 1
+                    for i, elems in ipairs(vbox_list.children) do
+                        local hbox = elems[1]
+                        for j, elms in ipairs(hbox.children) do
+                            if j == 2 then
+                                local button = elms[1]
+                                if button == self then
+                                    idx_current = i
+                                end
+                                if button.state == 'on' and button ~= self then
+                                    last_idx = i
+                                end
+                                button:attr('state', 'off')
+                            end
+                        end
+                    end
+                    local start_idx = math.min(idx_current, last_idx)
+                    local end_idx = math.max(idx_current, last_idx)
+                    for i = start_idx, end_idx do
+                        local hbox = vbox_list.children[i][1]
+                        hbox.children[2][1]:attr('state', 'on')
+                    end
+                elseif alt then
+                    update_state('off', function(button) return true end, vbox_children)
+                end
+            end
+            if ctrl or RBM(event) then
+                update_state('off', function(button) return true end, vbox_children)
+                self:attr('state', 'on')
+            end
+            return true
+        end
+        
+        vbox_list.onkeypress=function(self,event)
+            if event.ctrl and event.char == 'a' then
+                update_state('on', function(button) return true end, vbox_children)
+            end
+            return true
+        end
+        
+        btn_name.ondropfocus = drag_n_drop_b.ondropfocus
+        
+        btn_name.ondropmousemove = drag_n_drop_b.ondropmousemove
+        
+        if get_file_state(projects) == -1 then
+            title = "Replace project file"
+            btn_name:attr('toggle',false)
+            btn_name:attr('text',btn_name.text.." (NOT FOUND)")
+            hbox:attr('bg','red#20')
+            edit_b:attr('color', '#00b200')
+            not_founded = not_founded + 1
+
+            for i, n in ipairs(parent.children) do
+                local b = n[1]
+                
+                --parent:add(new_b)
+                
+                if b.ref == 'not_found' then
+                   b:show()
+                   b:attr('text', not_founded .. " not found")
+
+                end
+            end
+            
+        end
+        
+        for i, n in ipairs(parent.children) do
+            local b = n[1]
+            if b.ref == 'b' then
+                b:attr('text', #str_list .. " projects")
+            end
+        end
+        
+        drag_n_drop_b.onclick=function(self,event)
+            if RBM(event) then
+                menu_group_elems:open_at_mouse(drag_n_drop_b, "right", "top"):done(function(item) 
+                    if not item then return end
+                    if item.id == 'path' then
+                        reaper.CF_LocateInExplorer(projects)
+                    elseif item.id == 'show_folder' then
+                        reaper.CF_LocateInExplorer(path)
+                    elseif item.id == 'open_project' then
+                        reaper.Main_openProject(projects)
+                    elseif item.id == 'new_tab' then
+                        NEW_project_tab:onclick()
+                        reaper.Main_openProject(projects)
+                    elseif item.id == 'recovery' then
+                        NEW_project_tab:onclick()
+                        open_project_recovery(projects)
+                    end
+                end)
+            end
+        end
+    end
+    
+    local vbox_children = vbox_list.children
+    
+    vbox_list.refs.hb.onreflow=function(self,event)
+        for i, elems in ipairs(vbox_children) do
+            local hbox = elems[1]
+            if self.calc.w <= 330 and self.calc.w >= wnd.minw/2 then
+                local norm_value = norm(self.calc.w, wnd.minw/2, 330)
+                local val = lerp(0, 5, norm_value)
+                hbox:attr('spacing', val)
+            end
+        end
     end
 end
 
@@ -1385,6 +1611,59 @@ function create_group_container(vbox, data, height, color_shift)
     return cont_collections, NEW_COL
 end
 
+function create_group_editor()
+    local entry_tag, cont_tag = rtk_Entry(cont_hbox, "#3a3a3a", "#3a3a3a", 12, "Set name for group")
+    entry_tag:attr('value', DATA.name)
+    entry_tag:attr('font', 'Verdena')
+end
+
+function remove_elems(tab)
+    local new_tab = {}
+    local missed = 0
+    for i = #tab, 1, -1 do
+        if get_file_state(tab[i]) == -1 then
+            table.remove(tab, i)
+            missed = missed + 1
+        else
+            table.insert(new_tab, tab[i])
+        end
+    end
+    return new_tab, missed
+end
+
+
+group_vp_vbox:attr('margin', 5)
+group_vp_vbox:attr('padding', 5)
+
+function create_group_leftsection(gr, DATA, data_list)
+    local vbox = gr
+    local new_tab = {}
+    
+    for i, n in ipairs(data_list) do
+        table.insert(new_tab, n)
+    end
+    
+    local clean_paths, missed_paths = remove_elems(new_tab)
+    table.insert(ALL_PROJECTS_INIT, clean_paths)
+    
+    vbox:add(RoundButton{ref='_group', round=2, color=DATA.bgcol, halign='center',w=1, h=25, toggle=false, text=DATA.name})
+    vbox.refs._group.onclick = function(self, event)
+        if LBM(event) then
+            if #clean_paths > 0 then
+                new_paths, all_paths_list = get_all_paths(clean_paths)
+                sorted_paths              = sort_paths(new_paths, all_paths_list, MAIN_PARAMS.sort, MAIN_PARAMS.sort_dir)
+                main_run()
+            end
+            
+        end
+    end
+    if #new_tab == 0 then
+        vbox.refs._group:attr('disabled', true)
+    end
+    
+    return missed_paths
+end
+    
 function create_group_block(vbox, vbox_list, DATA, all_tabs, group, i, hbox_buttons)
     local cont_collections = create_group_container(vbox, DATA, 80, 0.8)
     local vbox_grp = cont_collections:add(rtk.VBox{spacing=def_spacing, h=1, padding=5})
@@ -1392,12 +1671,23 @@ function create_group_block(vbox, vbox_list, DATA, all_tabs, group, i, hbox_butt
     cont_hbox:add(RoundButton{disabled=true, ref='b', round=16, text="",color='#5a5a5a', halign='center', y=-1, h=40, w=1, toggle=false})
     cont_hbox:add(rtk.Heading{padding=4, w=1, h=cont_hbox.refs.b.calc.h, wrap=true, fontflags=rtk.font.BOLD, fontsize=18, valign='center', halign='center', font='Verdena', text=DATA.name})
     vbox_grp:add(rtk.HBox{
-        RoundButton{ref='b', round=8, color='#6a6a6a', halign='center', y=-1, w=80, disabled=true, h=25, toggle=false, text=#DATA.list.. " projects"},
+        ref='hbox',
+        RoundButton{autohover=false, ref='b', round=8, color='#6a6a6a', halign='center', y=-1, w=80, disabled=true, h=25, toggle=false, text=#DATA.list.. " projects"},
+        RoundButton{autohover=false, x=2,ref='not_found', round=8, color='#952222', halign='center', y=-1, w=80, disabled=true, h=25, toggle=false, text=" "},
+        --RoundButton{x=4, ref='scan', round=8, color='purple', halign='left', w=0.64,y=-1, disabled=false, h=25, toggle=true, text="Auto-scan"},
         rtk.Box.FLEXSPACE,
         RoundButton{ref='edit', round=8, color='#6a6a6a', halign='center', y=-1, w=35, x=-2, h=25, toggle=false, fontsize=27, text="✎"},
         RoundButton{ref='delete', round=8, color='#ba1515', halign='center', y=-1, w=35, h=25, toggle=false, fontsize=19, text="✖"}
     })
-    local active_col = "#8a8a8a"
+    
+    local missed_paths = create_group_leftsection(group_vp_vbox, DATA, DATA.list)
+    vbox_grp.refs.not_found:hide()
+    if missed_paths > 0 then
+        
+        vbox_grp.refs.not_found:show()
+        vbox_grp.refs.not_found:attr('text', missed_paths.." not found")
+    end
+    
     cont_collections.onmouseenter = function(self, event) recolor(cont_collections.refs.first_bg_spacer, active_col) return true end
     cont_collections.onmouseleave = function(self, event) recolor(cont_collections.refs.first_bg_spacer, shift_color(DATA.bgcol, 1.0, 0.7, 0.8)) end
     cont_collections.onmousedown = function(self, event)
@@ -1406,33 +1696,37 @@ function create_group_block(vbox, vbox_list, DATA, all_tabs, group, i, hbox_butt
                 tab.refs.b:attr('color', shift_color(DATA.bgcol, 1.0, 0.7, 0.8)) 
             end
             cont_hbox.refs.b:attr('color', active_col)
-            show_list_group(vbox_list, DATA, hbox_buttons, group)
+            show_list_group(vbox_list, DATA, hbox_buttons, group, vbox_grp.refs.hbox)
         end
         return true
     end
     vbox_grp.refs.delete.onclick=function(self,event)
         delete_array(group, workspace_file)
-        vbox:remove_index(i)
+        local idx = vbox:get_child_index(cont_collections)
+        vbox:remove_index(idx)
     end
     table.insert(all_tabs, cont_hbox)
 end
 
 function create_workspace(vbox, vbox_list, hbox_buttons)
     vbox:remove_all()
-    local button_add = vbox:add(rtk.Button{w=1, h=45, "ADD"})
+    local button_add = vbox:add( rtk.Button{w=1, h=45, "ADD"} )
     
     button_add.onclick=function()
         local key = rtk.uuid4() 
         local DATA_temp, key = initialize_data(nil, nil)
         
-        save_parameter(key, DATA_temp, workspace_file)
+        save_parameter_sort(key, DATA_temp, workspace_file)
         create_workspace(vbox, vbox_list, hbox_buttons)
     end
     
     local all_tabs = {}
-    for i, group in ipairs(get_all_names(workspace_file)) do
+    --local names = get_all_names2(workspace_file)
+    local names = get_all_names(workspace_file)
+    for i, group in ipairs(names) do
         local DATA = initialize_data(group, workspace_file)
         local cont_hbox = create_group_block(vbox, vbox_list, DATA, all_tabs, group, i, hbox_buttons)
+        
     end
 end
  
@@ -1510,6 +1804,7 @@ function create_collection(vbox, vbox_list)
         ]]
         cont_collections.onclick=function(self, event)
             show_list_group(vbox_list, DATA.list)
+            
         end
     end
 end
@@ -1544,14 +1839,12 @@ ORGANIZE_BUTTONS_HB:add(RoundButton{round=6, halign='center', y=-1, h=26, w=120,
 ORGANIZE_BUTTONS_HB:add(RoundButton{round=6, halign='center', y=-1, h=26, w=120, toggle=false, color='#9a9a9a', 'Remove'})
 --RIGHT AND LEFT SECTIONS
 local collections_main = vp_group:add(rtk.HBox{spacing=def_spacing})
-local COLLECTIONS_VB=collections_main:add(rtk.VBox{border='aqua', w=0.5, h=0.64, },{})
+local COLLECTIONS_VB=collections_main:add(rtk.VBox{h=0.64, w=0.5, },{fillh=true, })
 
 
 
 
 local vb_right_sect_grp = collections_main:add(rtk.Container{},{})
-
-
 local list_cont_gr, hb_head_gr_list, vp_gr_list, viewport_group_l = create_container({halign='center', w=1, h=0.64}, vb_right_sect_grp)
           hb_head_gr_list:attr('h', 50)
           viewport_group_l:attr('y', -2)
@@ -1567,9 +1860,20 @@ hb_head_gr_list:add(rtk.HBox{h=0.64, padding=3, ref='hb'},{fillh=true, fillw=tru
 
 --local VB_COLL_LIST = vb_right_sect_grp:add( rtk.Viewport{scrollbar_size=8, border='red', h=0.64, w=1, child = COLL_LIST_VB} )
 --MAIN VBOX LIST PROJECTS
-local COLLECTIONS_VB_child=rtk.FlowBox{hspacing=def_spacing, vspacing=def_spacing, w=1}
---COLLECTIONS_VB_child=rtk_FlowBox({spacing=def_spacing, w=1})
-local COLLECTIONS_VB_VIEWPORT=COLLECTIONS_VB:add(rtk.Viewport{child=COLLECTIONS_VB_child})
+--local COLLECTIONS_VB_child=rtk.FlowBox{hspacing=def_spacing, vspacing=def_spacing, w=1}
+
+local vb_left_sect_grp = COLLECTIONS_VB:add(rtk.Container{},{})
+local list_cont_gr_right, hb_head_gr_right, vp_grlist_right, viewport_group_2 = create_container({halign='center', w=1 }, vb_left_sect_grp)
+          hb_head_gr_right:attr('h', 50)
+          viewport_group_2:attr('y', -2)
+          vp_grlist_right:attr('z', 10)
+          vp_grlist_right:attr('tmargin', -10)
+          vp_gr_list:attr('spacing', 4)
+          hb_head_gr_right.refs.HIDE:attr('bg', "#3a3a3a")
+          recolor(list_cont_gr_right.refs.BG, "#3a3a3a")
+          --vp_grlist_right=rtk.FlowBox{hspacing=def_spacing, vspacing=def_spacing, w=1}
+hb_head_gr_right:add(rtk.HBox{h=0.64, padding=3, ref='hb'},{fillh=true, fillw=true})
+--local COLLECTIONS_VB_VIEWPORT=COLLECTIONS_VB:add(rtk.Viewport{child=COLLECTIONS_VB_child})
 
 
 --[[
@@ -1591,7 +1895,7 @@ vb_right_sect_grp:add(
 --EXTRACT ALL SAVED COLLECTIONS
 --create_collection(COLLECTIONS_VB_child, COLL_LIST_VB)
 
-create_workspace(COLLECTIONS_VB_child, vp_gr_list, hb_head_gr_list.refs.hb)
+create_workspace(vp_grlist_right, vp_gr_list, hb_head_gr_list.refs.hb, hb_head_gr_right.hb)
 
 --BOTTOM SECTION UNDER list
 vp_group:add(rtk.HBox{border='blue', rmargin=4, h=0.2,  w=1})
@@ -1608,7 +1912,7 @@ pop_up_editor.onclose=function(self,event)
     main_vbox_window:show()
 end
 
-open_group_editor:onclick()
+--open_group_editor:onclick()
 
 
 
@@ -1719,7 +2023,7 @@ function create_tag(DATA, tags_hbox_widgets, all_info)
     end
     
     TAGS_VP.onmousedown=function(self, event)
-        if event.button == rtk.mouse.BUTTON_RIGHT then
+        if RBM(event) then
             MENU_TAGS:open_at_mouse(TAGS_VP, "right", "bottom"):done(function(item) 
                 if not item then return end
                 if item.id == 'add' then
@@ -1883,7 +2187,13 @@ function update_player(all_info)
     
     
     draging = true
-
+    text_end.tog = true
+    
+    local prev_position = nil
+    local prev_time_text = nil
+    
+    local last_update_time = os.clock() -- Получаем текущее время
+    
     local function upd()
         if cont_img.mouseover then
             spacer:show()
@@ -1891,20 +2201,37 @@ function update_player(all_info)
             spacer:hide()
         end
         
-        --update_state(vp_images2, wnd, img)
-
         if preview and draging then
             time, want_pos, position, length = get_play_info(preview)
-            slider_length_audio:attr('max', length)
-            slider_length_audio:attr('value', position)
-            text_start:attr('text', time:match("([^%.]*)"))
-            text_end:attr('text', want_pos:match("([^%.]*)"))
+            
+            if os.clock() - last_update_time > 1 and position ~= prev_position then
+                slider_length_audio:attr('value', position)
+                prev_position = position
+                last_update_time = os.clock()
+            end
+            
+            local time_text = time:match("([^%.]*)")
+            if time_text ~= prev_time_text then
+                text_start:attr('text', time_text)
+                prev_time_text = time_text
+            end
+            
+            if text_end.tog then
+                slider_length_audio:attr('max', length)
+                text_end:attr('text', want_pos:match("([^%.]*)"))
+                text_end.tog = false
+            end
+    
             for i = 0, 2 - 1 do
-              local valid, peak = reaper.CF_Preview_GetPeak(preview, i)
+                local valid, peak = reaper.CF_Preview_GetPeak(preview, i)
             end
         end
         rtk.defer(upd)
     end
+    
+    -- Запуск функции обновления
+    upd()
+    
     
     img.onmousedown = function(self, event)
         waitingForRelease=false
@@ -2081,11 +2408,6 @@ local cont_info_bar = main_vbox_list:add(rtk.Container{w=1, h=30})
 local info_bar = create_spacer(cont_info_bar, COL1, COL3, round_rect_window)
 
 
---[[
-MAIN_PARAMS.TYPE_module = 0
-main_run()
-save_parameter(MAIN_PARAMS)
-]]
 
 wnd:open()
 
@@ -2095,9 +2417,16 @@ function main_run()
     else
         create_block_list()
     end
+    table.insert(ALL_PROJECTS_INIT, sorted_paths)
+    
+    if AUTO_CLEAN_INFO then
+        clean_old_projects(ALL_PROJECTS_INIT, params_file)
+    end
 end
 
 main_run()
+
+
 
 --[[
 COLLECTIONS_VB_VIEWPORT=COLLECTIONS_VB:add(rtk.Viewport{scroll_left = 1, flexw = true, child=COLLECTIONS_VB_child})
