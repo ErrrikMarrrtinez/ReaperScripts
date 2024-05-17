@@ -354,17 +354,15 @@ end
 
 -- Функция для чтения и декодирования данных из файла
 -- @param file_path Путь к файлу для чтения (необязательно)
-function read_and_decode2(file_path)
-    file_path = file_path or params_file
+function read_and_decode(file_path)
+    file_path = file_path or params_data
     local file = io.open(file_path, "r")
     local data = file:read("*all")
     file:close()
-
     local decoded_data = {}
     if data ~= "" then
         decoded_data = json.decode(data)
     end
-
     return decoded_data
 end
 
@@ -374,10 +372,27 @@ end
 -- @param file_path Путь к файлу для сохранения (необязательно)
 function save_parameter(param, value, file_path)
     file_path = file_path or params_file
-    local decoded_data = read_and_decode2(file_path)
+    local decoded_data = read_and_decode(file_path)
+    decoded_data[param] = value
+    -- Сохраняем данные с отступами для лучшей читаемости
+    local updated_data = json.encode(decoded_data, {indent = true})
+    local file = io.open(file_path, "w")
+    file:write(updated_data)
+    file:close()
+end
+
+function save_parameter_sort(param, value, file_path)
+    file_path = file_path or params_file
+    local decoded_data = read_and_decode(file_path)
+    -- Если ключ новый, добавляем его в порядок
+    if not decoded_data[param] then
+        if not decoded_data["_key_order"] then
+            decoded_data["_key_order"] = {}
+        end
+        table.insert(decoded_data["_key_order"], param)
+    end
     decoded_data[param] = value
     local updated_data = json.encode(decoded_data)
-
     local file = io.open(file_path, "w")
     file:write(updated_data)
     file:close()
@@ -388,65 +403,39 @@ end
 -- @param file_path Путь к файлу для чтения (необязательно)
 function get_parameter(param, file_path)
     file_path = file_path or params_file
-    local decoded_data = read_and_decode2(file_path)
+    local decoded_data = read_and_decode(file_path)
     return decoded_data[param]
-end
-
--- Функция для удаления параметра из файла
--- @param param Имя параметра для удаления
--- @param file_path Путь к файлу для обновления (необязательно)
-function clear_parameter(param, file_path)
-    file_path = file_path or params_file
-    local decoded_data = read_and_decode(file_path)
-    decoded_data[param] = nil
-    local updated_data = json.encode(decoded_data)
-    local file = io.open(file_path, "w")
-    file:write(updated_data)
-    file:close()
-end
-
--- Функция для чтения и декодирования данных из файла
--- @param file_path Путь к файлу для чтения (необязательно)
-function read_and_decode(file_path)
-    file_path = file_path or params_data
-    local file = io.open(file_path, "r")
-    local data = file:read("*all")
-    file:close()
-    local decoded_data = {}
-    if data ~= "" then
-        decoded_data = json.decode(data)
-    end
-
-    return decoded_data
-end
-
--- Функция для сохранения массива в файл
--- @param name Имя массива для сохранения
--- @param array Массив для сохранения
--- @param file_path Путь к файлу для сохранения (необязательно)
-function save_array(name, array, file_path)
-    file_path = file_path or params_data
-    local decoded_data = read_and_decode(file_path)
-    decoded_data[name] = array
-    local updated_data = json.encode(decoded_data)
-    local file = io.open(file_path, "w")
-    file:write(updated_data)
-    file:close()
-end
-
--- Функция для получения массива из файла
--- @param name Имя массива для получения
--- @param file_path Путь к файлу для чтения (необязательно)
-function get_array(name, file_path)
-    file_path = file_path or params_data
-    local decoded_data = read_and_decode(file_path)
-    return decoded_data[name]
 end
 
 -- Функция для удаления массива из файла
 -- @param name Имя массива для удаления
 -- @param file_path Путь к файлу для обновления (необязательно)
 function delete_array(name, file_path)
+    file_path = file_path or params_data
+    local decoded_data = read_and_decode(file_path)
+    decoded_data[name] = nil
+    -- Удаляем имя массива из _key_order
+    for i, key in ipairs(decoded_data["_key_order"] or {}) do
+        if key == name then
+            table.remove(decoded_data["_key_order"], i)
+            break
+        end
+    end
+    local updated_data = json.encode(decoded_data, {indent = true})
+    local file = io.open(file_path, "w")
+    file:write(updated_data)
+    file:close()
+end
+-- Функция для получения всех имен из файла
+-- @param file_path Путь к файлу для чтения (необязательно)
+function get_all_names(file_path)
+    file_path = file_path or params_data
+    local decoded_data = read_and_decode(file_path)
+    -- Возвращаем ключи в сохраненном порядке
+    return decoded_data["_key_order"] or {}
+end
+
+function delete_array_default(name, file_path)
     file_path = file_path or params_data
     local decoded_data = read_and_decode(file_path)
     decoded_data[name] = nil
@@ -457,8 +446,7 @@ function delete_array(name, file_path)
 end
 
 -- Функция для получения всех имен из файла
--- @param file_path Путь к файлу для чтения (необязательно)
-function get_all_names(file_path)
+function get_all_keys(file_path)
     file_path = file_path or params_data
     local saved_paths = {}
     local decoded_data = read_and_decode(file_path)
@@ -468,6 +456,26 @@ function get_all_names(file_path)
     return saved_paths
 end
 
+-- Функция для удаления информации о проектах, которые больше не присутствуют в текущем списке
+function clean_old_projects(current_projects, file_path)
+    file_path = file_path or params_data
+    local saved_paths = get_all_keys(file_path)
+
+    -- Создаем множество текущих проектов для быстрого поиска
+    local current_project_paths = {}
+    for _, project_list in ipairs(current_projects) do
+        for _, project_path in ipairs(project_list) do
+            current_project_paths[project_path] = true
+        end
+    end
+
+    -- Проверяем и удаляем старые проекты
+    for _, project_path in ipairs(saved_paths) do
+        if not current_project_paths[project_path] then
+            delete_array(project_path, file_path)
+        end
+    end
+end
 ------------------------------------------------------------------------
 ------------------------------------------------------------------------
 

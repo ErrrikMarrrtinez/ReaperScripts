@@ -656,7 +656,7 @@ tree_widgets()
 
 
 local vbox_down_part = vbox_backups_list_container:add(rtk.VBox{},{fillw=true})
-local hbox_entries_line = vbox_down_part:add(rtk.HBox{h=30,},{halign='right',})
+local hbox_entries_line = vbox_down_part:add(rtk.HBox{spacing=5, h=30,},{halign='right',})
 
 math.randomseed(os.time())
 local random_day = math.random(1, 28)
@@ -666,9 +666,9 @@ local vbox_finder = hbox_entries_line:add(rtk.HBox{spacing=5,},{fillh=true,})
 local text_per_last = vbox_finder:add(rtk.Text{'Show per last'},{valign='center'},{fillh=true,})
 local option_box = vbox_finder:add(rtk.HBox{spacing=5,},{fillh=true,})
 
-hbox_entries_line:add(rtk.Box.FLEXSPACE)
+--hbox_entries_line:add(rtk.Box.FLEXSPACE)
 
-entry_backups = hbox_entries_line:add(rtk.Entry{w=0.5,placeholder = string.format("%02d %s", random_day, random_month),},{fillh=true})entry_backups:focus()
+entry_backups = hbox_entries_line:add(rtk.Entry{placeholder = string.format("%02d %s", random_day, random_month),},{fillw=true, fillh=true})entry_backups:focus()
 --local find_backups_button = hbox_entries_line:add(rtk.Button{pading=3,"Find"},{fillh=true})
 
 
