@@ -570,14 +570,21 @@ function update_heigh_list(dir)
             text_name:attr('wrap', wrap)
             text_name2:attr('wrap', wrap)
     
-            MAIN_PARAMS.heigh_elems = math.floor( math.min(math.max(h + 15 * dir, 20), 100) )
-            
-            n.cont:animate{'h',dst=MAIN_PARAMS.heigh_elems, duration=0.1, easing="in-quad"} --in quad --out-elastic
-            
+            MAIN_PARAMS.heigh_elems = math.floor( math.min(math.max(h + 8 * dir, 20), 100) )
+            if GLOBAL_ANIMATE then
+                n.cont:animate{'h',dst=MAIN_PARAMS.heigh_elems, duration=0.1, easing="in-quad"} --in quad --out-elastic
+            else
+                n.cont:attr('h', MAIN_PARAMS.heigh_elems)
+            end
         end
     end
 end
 
+function reorder_box(box, boxfrom, params)
+    local idx = box:get_child_index(boxfrom)
+    local removed = box:remove_index(idx) 
+    box:add(removed, (params))
+end
 
 function pitchMode()
   return ps_modes[ps_mode].v == -1 and -1 or (ps_modes[ps_mode].v << 16)
@@ -755,12 +762,6 @@ function resize_image(path, save_directory, filename, new_width, new_height)
         local src_dc = reaper.JS_LICE_GetDC(src_bmp)
         local dest_dc = reaper.JS_LICE_GetDC(dest_bmp)
         reaper.JS_LICE_ScaledBlit(dest_bmp, 0, 0, new_width, new_height, src_bmp, start_x, start_y, src_w, src_h, 1, "COPY")
-
---[[        -- Add rounded corners
-        local corner_radius = 100 -- Adjust this to change the roundness of the corners
-        local color = 0x00000000 -- Transparent color
-        reaper.JS_LICE_RoundRect(dest_bmp, 0, 0, new_width, new_height, corner_radius, color, 1, "COPY", true)]]
-
         reaper.JS_LICE_WritePNG(final_path, dest_bmp, 1)
         reaper.JS_LICE_DestroyBitmap(src_bmp)
         reaper.JS_LICE_DestroyBitmap(dest_bmp)
