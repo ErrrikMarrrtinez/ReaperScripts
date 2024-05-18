@@ -50,7 +50,7 @@ DEF_IMG_H              = MAIN_PARAMS.default_img_h
 
 AUTO_CLEAN_INFO        = MAIN_PARAMS.autoclean
 --
-
+GLOBAL_SCALE           = rtk.scale.value
 
 
 CUSTOM_IMAGE_local     = 'customImages' .. sep

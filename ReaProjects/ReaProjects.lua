@@ -1,9 +1,8 @@
 -- @description ReaProjects - Project Manager
 -- @author mrtnz
--- @version 0.1.25-alpha
+-- @version 0.1.26-alpha
 -- @changelog
---  Fix error with nil files
---  Added group editor (beta)
+--  More Added Widgets
 -- @provides
 --   libs/*.lua
 --   modules/*.lua
@@ -90,7 +89,7 @@ ALL_PROJECTS_INIT         = {}
 
 
 
-local wnd = rtk.Window{opacity=0.98, borderless=false, x=MAIN_PARAMS.last_x,y=MAIN_PARAMS.last_y,bg=COL0, expand=1, w=MAIN_PARAMS.wnd_w, h=MAIN_PARAMS.wnd_h, padding=10, minh=670, minw=500, } 
+local wnd = rtk.Window{opacity=0.98, borderless=false, x=MAIN_PARAMS.last_x,y=MAIN_PARAMS.last_y,bg=COL0, expand=1, w=MAIN_PARAMS.wnd_w*rtk.scale.value, h=MAIN_PARAMS.wnd_h, padding=10, minh=500, minw=500, } 
 wnd.onresize = function(self, w, h)
     self:reflow()
 end 
@@ -98,9 +97,6 @@ end
 if MAIN_PARAMS.last_x < 0 then
     wnd:move(1,  _)
 end
-
-
-
 
 wnd.onclose = function() 
     MAIN_PARAMS.last_x, MAIN_PARAMS.last_y,MAIN_PARAMS.wnd_w, MAIN_PARAMS.wnd_h = wnd.x, wnd.y, wnd.calc.w, wnd.calc.h
@@ -110,12 +106,16 @@ end
 --------scale problems---------
 if rtk.scale.value ~= 1.0 then
     rtk.scale.user = scale/rtk.scale.value
-    wnd:attr('w', wnd.calc.w * scale) -- last w
-    wnd:attr('h', wnd.calc.h * scale) -- last h
+    GLOBAL_ANIMATE = false
+    wnd:attr('w', wnd.calc.w * rtk.scale.value) -- last w
+    wnd:attr('h', wnd.calc.h * rtk.scale.value) -- last h
 end
 
+local MAIN_CONTAINER_WINDOW = wnd:add(rtk.Container{},{expand=1, })
+
+
 --local WND_vbox=wnd:add(rtk.VBox{spacing=def_spacing})
-local main_vbox_window = wnd:add(rtk.VBox{minh=670, minw=370, spacing=def_spacing},{})
+local main_vbox_window = MAIN_CONTAINER_WINDOW:add(rtk.VBox{minh=400, minw=370, spacing=def_spacing},{expand=1, fillh=true})
 
 local app_main_hbox = main_vbox_window:add(rtk.HBox{w=1, h=32})
 
@@ -132,8 +132,8 @@ local pin_app = create_b(app_right, "PIN", 40, 30, true, ic.pin:scale(120,120,22
 local settings_app = create_b(app_right, "STNGS", 40, 30, true, ic.settings:scale(120,120,22,5):recolor("white") ) settings_app.click=1
 
 
-local main_hbox_window = main_vbox_window:add(rtk.HBox{minh=350, h=0.75, spacing=def_spacing},{fillw=true, fillh=true})
-local left_vbox_sect = main_hbox_window:add(rtk.VBox{B_heigh=27, spacing=def_spacing},{fillh=true})
+local main_hbox_window = main_vbox_window:add(rtk.HBox{minh=350,  spacing=def_spacing},{fillw=true, fillh=true})
+local left_vbox_sect = main_hbox_window:add(rtk.VBox{h=1, B_heigh=27, spacing=def_spacing},{stretch=25, fillh=true,})
 
 
 
@@ -345,65 +345,89 @@ settings_app.onclick = function(self, event)
 end
 
 ---------LEFT SIDE SECTION---------
-local GRP_minw,GRP_maxw,GRP_minh,GRP_w=95,175,145,0.25
-local OPEN_container, OPEN_heading, OPEN_vp_vbox = create_container({minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, h=0.25, w=GRP_w}, left_vbox_sect,'OPEN PROJECTS')
-local NEW_container, NEW_heading, NEW_vp_vbox = create_container({minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, h=0.335, w=GRP_w}, left_vbox_sect, 'NEW PROJECTS')
-local GROUP_container, group_heading, group_vp_vbox = create_container({minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, h=1, w=GRP_w}, left_vbox_sect, 'GROUPS');group_vp_vbox:attr('spacing', 2)
-local IMG_container, IMG_head, vp_images2 = create_container({minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, h=1, w=GRP_w}, left_vbox_sect, '[<]   IMG   [>]')
-
-local OPEN_selected_project = create_b(OPEN_vp_vbox, "OPEN", 1, left_vbox_sect.B_heigh)
-local OPEN_selected_projects_newt = create_b(OPEN_vp_vbox, "NEW TAB", 1, left_vbox_sect.B_heigh)
-local OPEN_selected_projects_recovery = create_b(OPEN_vp_vbox, "RECOVERY", 1, left_vbox_sect.B_heigh)
+local GRP_minw,GRP_maxw,GRP_minh,GRP_w, bh =95,175,145,0.25, 24
+local OPEN_container, OPEN_heading, OPEN_vp_vbox = create_container({minw=GRP_minw, maxw=GRP_maxw, w=GRP_w}, left_vbox_sect,'OPEN PROJECTS')
+local NEW_container, NEW_heading, NEW_vp_vbox = create_container({minw=GRP_minw, maxw=GRP_maxw, w=GRP_w}, left_vbox_sect, 'NEW PROJECTS')
+local GROUP_container, group_heading, group_vp_vbox = create_container({minw=GRP_minw, maxw=GRP_maxw, w=GRP_w}, left_vbox_sect, ' ');group_vp_vbox:attr('spacing', 2)
 
 
-local NEW_project_current = create_b(NEW_vp_vbox, "NEW PROJECT", 1, left_vbox_sect.B_heigh)
-local NEW_project_tab = create_b(NEW_vp_vbox, "NEW TAB", 1, left_vbox_sect.B_heigh)
-local NEW_project_close = create_b(NEW_vp_vbox, "NEW TAB(SV)", 1, left_vbox_sect.B_heigh)
+local IMG_container, IMG_head, vp_images2 = create_container({minw=GRP_minw, maxw=GRP_maxw, h=1, w=GRP_w}, left_vbox_sect, '[<]   IMG   [>]')
 
-NEW_project_current.onclick=function(self, event)
-    reaper.Main_OnCommand(40859, 0)
+IMG_container.refs.VBOX:remove(IMG_container.refs.VBOX.refs.HEAD)
+
+
+reorder_box(left_vbox_sect, OPEN_container, {expand=1.1, fillh=true})
+reorder_box(left_vbox_sect, NEW_container, {expand=1.1, fillh=true})
+reorder_box(left_vbox_sect, GROUP_container, {expand=1.3, fillh=true})
+reorder_box(left_vbox_sect, IMG_container, {expand=0.8, fillh=true})
+
+OPEN_vp_vbox:attr('padding', 4)
+NEW_vp_vbox:attr('padding', 4)
+OPEN_vp_vbox:attr('spacing', 4)
+NEW_vp_vbox:attr('spacing', 4)
+
+local OPEN_selected_project = OPEN_vp_vbox:add(RoundButton{halign='center', h=1, "OPEN", color="#6a6a6a", toggle=false}, {fillw=true, expand=1, fillh=true})
+local OPEN_selected_projects_newt = OPEN_vp_vbox:add(RoundButton{halign='center', h=1, "NEW TAB", color="#6a6a6a", toggle=false}, {fillw=true, expand=1, fillh=true})
+local OPEN_selected_projects_recovery = OPEN_vp_vbox:add(RoundButton{halign='center', h=1, "RECOVERY", color="#6a6a6a", toggle=false}, {fillw=true, expand=1, fillh=true})
+
+local NEW_project_tab = NEW_vp_vbox:add(RoundButton{halign='center', h=1, "NEW TAB", color="#6a6a6a", toggle=false}, {fillw=true, expand=1, fillh=true})
+local NEW_project_current = NEW_vp_vbox:add(RoundButton{halign='center', h=1, "NEW PROJECT", color="#6a6a6a", toggle=false}, {fillw=true, expand=1, fillh=true})
+local NEW_project_close = NEW_vp_vbox:add(RoundButton{halign='center', h=1, "", color="#6a6a6a", toggle=false}, {fillw=true, expand=1, fillh=true})
+
+NEW_project_close.onreflow = function(self); self:attr('text', self.calc.w > 137 and "NEW TAB(PRESERVE)" or "NEW TAB(PS)") end
+
+NEW_project_current.onclick = function(self, event)
+    if LBM(event) then
+        reaper.Main_OnCommand(40859, 0)
+    end
 end
 
-NEW_project_tab.onclick=function(self, event)
-    reaper.Main_OnCommand(41929, 0)
+NEW_project_tab.onclick = function(self, event)
+    if LBM(event) then
+        reaper.Main_OnCommand(41929, 0)
+    end
 end
 
-NEW_project_close.onreflow = function(self); self.refs.NEW_TAB_SV_:attr('text', self.calc.w > 122 and "NEW TAB(PRESERVE)" or "NEW TAB(PS)") end
-
-NEW_project_close.onclick=function(self, event)
-    reaper.Main_OnCommand(40026, 0)
-    reaper.Main_OnCommand(40023, 0)
+NEW_project_close.onclick = function(self, event)
+    if LBM(event) then
+        reaper.Main_OnCommand(40026, 0)
+        reaper.Main_OnCommand(40023, 0)
+    end
 end
 
+OPEN_selected_project.onclick = function(self, event)
+    if LBM(event) then
+        local paths = get_selected_path()
+        for i, path in ipairs(paths) do
+            if i == #paths then
+                reaper.Main_openProject(path)
+            end
+        end
+    end
+end
 
-OPEN_selected_project.onclick=function(self, event)
-    local paths = get_selected_path()
-    for i, path in ipairs(paths) do
-        if i == #paths then
+OPEN_selected_projects_newt.onclick = function(self, event)
+    if LBM(event) then
+        local paths = get_selected_path()
+        for i, path in ipairs(paths) do
+            reaper.Main_OnCommand(41929, 0)
             reaper.Main_openProject(path)
         end
     end
 end
 
-OPEN_selected_projects_newt.onclick=function(self, event)
-    local paths = get_selected_path()
-    for i, path in ipairs(paths) do
-        reaper.Main_OnCommand(41929, 0)
-        reaper.Main_openProject(path)
-    end
-end
-
-OPEN_selected_projects_recovery.onclick=function(self, event)
-    local paths = get_selected_path()
-    for i, path in ipairs(paths) do
-        --reaper.Main_OnCommand(41929, 0)
-        open_project_recovery(path)
+OPEN_selected_projects_recovery.onclick = function(self, event)
+    if LBM(event) then
+        local paths = get_selected_path()
+        for i, path in ipairs(paths) do
+            open_project_recovery(path)
+        end
     end
 end
 
 
 ----------------------
-local main_vbox_list = main_hbox_window:add(rtk.VBox{ spacing=def_spacing},{fillh=true, fillh=true})
+local main_vbox_list = main_hbox_window:add(rtk.VBox{debug=false,  spacing=def_spacing},{fillh=true, fillh=true})
 
 local hbox_sorting_modul = main_vbox_list:add(rtk.HBox{x=8, spacing=def_spacing, h=25})
 
@@ -500,7 +524,16 @@ option_menu.onmousedown=function(self,event)
     return true
 end
 
-local list_container, container_heading, list_vbox_group, vp_main_list = create_container({h=1, fillw=true}, main_vbox_list) 
+local list_container, container_heading, list_vbox_group, vp_main_list = create_container({fillw=true}, main_vbox_list) 
+
+
+reorder_box(main_vbox_list, list_container, {fillh=true})
+--[[
+local cont_idx = main_vbox_list:get_child_index(list_container)
+local NEW_list_container = main_vbox_list:remove_index(cont_idx) 
+main_vbox_list:add(NEW_list_container, {fillh=true})]]
+--list_container:attr('border','red')
+
 list_vbox_group:attr('bmargin', 6)
 list_vbox_group:attr('spacing', 3)
 
@@ -559,74 +592,106 @@ local surface = false
 rait_icons = icons_raiting(34, icons_cols)
 
 
-local vbox_popup = rtk.VBox{h=1}, {fillh=true}
+local cont_vb_popup_nm = rtk.Container{w=1, h=1}
+local bg_native_menu = cont_vb_popup_nm:add(RoundButton{round=16, h=1, toggle=false, color='#7a7a7a'," ", disabled=true},{fillw=true, fillh=true})
+local vbox_popup = cont_vb_popup_nm:add (rtk.VBox{y=2, padding=3, h=1}, {fillh=true} )
 
-local popup_by_path = rtk.Popup{margin=-10,padding=0,x=1, y=1, alpha=0.9, bg=COL9, padding=2,shadow="#1a1a1a90",border=COL9, child=vbox_popup, w=145, h=188, overlay=COL4..40}
+local def_h_b = 28
+local popup_by_path = rtk.Popup{
+    autofocus=false, margin=-15, padding=0,
+    x=1, y=1, alpha=0.9, bg=COL9, 
+    border='transparent', bg='transparent', 
+    shadow="transparent",
+    child=cont_vb_popup_nm, w=175, h=50, overlay='black#50'}
 
 
 all_windows = rtk.VBox{z=10}
 popup_backups = rtk.Popup{z=10, autofocus=true, autoclose=true, child=all_windows}
 
-local function nm_button(name)
-    return rtk.Button{gradient=0, h=25,padding=2, color="#6a6a6a30",label=name, w=1}
+local function nm_button(name, round)
+    local round = round or 8
+    return RoundButton{toggle=false, round=round, h=def_h_b ,padding=2,  color="#6a6a6a",text=name, w=1}
 end
 
 function native_menu(n)
     vbox_popup:remove_all()
-    vbox_popup:attr()
+    
+    local x_offset = math.max(0, rtk.mouse.x - wnd.calc.w + popup_by_path.calc.w) + 20
+    local y_offset = math.max(0, rtk.mouse.y - wnd.calc.h + popup_by_path.calc.h) + 15
+    local x_norm = (rtk.mouse.x - x_offset) / rtk.scale.value
+    local y_norm = (rtk.mouse.y - y_offset) / rtk.scale.value
+    popup_by_path:move(x_norm, y_norm)
     popup_by_path:open{}
-    popup_by_path:open()
-    local open_cur_proj_b = vbox_popup:add(nm_button("OPEN"))
-    local new_tab_proj_b = vbox_popup:add(nm_button("NEW TAB"))
-    local b_offline = vbox_popup:add(nm_button("OFFLINE"))
-    local b_backups_open = vbox_popup:add(nm_button("BACKUPS"))
-    local b_open_folder = vbox_popup:add(nm_button("OPEN PATH"))
-    
-    
-    vbox_popup:add(nm_button("RECOLOR"))
-    vbox_popup:add(nm_button("SETTINGS"))
-    vbox_popup:add(nm_button("REMOVE"))
 
+    local open_cur_proj_b = vbox_popup:add(nm_button("OPEN"))open_cur_proj_b:attr('y', 2)
+    local new_tab_proj_b = vbox_popup:add(nm_button("NEW TAB", 2))new_tab_proj_b:attr('z',2)
+    local b_offline = vbox_popup:add(nm_button( "OFFLINE", 2))
+    local b_backups_open = vbox_popup:add(nm_button("BACKUPS", 2))
+    local b_open_folder = vbox_popup:add(nm_button("OPEN PATH", 2))
+    
+    vbox_popup:add(nm_button("RECOLOR", 2))
+    local b_settings = vbox_popup:add(nm_button("SETTINGS", 2))b_settings:attr('z',2)
+    local b_remove = vbox_popup:add(nm_button("REMOVE" ))b_remove:attr('y', -2)
+    
+    
+    popup_by_path:attr('h', def_h_b*#vbox_popup.children+13)
     b_open_folder.onclick=function(self,event)
-        local paths = get_selected_path()
-        for i, path in ipairs(paths) do
-            reaper.CF_LocateInExplorer(path)
+        if LBM(event) then
+            local paths = get_selected_path()
+            for i, path in ipairs(paths) do
+                reaper.CF_LocateInExplorer(path)
+            end
+            popup_by_path:close()
         end
-        popup_by_path:close()
+        
     end
     
     new_tab_proj_b.onclick=function(self,event)
-        OPEN_selected_projects_newt:onclick()
-        popup_by_path:close()
-    end
-    
-    open_cur_proj_b.onclick=function(self,event)
-        OPEN_selected_project:onclick()
-        popup_by_path:close()
-    end
-    
-    b_offline.onclick=function(self,event)
-        local paths = get_selected_path()
-        for i, path in ipairs(paths) do
-            open_project_recovery(path)
+        if LBM(event) then
+            OPEN_selected_projects_newt:onclick()
             popup_by_path:close()
         end
     end
+    
+    open_cur_proj_b.onclick=function(self,event)
+        if LBM(event) then
+            OPEN_selected_project:onclick()
+            popup_by_path:close()
+        end
+    end
+    
+    b_offline.onclick=function(self,event)
+        if LBM(event) then
+            local paths = get_selected_path()
+            for i, path in ipairs(paths) do
+                open_project_recovery(path)
+                popup_by_path:close()
+            end
+        end
+    end
+    
     b_backups_open.onclick=function(self,event)
-        PROJECT_PATH_BACKUPS = get_backups_folder(n.dir)
-        dofile(cur_path.."modules"..sep.."backups.lua")
-        create_backups()
-        popup_by_path:close()
-        popup_backups:open()
+        if LBM(event) then
+            PROJECT_PATH_BACKUPS = get_backups_folder(n.dir)
+            dofile(cur_path.."modules"..sep.."backups.lua")
+            create_backups()
+            popup_by_path:close()
+            popup_backups:open()
+        end
     end
 
 end
-
 local HEADING_types_hbox = rtk.HBox{ref='heading', y=-6.5,}
 
 function create_block_list()
     HEADING_types_hbox:hide()
-    local flowbox_main = rtk_FlowBox({bmargin=6, expand=4, spacing=-1, w=1})
+    local flowbox_main
+    if rtk.scale.value ~= 1.0 then
+        --flowbox_main = rtk.FlowBox{bmargin=6, expand=4, spacing=-1, }, {stretch=1}
+    else
+        --flowbox_main = rtk_FlowBox({bmargin=6, expand=4, spacing=-1, w=1})
+    end
+    flowbox_main = rtk_FlowBox({bmargin=6, expand=4, spacing=-1, w=1})
     --local flowbox_main = rtk.FlowBox{margin=4, expand=4, spacing=-2, w=1}
     flowbox_main:remove_all()
     list_vbox_group:remove_all()
@@ -664,7 +729,9 @@ function create_block_list()
         
         local odd_col_bg = i % 2 == 0 and '#3a3a3a' or '#323232'
 
-        local container_hbox = flowbox_main:add(rtk.Container{minw=230, hotzone=-3, expand=3, h=135,padding=4,},{fillw=true})
+        local container_hbox = flowbox_main:add(rtk.Container{minw=230, hotzone=-3, expand=3, h=135,padding=4,},{stretch=i, expand=i, fillw=true})
+        
+      
         local bg_roundrect = create_spacer(container_hbox, odd_col_bg, odd_col_bg, round_rect_list+5) bg_roundrect:attr('ref', 'bg_spacer')
         local def_vb = container_hbox:add(rtk.HBox{w=1, h=1})
         
@@ -672,21 +739,21 @@ function create_block_list()
         
         
         local image = rtk.Image():load(CUSTOM_IMAGE_local .. image)
-        local cont_img=left_img_progress:add(rtk.Container{lmargin=5, h=125, w=125},{fillh=true})
-        local img = cont_img:add(rtk.ImageBox{padding=4,image=image,}, {}) 
+        local cont_img=left_img_progress:add(rtk.Container{lmargin=5, h=125, w=125},{valign='center', stretch=2, expand=2, fillh=true})
+        local img = cont_img:add(rtk.ImageBox{padding=4,image=image,h=1}, {valign='center', stretch=4, expand=1,}) 
         cont_img.onclick=function(self,event)
-            
-            --[[add image
-            local rv, img_path = reaper.JS_Dialog_BrowseForOpenFiles('Select custom image', '', FILE, '', true) 
+            local ext_list = "Image files (*.png;*.jpg;*.jpeg)\0*.png;*.jpg;*.jpeg\0\0"
+            local rv, img_path = reaper.JS_Dialog_BrowseForOpenFiles('Select custom image', '', '', ext_list, true)
             if rv == 1 then
                 update_image(n, img_path, img, data)
+                update_player(n)
             end
-            ]]
+            
         end
         
         local slider_length_audio = left_img_progress:add(SimpleSlider{
-        y=-30, x=17, w=100, value=norm_prog_val, maxh=25,z=10, scroll_on_drag=false, color=PAD_COL, 
-        hotzone=5, roundrad=round_rect_list, ttype=3, z=15, minh=20, textcolor="#ffffff80",
+        y=-30, x=14, w=100, value=norm_prog_val, croll_on_drag=false, color=PAD_COL, 
+        hotzone=5, roundrad=round_rect_list, ttype=3, z=15, minh=18, textcolor="#ffffff80",
         onchange=function(val)
             data.progress=val
             save_parameter(n.path, data)
@@ -713,23 +780,22 @@ function create_block_list()
         local heading=rait_cont.refs.VBOX.refs.HEAD rait_cont.refs.VBOX:remove(heading)
          
         ---------
-        slider_length_audio.onclick=function(self,event)
-            
+        slider_length_audio.onclick = function(self, event)
             if event.button == cbm then
                 local ret, col = reaper.GR_SelectColor(wnd.hwnd, rtk.color.int(data.padcolor, true))
                 if ret then 
                     local col_hex = rtk.color.int2hex(col, true)
-                    if col_hex == "#000000" then 
-                        padcolor=def_pad_color 
-                    else
-                        data.padcolor=col_hex
-                        slider_length_audio:attr('color', col_hex)
-                        save_parameter(n.path, data)
-                    end
+                    data.padcolor = col_hex == "#000000" and def_pad_color or col_hex
+                    slider_length_audio:attr('color', data.padcolor)
+                    recolor(in_box_spacer, shift_color(col_hex, 1.0, 0.35, 0.7))
+                    recolor(bg_roundrect, col_hex)
+                    save_parameter(n.path, data)
+                    
                 end
             end
             return true
         end
+        
         
         n.form_date_1 = n.form_date:gsub(" %d+, %d+:%d+", "")
         n.form_date_2 = n.form_date:gsub(", %d%d:%d%d", "")
@@ -759,20 +825,12 @@ function create_block_list()
                     n.sel = 1
                 end
             elseif rbm then
-                local x_offset = rtk.mouse.x-wnd.calc.w+popup_by_path.calc.w
-                local y_offset = rtk.mouse.y-wnd.calc.h+popup_by_path.calc.h
-                local x_norm = rtk.mouse.x-(x_offset > -1 and x_offset or 0)
-                local y_norm = rtk.mouse.y-(y_offset > -1 and y_offset or 0)
                 
-                popup_by_path:move(x_norm, y_norm)
-                popup_by_path:attr('shadow', SELECTED_COL.."35")
-                popup_by_path:attr('alpha', 0.94)
-                if n.sel == 0 then
-                    if not ctrl then
-                        unselect_all_path()
-                    end
+                --popup_by_path:attr('shadow', SELECTED_COL.."1")
+                --popup_by_path:attr('alpha', 0.94)
+                if n.sel == 0 and not ctrl then
+                    unselect_all_path()
                 end
-                
                 recolor(bg_roundrect, SELECTED_COL, smooth)
                 n.sel = 1
                 native_menu(n)
@@ -784,14 +842,14 @@ function create_block_list()
         icon_raiting_proj.onclick=function(self, event)
             pop_up_raiting:open{}
             VP_1:scrollto(0, 0, false)
-            pop_up_raiting:attr('x', self.clientx-12)
-            pop_up_raiting:attr('y', self.clienty-60)
+            pop_up_raiting:attr('x', (self.clientx/rtk.scale.value)-12 )
+            pop_up_raiting:attr('y', (self.clienty/rtk.scale.value)-60)
             
             
             pop_up_raiting.child.SELF = icon_raiting_proj
             
             --raiting
-            local Y = 40 + (raiting - 1) * 40 - 37
+            local Y = ( 40/rtk.scale.value + (raiting - 1) * 40 - 33/rtk.scale.value ) 
             VP_1:scrollto(0, Y, true)
         end
         rait_vp:add(rtk.Spacer{h=50})
@@ -863,12 +921,12 @@ function create_list()
     container_heading:add(HEADING_types_hbox)
     HEADING_types_hbox:remove_all()
     --HEADING--
-    HEADING_types_hbox:add(rtk.Button{x=5,ref="info", surface=false, minw=52, icon=ic.info, halign='center',fontflags=rtk.font.BOLD,halign='center' },{ halign='center', fillh=true})
+    HEADING_types_hbox:add(rtk.Button{x=5,ref="info", surface=false, minw=52*rtk.scale.value, icon=ic.info, halign='center',fontflags=rtk.font.BOLD,halign='center' },{ halign='center', fillh=true})
     HEADING_types_hbox:add(rtk.Button{w=0.4, ref="fnames", surface=false, minw=nil, label="FILE NAME", icon=ic.filename,fontflags=rtk.font.BOLD},{fillh=true})
     local date_cont_Test=HEADING_types_hbox:add(rtk.Container{lmargin=4, halign='right'})
-    date_cont_Test:add(rtk.Button{ref="dates", surface=false, minw=32, maxw=104, label="DATE", icon=ic.time, halign="center",fontflags=rtk.font.BOLD},{halign="center", fillh=true, fillw=true})
+    date_cont_Test:add(rtk.Button{ref="dates", surface=false, minw=32*rtk.scale.value, maxw=104*rtk.scale.value, label="DATE", icon=ic.time, halign="center",fontflags=rtk.font.BOLD},{halign="center", fillh=true, fillw=true})
     HEADING_types_hbox:add(rtk.Button{lmargin=20, ref="paths", surface=false, minw=nil, label="PATH", icon=ic.folder,fontflags=rtk.font.BOLD},{fillh=true, fillw=true})
-    HEADING_types_hbox:add(rtk.Button{ref="sizes", surface=false, minw=62, label="SIZE", icon=ic.mem, halign="right",fontflags=rtk.font.BOLD},{halign="right", fillh=true})
+    HEADING_types_hbox:add(rtk.Button{ref="sizes", surface=false, minw=62*rtk.scale.value, label="SIZE", icon=ic.mem, halign="right",fontflags=rtk.font.BOLD},{halign="right", fillh=true})
     
     for i, path in ipairs(sorted_paths) do
         local n = new_paths[path]
@@ -904,7 +962,10 @@ function create_list()
         local b_name = hbox_projects:add(rtk.Text{w=0.4, ref='text_name', lmargin=1,fontflags=rtk.font.BOLD, valign='center', n.filename},{fillh=true})
         
         local date_cont_Test=hbox_projects:add(rtk.Container{halign='right'})
-        local b_date = date_cont_Test:add(rtk.Text{ref='date', maxw=HEADING_types_hbox.refs.dates.calc.maxw,minw=HEADING_types_hbox.refs.dates.calc.minw,valign='center',halign='center',n.form_date},{fillh=true, fillw=true,halign='center'})
+        local b_date = date_cont_Test:add(rtk.Text{
+            ref='date', maxw=HEADING_types_hbox.refs.dates.calc.maxw,
+            minw=HEADING_types_hbox.refs.dates.calc.minw ,valign='center',
+            halign='center',n.form_date},{fillh=true, fillw=true,halign='center'})
         
         local b_path_box= hbox_projects:add(rtk.Container{ref='path_box'},{fillw=true,fillh=true})
         local b_path = b_path_box:add(rtk.Text{lmargin=8, ref='paths', thotzone=1,bhotzone=1,cursor=rtk.mouse.cursors.HAND, valign='center', short_path, ref=n.path},{fillw=true,fillh=true})
@@ -971,28 +1032,12 @@ function create_list()
                     n.sel = 1
                 end
             elseif event.button == rbm then
-                --local x_offset = wnd.w/2-wnd.w+popup_by_path.w/2
-                --local y_offset = wnd.h/2-wnd.h+popup_by_path.h/2
-                
-                local x_offset = rtk.mouse.x-wnd.calc.w+popup_by_path.calc.w
-                local y_offset = rtk.mouse.y-wnd.calc.h+popup_by_path.calc.h
-                
-                
-                OFFSETX, OFFSETY = 0, 0--24.5, 24.5 -- when scale default
-                
-                
-                local x_norm = rtk.mouse.x-OFFSETX-(x_offset > -1 and x_offset or 0) --(popup_by_path.calc.w - wnd.calc.w)/2+rtk.mouse.x - (x_offset > -1 and x_offset or 0) 
-                local y_norm = rtk.mouse.y-OFFSETY-(y_offset > -1 and y_offset or 0)--(popup_by_path.calc.h - wnd.calc.h)/2+rtk.mouse.y - (y_offset > -1 and y_offset or 0)
-                
-                popup_by_path:move(x_norm, y_norm)
-                
-                
                 if padcolor ~= def_pad_color then
-                    popup_by_path:attr('shadow', padcolor..10)
+                    --popup_by_path:attr('shadow', padcolor..2)
                 else
-                    popup_by_path:attr('shadow', "#1a1a1a20")
+                    --popup_by_path:attr('shadow', "#1a1a1a20")
                 end
-                popup_by_path:attr('alpha', 0.94)
+                popup_by_path:attr('alpha', 0.98)
                 if n.sel == 0 then
                     unselect_all_path()
                 end
@@ -1361,7 +1406,8 @@ function show_list_group(vbox_list, DATA, hbox_buttons, group, parent)
                 }
         )
         
-        local drag_n_drop_b = vbox_list.refs.hb:add(
+        local shadow_cont_dnd =  vbox_list.refs.hb:add(rtk.Container{w=30, h=1})
+        local drag_n_drop_b = shadow_cont_dnd:add(
             RoundButton{
                 ref='edit',
                 round=8,
@@ -1413,7 +1459,9 @@ function show_list_group(vbox_list, DATA, hbox_buttons, group, parent)
                 fontsize=19,
                 text="✖"
                 } )
-
+        
+        local x
+        
         drag_n_drop_b.ondragstart = function(self, event)
             if LBM(event) and #str_list > 1 then
                 btn_name:attr('toggle', false)
@@ -1427,13 +1475,20 @@ function show_list_group(vbox_list, DATA, hbox_buttons, group, parent)
                 self:attr('color', 'crimson')
                 self:attr('rmargin', 30)
                 dragging = hbox
+                
+                self.mousex, self.mousey = reaper.GetMousePosition()
+                self.new_x = math.round(hbox.calc.w/2.1)
+                
+                reaper.JS_Mouse_SetPosition(self.mousex+self.new_x, self.mousey)
             end
             return true
         end
         
         drag_n_drop_b.ondragend = function(self, event)
             btn_name:attr('color', col)
-             btn_name:attr('toggle', true)
+            btn_name:attr('toggle', true)
+            
+            
             btn_name:attr('disabled', false)
             self:attr('color', 'transparent')
             hbox:attr('border', false)
@@ -1443,6 +1498,9 @@ function show_list_group(vbox_list, DATA, hbox_buttons, group, parent)
             dragging = nil
             update_data_list(DATA, vbox_list.children)
             save_parameter(group, DATA, workspace_file)
+            
+            _, self.mousey = reaper.GetMousePosition()
+            reaper.JS_Mouse_SetPosition(self.mousex, self.mousey)
             return true
         end
         
@@ -1477,6 +1535,7 @@ function show_list_group(vbox_list, DATA, hbox_buttons, group, parent)
         drag_n_drop_b.ondropmousemove = function(self, event, _, src_button)
             if dragging ~= nil then
                 move_button(dragging , hbox , vbox_list)
+                
             end
             return true
         end
@@ -1566,7 +1625,7 @@ function show_list_group(vbox_list, DATA, hbox_buttons, group, parent)
         
         drag_n_drop_b.onclick=function(self,event)
             if RBM(event) then
-                menu_group_elems:open_at_mouse(drag_n_drop_b, "right", "top"):done(function(item) 
+                menu_group_elems:open_at_widget(shadow_cont_dnd, "left", "bottom"):done(function(item) 
                     if not item then return end
                     if item.id == 'path' then
                         reaper.CF_LocateInExplorer(projects)
@@ -1663,7 +1722,12 @@ function create_group_leftsection(gr, DATA, data_list)
     
     return missed_paths
 end
-    
+
+function show_input_window()
+
+end
+
+
 function create_group_block(vbox, vbox_list, DATA, all_tabs, group, i, hbox_buttons)
     local cont_collections = create_group_container(vbox, DATA, 80, 0.8)
     local vbox_grp = cont_collections:add(rtk.VBox{spacing=def_spacing, h=1, padding=5})
@@ -1697,6 +1761,7 @@ function create_group_block(vbox, vbox_list, DATA, all_tabs, group, i, hbox_butt
             end
             cont_hbox.refs.b:attr('color', active_col)
             show_list_group(vbox_list, DATA, hbox_buttons, group, vbox_grp.refs.hbox)
+            --show_input_window()
         end
         return true
     end
@@ -1708,8 +1773,9 @@ function create_group_block(vbox, vbox_list, DATA, all_tabs, group, i, hbox_butt
     table.insert(all_tabs, cont_hbox)
 end
 
-function create_workspace(vbox, vbox_list, hbox_buttons)
+function create_workspace(vbox, vbox_list, hbox_buttons, bottom_section_group)
     vbox:remove_all()
+
     local button_add = vbox:add( rtk.Button{w=1, h=45, "ADD"} )
     
     button_add.onclick=function()
@@ -1717,7 +1783,7 @@ function create_workspace(vbox, vbox_list, hbox_buttons)
         local DATA_temp, key = initialize_data(nil, nil)
         
         save_parameter_sort(key, DATA_temp, workspace_file)
-        create_workspace(vbox, vbox_list, hbox_buttons)
+        create_workspace(vbox, vbox_list, hbox_buttons, bottom_section_group)
     end
     
     local all_tabs = {}
@@ -1728,6 +1794,12 @@ function create_workspace(vbox, vbox_list, hbox_buttons)
         local cont_hbox = create_group_block(vbox, vbox_list, DATA, all_tabs, group, i, hbox_buttons)
         
     end
+    
+    local vb = bottom_section_group:add(rtk.VBox{},{expand=1, stretch = 2})
+    vb:add(rtk.CheckBox{w=0.4, 'Auto Scaning Folder'},{})
+    vb:add(rtk.Entry{w=0.5, 'Add path to scan'},{expand = 1, stretch = 2})
+    vb:add(rtk.Entry{w=0.5, 'Set Name group'},{expand=1, stretch =1})
+    
 end
  
 
@@ -1800,7 +1872,7 @@ function create_collection(vbox, vbox_list)
                 save_parameter(DATA.name, DATA, collections_file)
             end
             return true
-        end
+        endg
         ]]
         cont_collections.onclick=function(self, event)
             show_list_group(vbox_list, DATA.list)
@@ -1811,8 +1883,19 @@ end
 
 
 
-local open_group_editor = group_heading:add(RoundButton{halign='center', y=-1, h=26, w=36, toggle=false, color='#9a9a9a', lmargin=14,"<",tmargin=-7},{valign='center',  halign='left'})
-local open_group_editor = group_heading:add(RoundButton{halign='center', y=-1, h=26, w=36, toggle=false, color='#9a9a9a', rmargin=14,">",tmargin=-7},{valign='center',  halign='right'})
+--local open_group_editor = group_heading:add(RoundButton{halign='center', y=-1, h=26, w=36, toggle=false, color='#4a4a4a', lmargin=16,"←",tmargin=-7},{valign='center',  halign='left'})
+--local open_group_editor = group_heading:add(RoundButton{halign='center', y=-1, h=26, w=36, toggle=false, color='#9a9a9a', fontsize=35, rmargin=16,"⛮",tmargin=-7},{valign='center',  halign='right'})
+local HB_GR_BUTTON_SECT = group_heading:add(rtk.HBox{ x=4, spacing=def_spacing, padding=3,},{})
+local VB_GR_B_MN = HB_GR_BUTTON_SECT:add(rtk.VBox{spacing=2, x=2,},{})
+
+VB_GR_B_MN:add(RoundButton{halign='center', fontsize=11, round=1, w=25, h=11, toggle=false, color="#5a5a5a", "↑"},{ })
+VB_GR_B_MN:add(RoundButton{halign='center', fontsize=11, round=1, w=25,h=11, toggle=false, color="#5a5a5a", "↓"},{})
+HB_GR_BUTTON_SECT:add(RoundButton{halign='center', h=25, toggle=false, color="#4a4a4a", "GROUPS"},{fillw=true, expand=3, halign='right', })
+local open_group_editor = create_b(HB_GR_BUTTON_SECT, "param_group", 34, 25, true, ic.settings:scale(120,120,22,6.2):recolor("white"), false ) settings_app.click=1
+
+
+--reorder_box(HB_GR_BUTTON_SECT, open_group_editor, {expand=1, fillw=true})
+
 
 
 local group_editor = rtk.Container{w=1,h=1}
@@ -1895,11 +1978,11 @@ vb_right_sect_grp:add(
 --EXTRACT ALL SAVED COLLECTIONS
 --create_collection(COLLECTIONS_VB_child, COLL_LIST_VB)
 
-create_workspace(vp_grlist_right, vp_gr_list, hb_head_gr_list.refs.hb, hb_head_gr_right.hb)
 
 --BOTTOM SECTION UNDER list
-vp_group:add(rtk.HBox{border='blue', rmargin=4, h=0.2,  w=1})
+local bottom_section_group = vp_group:add(rtk.HBox{border='orange', rmargin=4, h=0.2,  w=1})
 
+create_workspace(vp_grlist_right, vp_gr_list, hb_head_gr_list.refs.hb, bottom_section_group)
 
 back_from_grp.onclick=function(self,event)
     pop_up_editor:close()
@@ -1928,21 +2011,10 @@ entry_find, cont = rtk_Entry(bottom_right_section, COL9, COL9, nil, "Find projec
 local comment_widgets_hbox = bottom_right_section:add(rtk.HBox{spacing=5, })
 
 --DEAD LINE CONTAINER
-local cont_bg_right_sect = comment_widgets_hbox:add(rtk.Container{minw=70,w=0.3})
-create_spacer(cont_bg_right_sect, COL1, COL3, round_rect_window)
+local cont_bg_right_sect_1 = comment_widgets_hbox:add(rtk.Container{minw=70,w=0.3})
+create_spacer(cont_bg_right_sect_1, COL1, COL3, round_rect_window)
 
-wnd.onresize = function() 
-    if wnd.w < 550 then
-        if cont_bg_right_sect.visible then
-            cont_bg_right_sect:hide()
-        end
-    else
-        if not cont_bg_right_sect.visible then
-            cont_bg_right_sect:show()
-        end
-    end
-end
-
+    
 
 --TAGS BLOCK
 local cont_bg_right_sect = comment_widgets_hbox:add(rtk.Container{})
@@ -2090,7 +2162,7 @@ function update_player(all_info)
     --local PV_cont, HB_heading, VP_player = create_container({--[[minh=GRP_minh, minw=GRP_minw, maxw=GRP_maxw, ]]h=1, w=1}, player_container, "PREVIEW PLAYER")
     local main_hbox_player = VP_player or player_container:add(rtk.HBox{--[[ minw=400, ]]minh=105, h=1, w=1,  },{})
 
-    --local METER_volume = vp_images2:add(VolumeMeter{color=col_meter, ref='meter2', w=8, h=60},{--[[valign='center',]] })-- METER_volume:hide()
+    --local METER_volume = player_container:add(VolumeMeter{color=col_meter, ref='meter2', w=8, h=60},{--[[valign='center',]] })-- METER_volume:hide()
     --------------------------------------------
     --------------- IMAGE BLOCK ----------------
     --------------------------------------------
@@ -2104,14 +2176,6 @@ function update_player(all_info)
     local spacer_shadow_cont=cont_img:add(rtk.Container{w=1},{fillw=true, fillh=true})
     local spacer = spacer_shadow_cont:add(rtk.Spacer{visible=false},{fillw=true,fillh=true})
     local shadow = rtk.Shadow(col_shadow.."20")
-    
-    --local b_change = rtk.Button{visible=false, color="#6a6a6a40",padding=1,x=3, visible=false, icon=ic_draw:recolor('gray')}
-    --cont_img:add(b_change)
-    if wnd.calc.w < 400 then
-        --picture_container_main:hide()
-    else
-        --picture_container_main:show()
-    end
     
     --------------------------------------------
     --------------------------------------------
@@ -2127,35 +2191,19 @@ function update_player(all_info)
     
     local file_info_HBox = widgets_info_cont:add(rtk.HBox{padding=1, h=0.457, spacing=6}, {fillw=true})
       
-    --raiting  
+    --[[raiting  
     local icon_raiting_proj = file_info_HBox:add(rtk.Button{x=2, lpadding=8,y=4,flat=true,icon=rait_icons.angry, lmargin=6, w=45, h=45},{valign='top'}) icon_raiting_proj:hide()
     local rait_hbox = rtk.HBox{},{fillw=true}
     local pop_up_raiting = rtk.Popup{alpha=0.9, bg=COL3, border=COL5, padding=4, child=rait_hbox, anchor=icon_raiting_proj,width_from_anchor=false}
     ---------
-    
+    ]]
     local b_settings_list = file_info_HBox:add(rtk.Button{surface=false,icon=ic_list, w=45, h=45},{valign='top'})
     local audio_filename = file_info_HBox:add(rtk.Heading{wrap=true, fontsize=22, text=first_media},{fillw=true, valign='center'})
     
-    --local text_info_cont = file_info_HBox:add(rtk.Container{},{})
-    
-    
-    --local file_info_VBox = text_info_cont:add(rtk.VBox{tmargin=10,w=1}, {valign='center',fillh=true})
-    
-    --filename
-    
-    ----tags
-    --local tags_and_commets = file_info_VBox:add(rtk.Text{h=0.5, text=tags, fontsize=14.5, color="#5a5a5a", valign='bottom'},{})
-    
-    --local spacing = file_info_HBox:add(rtk.Spacer{w=0.4,},{fillh=true})
-    
-    
-    --------------------------------------------
-    --------------------------------------------
-    --------------------------------------------
     
     local slider_value_vbox = vbox_player:add(rtk.VBox{z=10,tmargin=-5,maxh=20, lpadding=15,rpadding=15})
     
-    local slider_length_audio = slider_value_vbox:add(SimpleSlider{showtext=false, disabled=true, hotzone=15, w=1,h=5, roundrad=round_rect_list, ttype=3, textcolor="transparent"},{valign='center'})
+    local slider_length_audio = slider_value_vbox:add(SimpleSlider{color=col_shadow, showtext=false, disabled=true, hotzone=15, w=1,h=5, roundrad=round_rect_list, ttype=3, textcolor="transparent"},{valign='center'})
     
     local text_time_hbox = slider_value_vbox:add(rtk.HBox{lmargin=2, rmargin=2,},{fillw=true})
     local text_start = text_time_hbox:add(rtk.Text{"0:00"},{halign='right',valign='center'})
@@ -2175,7 +2223,8 @@ function update_player(all_info)
     local b_forward_player = hbox_player:add(rtk.Button{y=-2,surface=surface,icon=ic_forw, halign='center',w=35, h=35},{valign='center'})
     --HERE SPACER
     hbox_player:add(rtk.Box.FLEXSPACE)
-    local volume_slider = hbox_player:add(SimpleSlider{showtext=false, value=1,max=1.5,maxw=85,minw=30,hotzone=15,y=1, w=0.2,h=5, roundrad=2, ttype=3, textcolor="transparent",
+    local volume_slider = hbox_player:add(SimpleSlider{color=col_shadow, showtext=false, value=1,max=1.5,maxw=85,minw=30,hotzone=15,y=1, w=0.2,h=5, roundrad=2, ttype=3, textcolor="transparent",
+    
     onchange=function(normval, val)
         reaper.CF_Preview_SetValue(preview, 'D_VOLUME', val)
     end
@@ -2183,7 +2232,6 @@ function update_player(all_info)
     
     --local METER_volume2 = vp_images2:add(VolumeMeter{color=col_meter, ref='meter', w=8}) wnd.onupdate = function() --[[main_hbox_player.refs.meter:set_from_track(preview)main_hbox_player.refs.meter2:set_from_track(preview) ]]end
     --METER_volume2:hide()
-    
     
     
     draging = true
@@ -2204,10 +2252,12 @@ function update_player(all_info)
         if preview and draging then
             time, want_pos, position, length = get_play_info(preview)
             
+            
             if os.clock() - last_update_time > 1 and position ~= prev_position then
                 slider_length_audio:attr('value', position)
                 prev_position = position
                 last_update_time = os.clock()
+                reaper.CF_Preview_SetValue(preview, 'D_VOLUME', volume_slider.value)
             end
             
             local time_text = time:match("([^%.]*)")
@@ -2232,15 +2282,6 @@ function update_player(all_info)
     -- Запуск функции обновления
     upd()
     
-    
-    img.onmousedown = function(self, event)
-        waitingForRelease=false
-        return true
-    end
-    
-    img.onmouseup = function(self, event)
-        waitingForRelease=false
-    end
     
     cont_img.ondropfile = function(self, event)
         dropped_path = event.files[#event.files]
@@ -2378,14 +2419,14 @@ function update_player(all_info)
         end
         return true
     end
-    
+    --[[
     icon_raiting_proj.onclick=function(self, event)
         pop_up_raiting:open()
         pop_up_raiting.child.SELF = icon_raiting_proj
     end
     
     
-    icon_raiting_proj:attr('icon', rait_icons[icons_row1[raiting]])
+    icon_raiting_proj:attr('icon', rait_icons[icons_row1[raiting] )
     
     for i, icon_name in ipairs(icons_row1) do
         local icon = rait_icons[icon_name]
@@ -2399,17 +2440,15 @@ function update_player(all_info)
             -- 
             
         end
-    end
+    end]]
 
     rtk.defer(upd)
 end
 
-local cont_info_bar = main_vbox_list:add(rtk.Container{w=1, h=30})
+local cont_info_bar = main_vbox_list:add(rtk.Container{h=25, w=1},{})
 local info_bar = create_spacer(cont_info_bar, COL1, COL3, round_rect_window)
 
 
-
-wnd:open()
 
 function main_run()
     if TYPE_module == 1 then
@@ -2425,6 +2464,35 @@ function main_run()
 end
 
 main_run()
+
+
+function update_geometry(w, h)
+    if w < 550 * rtk.scale.value then
+        if cont_bg_right_sect_1.visible then
+            cont_bg_right_sect_1:hide()
+        end
+    else
+        if not cont_bg_right_sect_1.visible then
+            cont_bg_right_sect_1:show()
+        end
+    end
+    if main_vbox_window.calc.h < 600 * rtk.scale.value then
+        IMG_container:hide()
+    else
+        IMG_container:show()
+    end
+end
+
+wnd:open()
+
+wnd.onresize = function(self, w, h) 
+    update_geometry(w, h)
+end
+
+update_geometry(wnd.w)
+
+wnd.onupdate=function()
+end
 
 
 

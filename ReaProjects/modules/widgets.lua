@@ -31,6 +31,7 @@ SimpleSlider.register{
 
 function SimpleSlider:initialize(attrs, ...)
     rtk.Spacer.initialize(self, attrs, SimpleSlider.attributes.defaults, ...)
+    self.original_roundrad = self.roundrad  -- Сохраняем исходное значение roundrad
 end
 
 local function hex2rgb(hex)
@@ -59,19 +60,28 @@ function SimpleSlider:_handle_draw(offx, offy, alpha, event)
     local w = math.round(calc.w)
     local h = math.round(calc.h)
     local round_radius = calc.roundrad
+    local mini_rr = self.original_roundrad / 2
     local thickness = 0.5
     local aa = true
     local col = self.color
     local active_col = shift_color(col, 1, 0.9, 0.5)
 
-    self:setcolor(active_col) --bg
+    self:setcolor(active_col) -- цвет фона
     rtk.gfx.roundrect(x, y, w, h, round_radius, thickness, aa)
+
+    -- Проверка текущего значения слайдера
     
-    if calc.value < 0.1 then
+    if calc.value < 0.01 then
         self:setcolor('transparent')
     else
         self:setcolor( col ) -- active
     end
+    if calc.value < 0.15 then
+        calc.roundrad = 1
+    else
+        calc.roundrad = self.original_roundrad
+    end
+
     local normalized_value = (self.calc.value - self.calc.min) / (self.calc.max - self.calc.min)
     if calc.ttype == 1 then
         local slider_h = math.floor(h * normalized_value)
@@ -94,6 +104,7 @@ function SimpleSlider:_handle_draw(offx, offy, alpha, event)
         gfx.y = y + (h / 2) - (str_h / 2) + self.calc.font_y -- выравниваем текст по вертикали
         gfx.drawstr(displayValue)
     end
+
 end
 
 
@@ -150,6 +161,7 @@ function SimpleSlider:_handle_dragstart(event, x, y, t)
             initial_value = self.calc.value
         }, false
     end
+
 end
 
 function SimpleSlider:_handle_dragend(event)
@@ -164,7 +176,9 @@ function SimpleSlider:_handle_dragmousemove(event, args)
     if ok == false or event.simulated then
         return ok
     end
+    local calc = self.calc
     
+
     local dpos = (self.calc.ttype == 1 and event.y or event.x) - args.initial_pos
     local dimension = self.calc.ttype == 1 and self.calc.h or self.calc.w
     local delta_normalized_value = dpos / dimension
@@ -210,13 +224,13 @@ function VolumeMeter:_handle_draw(offx, offy, alpha, event)
     local chw = (calc.w - (calc.spacing * (#calc.levels - 1))) / #calc.levels
     self:setcolor(calc.color)
     gfx.a = calc.gutter
-    gfx.rect(x, y, calc.w, calc.h)
+    rtk.gfx.roundrect(x, y, calc.w, calc.h, 6, true)
     gfx.a = 1
 
     for _, level in ipairs(calc.levels) do
         local db = 20 * math.log(level, 10)
         local chh = (rtk.clamp(db, calc.mindb, 0) + range) / range * calc.h
-        gfx.rect(x, y + calc.h - chh, chw, chh)
+        rtk.gfx.roundrect(x, y + calc.h - chh, chw, chh, 6, true)
         x = x + chw + calc.spacing
     end
 end
@@ -301,39 +315,41 @@ end]]
 function rtk_FlowBox(params)
     local flowbox = rtk.Container(params)
     local spacing = params.spacing or 0
-    local min_elem_width = params.min_elem_width or 240 -- minw
-    local last_width = nil 
-    local last_visible_count = nil -- last count visible
+    local min_elem_width = params.min_elem_width or 240
+    local scale_value = rtk.scale.value
+    local last_width, last_visible_count = nil, nil
+
     flowbox.onreflow = function(self)
+        local calc_w = self.calc.w
         local visible_count = 0
-        for i, info in ipairs(self.children) do
+        for _, info in ipairs(self.children) do
             if info[1].visible then
                 visible_count = visible_count + 1
             end
         end
-        if self.calc.w == last_width and visible_count == last_visible_count then
+        if calc_w == last_width and visible_count == last_visible_count then
             return
         end
-        last_width = self.calc.w
-        last_visible_count = visible_count
-        local visible_w, new_y, new_x = 0, 0, 0
-        local elems_per_row = math.max(1, math.floor(self.calc.w / (min_elem_width + spacing)))
-        local elem_width = self.calc.w / elems_per_row
-        for i, info in ipairs(self.children) do
+        last_width, last_visible_count = calc_w, visible_count
+        local elems_per_row = math.max(1, math.floor(calc_w / (min_elem_width + spacing) / scale_value))
+        local elem_width = calc_w / elems_per_row / scale_value
+        local new_y, new_x, visible_w = 0, 0, 0
+
+        for _, info in ipairs(self.children) do
             local elem = info[1]
             if elem.visible then
-                if visible_w + elem_width + spacing > self.calc.w then
-                    new_x, new_y, visible_w = 0, new_y + elem.calc.h + spacing, 0
+                if visible_w + elem_width + spacing > calc_w then
+                    new_x, new_y, visible_w = 0, new_y + elem.calc.h / scale_value + spacing, 0
                 end
-                elem:resize(elem_width, elem.calc.h)
+                elem:resize(elem_width, elem.calc.h / scale_value)
                 elem:move(new_x, new_y)
-                new_x = new_x + elem_width + spacing
-                visible_w = visible_w + elem_width
+                new_x, visible_w = new_x + elem_width + spacing, visible_w + elem_width
             end
         end
     end
     return flowbox
 end
+
 
 
 OptionMenu = rtk.class('OptionMenu', rtk.Spacer)
@@ -792,10 +808,10 @@ end
 function create_container(params, parent, txt)
     local container = parent:add(rtk.Container(params))
     local vbox = container:add(rtk.VBox{ref='VBOX', fillw=true},{})
-    local heading = vbox:add(rtk.Container{ref='HEAD', margin=0,h=40},{fillw=true})
+    local heading = vbox:add(rtk.Container{z=-5, ref='HEAD', margin=0,h=40},{fillw=true})
     if txt then heading:add(rtk.Text{fontsize=18,fontflags=rtk.font.BOLD,y=heading.calc.h/5,txt,halign='center',h=1,w=1}) end
     local rect_heading = create_spacer(heading, COL1, COL2, round_rect_window)
-    local hiden_bottom = heading:add(rtk.Spacer{ref='HIDE', margin=0,y=32,h=35,w=1,bg=COL3})
+    local hiden_bottom = heading:add(rtk.Spacer{ref='HIDE', margin=-0.5,y=32,h=35,w=1,bg=COL3})
     local bg_roundrect = create_spacer(container, COL1, COL3, round_rect_window)
     bg_roundrect:attr('ref','BG')
     local vp_vbox = rtk.VBox{spacing=def_spacing, padding=2, margin=2,w=1}
@@ -812,7 +828,7 @@ function create_b(CONT, txt, w, h, bparms, icon, animate)
     animate = animate == nil and true or animate
     local b_ref = txt:gsub(" ", "_"):gsub("%W", "_")
     local container = CONT:add(rtk.Container{cursor=rtk.mouse.cursors.HAND, hotzone=3, h=h, w=w, halign='center'},{halign='center'})
-    local b_spacer = create_spacer(container, COL8, COL18, round_rect_list); b_spacer:attr('ref', b_ref); b_spacer:attr('w', w)
+    local b_spacer = create_spacer(container, COL18, COL18, round_rect_list); b_spacer:attr('ref', b_ref); b_spacer:attr('w', w)
     
     local function animate_or_attr(self, attr, value)
         if animate then
