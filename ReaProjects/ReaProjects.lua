@@ -1,8 +1,8 @@
 -- @description ReaProjects - Project Manager
 -- @author mrtnz
--- @version 0.1.26-alpha
+-- @version 0.1.27-alpha
 -- @changelog
---  More Added Widgets
+--  New logic geometry
 -- @provides
 --   libs/*.lua
 --   modules/*.lua
@@ -90,9 +90,8 @@ ALL_PROJECTS_INIT         = {}
 
 
 local wnd = rtk.Window{opacity=0.98, borderless=false, x=MAIN_PARAMS.last_x,y=MAIN_PARAMS.last_y,bg=COL0, expand=1, w=MAIN_PARAMS.wnd_w*rtk.scale.value, h=MAIN_PARAMS.wnd_h, padding=10, minh=500, minw=500, } 
-wnd.onresize = function(self, w, h)
-    self:reflow()
-end 
+
+
 
 if MAIN_PARAMS.last_x < 0 then
     wnd:move(1,  _)
@@ -133,7 +132,7 @@ local settings_app = create_b(app_right, "STNGS", 40, 30, true, ic.settings:scal
 
 
 local main_hbox_window = main_vbox_window:add(rtk.HBox{minh=350,  spacing=def_spacing},{fillw=true, fillh=true})
-local left_vbox_sect = main_hbox_window:add(rtk.VBox{h=1, B_heigh=27, spacing=def_spacing},{stretch=25, fillh=true,})
+local left_vbox_sect = main_hbox_window:add(rtk.VBox{h=1, B_heigh=27, spacing=def_spacing},{fillh=true,})
 
 
 
@@ -345,9 +344,9 @@ settings_app.onclick = function(self, event)
 end
 
 ---------LEFT SIDE SECTION---------
-local GRP_minw,GRP_maxw,GRP_minh,GRP_w, bh =95,175,145,0.25, 24
-local OPEN_container, OPEN_heading, OPEN_vp_vbox = create_container({minw=GRP_minw, maxw=GRP_maxw, w=GRP_w}, left_vbox_sect,'OPEN PROJECTS')
-local NEW_container, NEW_heading, NEW_vp_vbox = create_container({minw=GRP_minw, maxw=GRP_maxw, w=GRP_w}, left_vbox_sect, 'NEW PROJECTS')
+local GRP_minw,GRP_maxw,GRP_minh,GRP_w, bh =115,175,145,0.25, 24
+local OPEN_container, OPEN_heading, OPEN_vp_vbox = create_container({minw=GRP_minw, maxw=GRP_maxw, w=GRP_w}, left_vbox_sect,'OPEN')
+local NEW_container, NEW_heading, NEW_vp_vbox = create_container({minw=GRP_minw, maxw=GRP_maxw, w=GRP_w}, left_vbox_sect, 'CREATE')
 local GROUP_container, group_heading, group_vp_vbox = create_container({minw=GRP_minw, maxw=GRP_maxw, w=GRP_w}, left_vbox_sect, ' ');group_vp_vbox:attr('spacing', 2)
 
 
@@ -355,7 +354,8 @@ local IMG_container, IMG_head, vp_images2 = create_container({minw=GRP_minw, max
 
 IMG_container.refs.VBOX:remove(IMG_container.refs.VBOX.refs.HEAD)
 
-
+OPEN_vp_vbox:attr('maxh', 125)
+NEW_vp_vbox:attr('maxh', 125)
 reorder_box(left_vbox_sect, OPEN_container, {expand=1.1, fillh=true})
 reorder_box(left_vbox_sect, NEW_container, {expand=1.1, fillh=true})
 reorder_box(left_vbox_sect, GROUP_container, {expand=1.3, fillh=true})
@@ -454,7 +454,7 @@ local hbox_listmode = hbox_sorting_modul:add(
         }
     )
 hbox_sorting_modul:add(rtk.Box.FLEXSPACE)
-hbox_sorting_modul:add(rtk.Text{y=1, fontsize=19, valign='center', h=1, "SORT BY"})
+hbox_sorting_modul:add(rtk.Text{x=1, fontsize=19, valign='center', h=1, "SORT FROM"})
 
 
 if TYPE_module == 0 then
@@ -503,8 +503,8 @@ local menu = {
 }
 
 local HB_sort = hbox_sorting_modul:add(rtk.VBox{})
-local option_menu = HB_sort:add(OptionMenu{ pos='left', minw=140, current=MAIN_PARAMS.sort_type, menu=menu, cursor=rtk.mouse.cursors.HAND, color=COL8, h=25,w=0.3},{})
-local VB_RVB = RoundrectVBox({y=3, margin=-12, w=1, h=200}, "#353535", 8)
+local option_menu = HB_sort:add(OptionMenu{x=5, pos='left', minw=140, current=MAIN_PARAMS.sort_type, menu=menu, cursor=rtk.mouse.cursors.HAND, color="#5a5a5a", h=25,w=0.3},{})
+local VB_RVB = RoundrectVBox({y=3, margin=-12, w=1, h=200}, "#5a5a5a", 8)
  
 option_menu.onmousedown=function(self,event)
     if popupOption.opened then
@@ -637,26 +637,25 @@ function native_menu(n)
     popup_by_path:attr('h', def_h_b*#vbox_popup.children+13)
     b_open_folder.onclick=function(self,event)
         if LBM(event) then
+            popup_by_path:close()
             local paths = get_selected_path()
             for i, path in ipairs(paths) do
                 reaper.CF_LocateInExplorer(path)
             end
-            popup_by_path:close()
         end
-        
     end
     
     new_tab_proj_b.onclick=function(self,event)
         if LBM(event) then
-            OPEN_selected_projects_newt:onclick()
             popup_by_path:close()
+            OPEN_selected_projects_newt:onclick()
         end
     end
     
     open_cur_proj_b.onclick=function(self,event)
         if LBM(event) then
-            OPEN_selected_project:onclick()
             popup_by_path:close()
+            OPEN_selected_project:onclick()
         end
     end
     
@@ -664,18 +663,18 @@ function native_menu(n)
         if LBM(event) then
             local paths = get_selected_path()
             for i, path in ipairs(paths) do
-                open_project_recovery(path)
                 popup_by_path:close()
+                open_project_recovery(path)
             end
         end
     end
     
     b_backups_open.onclick=function(self,event)
         if LBM(event) then
+            popup_by_path:close()
             PROJECT_PATH_BACKUPS = get_backups_folder(n.dir)
             dofile(cur_path.."modules"..sep.."backups.lua")
             create_backups()
-            popup_by_path:close()
             popup_backups:open()
         end
     end
@@ -803,7 +802,7 @@ function create_block_list()
         n.cont = container_hbox
         n.sel = 0
 
-        local new_cont = container_hbox:add(rtk.Container{hotzone=2, z=5},{fillw=true,fillh=true})
+        local new_cont = container_hbox:add(rtk.Container{autofocus=true, hotzone=2, z=5},{fillw=true,fillh=true})
         
         new_cont.onmousedown = function(self, event)
             local lbm = event.button == lbm
@@ -837,6 +836,19 @@ function create_block_list()
             end
         end
         
+        
+        --[[------------------------NADO PODUMAT')-------------------
+        new_cont.onfocus=function(self,event)
+            local nsel = n.sel == 0
+            local color = n.sel == 1 and BG_COL or SELECTED_COL
+            recolor(bg_roundrect, color, color)
+            n.sel = 1 - n.sel
+            return true
+        end
+        new_cont.onblur=function(self,event)
+            
+        end
+        ---]]
         VP_1:scrollto(0, 0, false)
         icon_raiting_proj:attr('icon', rait_icons[icons_row1[raiting]])
         icon_raiting_proj.onclick=function(self, event)
@@ -1704,20 +1716,29 @@ function create_group_leftsection(gr, DATA, data_list)
     
     local clean_paths, missed_paths = remove_elems(new_tab)
     table.insert(ALL_PROJECTS_INIT, clean_paths)
-    
-    vbox:add(RoundButton{ref='_group', round=2, color=DATA.bgcol, halign='center',w=1, h=25, toggle=false, text=DATA.name})
-    vbox.refs._group.onclick = function(self, event)
+    local hb_vb_buttons = vbox:add(rtk.Container{},{})
+    local b_btns = hb_vb_buttons:add(RoundButton{ref='_group', round=2, color=shift_color(DATA.bgcol, 1.0, 1.0, 0.8), halign='left',w=1, h=25, toggle=false, text=DATA.name},{expand=2})
+    local b_circ = hb_vb_buttons:add(rtk.Button{disabled=true, ref='circ', visible=false, color=DATA.bgcol,h=18,alpha=0.6, circular=true, rmargin=5,},{valign='center', halign='right', expand=1})
+    b_btns.onclick = function(self, event)
         if LBM(event) then
             if #clean_paths > 0 then
                 new_paths, all_paths_list = get_all_paths(clean_paths)
                 sorted_paths              = sort_paths(new_paths, all_paths_list, MAIN_PARAMS.sort, MAIN_PARAMS.sort_dir)
                 main_run()
+                
+                for _, elem in ipairs(vbox.children) do
+                    local elem = elem[1]
+                    elem.refs.circ:hide()
+                    if elem == hb_vb_buttons then
+                        b_circ:show()
+                    end
+                end
             end
             
         end
     end
     if #new_tab == 0 then
-        vbox.refs._group:attr('disabled', true)
+        b_btns:attr('disabled', true)
     end
     
     return missed_paths
@@ -1730,16 +1751,57 @@ end
 
 function create_group_block(vbox, vbox_list, DATA, all_tabs, group, i, hbox_buttons)
     local cont_collections = create_group_container(vbox, DATA, 80, 0.8)
+    vbox:attr('spacing',7)
     local vbox_grp = cont_collections:add(rtk.VBox{spacing=def_spacing, h=1, padding=5})
     local cont_hbox = vbox_grp:add(rtk.Container{w=1})
     cont_hbox:add(RoundButton{disabled=true, ref='b', round=16, text="",color='#5a5a5a', halign='center', y=-1, h=40, w=1, toggle=false})
-    cont_hbox:add(rtk.Heading{padding=4, w=1, h=cont_hbox.refs.b.calc.h, wrap=true, fontflags=rtk.font.BOLD, fontsize=18, valign='center', halign='center', font='Verdena', text=DATA.name})
+    local head = cont_hbox:add(rtk.Heading{ref='head', padding=4, w=1, h=cont_hbox.refs.b.calc.h, wrap=true, fontflags=rtk.font.BOLD, fontsize=18, valign='center', halign='center', font='Verdena', text=DATA.name})
+    
+    local hb_ent = cont_hbox:add(rtk.HBox{spacing=4,},{})
+    hb_ent:add(rtk.Entry{y=1,x=5,bg='transparent',padding=5, fontflags=rtk.font.BOLD, fontsize=22, font='Verdena', placeholder='Set group name', value=DATA.name, visible=false, h=40, ref='entry',border_focused='transparent', border_hover='transparent',},{fillw=true})
+    
+    head.onclick=function(self,event)
+        if not cont_hbox.refs.entry.visible and RBM(event) then
+            cont_hbox.refs.entry:show()
+            cont_hbox.refs.entry:focus()
+            hb_ent.refs.entry:attr('caret', 95)
+            cont_hbox.refs.head:hide()
+        end
+    end
+    
+    hb_ent.refs.entry.onfocus=function(self,event)
+        return true
+    end
+    
+    hb_ent.refs.entry.onblur=function(self,event)
+        if hb_ent.refs.entry.visible then
+            hb_ent.refs.entry:hide()
+          
+            cont_hbox.refs.head:show()
+        end
+    end
+    
+    hb_ent.refs.entry.onkeypress=function(self, event)
+        if event.keycode == rtk.keycodes.ENTER and hb_ent.refs.entry.focused  then
+            DATA.name=self.value
+            
+            hb_ent.refs.entry:blur()
+            save_parameter_sort(group, DATA, workspace_file)
+            head:attr('text', DATA.name)
+            missed_paths = create_group_leftsection(group_vp_vbox, DATA, DATA.list)
+        end
+        return true
+    end
+    
+
+    
     vbox_grp:add(rtk.HBox{
         ref='hbox',
         RoundButton{autohover=false, ref='b', round=8, color='#6a6a6a', halign='center', y=-1, w=80, disabled=true, h=25, toggle=false, text=#DATA.list.. " projects"},
         RoundButton{autohover=false, x=2,ref='not_found', round=8, color='#952222', halign='center', y=-1, w=80, disabled=true, h=25, toggle=false, text=" "},
         --RoundButton{x=4, ref='scan', round=8, color='purple', halign='left', w=0.64,y=-1, disabled=false, h=25, toggle=true, text="Auto-scan"},
         rtk.Box.FLEXSPACE,
+        rtk.Button{ref='circ', x=-5, h=1, color=DATA.bgcol, circular=true, rmargin=5,},
         RoundButton{ref='edit', round=8, color='#6a6a6a', halign='center', y=-1, w=35, x=-2, h=25, toggle=false, fontsize=27, text="✎"},
         RoundButton{ref='delete', round=8, color='#ba1515', halign='center', y=-1, w=35, h=25, toggle=false, fontsize=19, text="✖"}
     })
@@ -1752,14 +1814,27 @@ function create_group_block(vbox, vbox_list, DATA, all_tabs, group, i, hbox_butt
         vbox_grp.refs.not_found:attr('text', missed_paths.." not found")
     end
     
+    vbox_grp.refs.circ.onclick=function(self,event)
+        local ret, col = reaper.GR_SelectColor(wnd.hwnd, rtk.color.int(DATA.bgcol, true))
+        if ret then 
+            if col == 0 then return end
+            DATA.bgcol = rtk.color.int2hex(col, true)
+            self:attr('color', DATA.bgcol)
+            save_parameter_sort(group, DATA, workspace_file)
+        end
+    end
+      
+    local active_col = shift_color(DATA.bgcol, 1.0, 1.0, 1.2)
+    
     cont_collections.onmouseenter = function(self, event) recolor(cont_collections.refs.first_bg_spacer, active_col) return true end
     cont_collections.onmouseleave = function(self, event) recolor(cont_collections.refs.first_bg_spacer, shift_color(DATA.bgcol, 1.0, 0.7, 0.8)) end
-    cont_collections.onmousedown = function(self, event)
+    cont_collections.onclick = function(self, event)
         if LBM(event) then
             for _, tab in ipairs(all_tabs) do 
-                tab.refs.b:attr('color', shift_color(DATA.bgcol, 1.0, 0.7, 0.8)) 
+                
+                --tab.refs.b:attr('color', shift_color(tab.refs.b.color, 1.0, 0.7, 0.8)) 
             end
-            cont_hbox.refs.b:attr('color', active_col)
+            --cont_hbox.refs.b:attr('color', active_col)
             show_list_group(vbox_list, DATA, hbox_buttons, group, vbox_grp.refs.hbox)
             --show_input_window()
         end
@@ -1794,12 +1869,12 @@ function create_workspace(vbox, vbox_list, hbox_buttons, bottom_section_group)
         local cont_hbox = create_group_block(vbox, vbox_list, DATA, all_tabs, group, i, hbox_buttons)
         
     end
-    
+    --[[
     local vb = bottom_section_group:add(rtk.VBox{},{expand=1, stretch = 2})
     vb:add(rtk.CheckBox{w=0.4, 'Auto Scaning Folder'},{})
     vb:add(rtk.Entry{w=0.5, 'Add path to scan'},{expand = 1, stretch = 2})
     vb:add(rtk.Entry{w=0.5, 'Set Name group'},{expand=1, stretch =1})
-    
+    ]]
 end
  
 
@@ -1888,10 +1963,8 @@ end
 local HB_GR_BUTTON_SECT = group_heading:add(rtk.HBox{ x=4, spacing=def_spacing, padding=3,},{})
 local VB_GR_B_MN = HB_GR_BUTTON_SECT:add(rtk.VBox{spacing=2, x=2,},{})
 
-VB_GR_B_MN:add(RoundButton{halign='center', fontsize=11, round=1, w=25, h=11, toggle=false, color="#5a5a5a", "↑"},{ })
-VB_GR_B_MN:add(RoundButton{halign='center', fontsize=11, round=1, w=25,h=11, toggle=false, color="#5a5a5a", "↓"},{})
-HB_GR_BUTTON_SECT:add(RoundButton{halign='center', h=25, toggle=false, color="#4a4a4a", "GROUPS"},{fillw=true, expand=3, halign='right', })
-local open_group_editor = create_b(HB_GR_BUTTON_SECT, "param_group", 34, 25, true, ic.settings:scale(120,120,22,6.2):recolor("white"), false ) settings_app.click=1
+
+local open_group_editor = HB_GR_BUTTON_SECT:add(RoundButton{halign='center', h=25, toggle=false, color="#5a5a5a", "GROUPS"},{fillw=true, expand=3, halign='right', })
 
 
 --reorder_box(HB_GR_BUTTON_SECT, open_group_editor, {expand=1, fillw=true})
@@ -1908,7 +1981,7 @@ local hbox_head_grp=hb_heading_group:add(rtk.HBox{w=1})
 
 back_from_grp=create_b(hbox_head_grp, '←   back', 70, 27, nil, nil, false) back_from_grp:move(4,3) 
 
-local main_vbox_COLLECTIONS = vp_group:add(rtk.VBox{spacing=def_spacing, border='aqua', w=1, h=90})
+local main_vbox_COLLECTIONS = vp_group:add(rtk.VBox{spacing=def_spacing, border='aqua', w=1, h=50})
 
 --HBOX AND BUTTONS TAB COLLECTIONS\WORKSPACE\ARCHIVE
 local tab_group_hbox = main_vbox_COLLECTIONS:add(rtk.HBox{spacing=def_spacing})
@@ -1916,10 +1989,7 @@ local button_create_collect = tab_group_hbox:add(rtk.Button{halign='center', 'Co
 local button_create_workspace = tab_group_hbox:add(rtk.Button{disabled=true, halign='center', 'Workspace'},{fillw=true})
 local button_create_unused = tab_group_hbox:add(rtk.Button{disabled=true, halign='center', 'Archive'},{fillw=true})
 
---HBOX BUTTONS CREATE MODUL
-local ORGANIZE_BUTTONS_HB = main_vbox_COLLECTIONS:add(rtk.HBox{spacing=def_spacing},{ valign='bottom', fillh=true, fillw=true})
-ORGANIZE_BUTTONS_HB:add(RoundButton{round=6, halign='center', y=-1, h=26, w=120, toggle=false, color='#9a9a9a', 'Create',})
-ORGANIZE_BUTTONS_HB:add(RoundButton{round=6, halign='center', y=-1, h=26, w=120, toggle=false, color='#9a9a9a', 'Remove'})
+
 --RIGHT AND LEFT SECTIONS
 local collections_main = vp_group:add(rtk.HBox{spacing=def_spacing})
 local COLLECTIONS_VB=collections_main:add(rtk.VBox{h=0.64, w=0.5, },{fillh=true, })
@@ -2476,9 +2546,24 @@ function update_geometry(w, h)
             cont_bg_right_sect_1:show()
         end
     end
+    if w < 450 * rtk.scale.value then
+        if player_container.visible then
+            player_container:hide()
+        end
+        if not cont_bg_right_sect_1.visible then
+            cont_bg_right_sect_1:show()
+        end
+    else
+        if not player_container.visible then
+            player_container:show()
+        end
+        
+    end
     if main_vbox_window.calc.h < 600 * rtk.scale.value then
         IMG_container:hide()
+        cont_info_bar:hide()
     else
+        cont_info_bar:show()
         IMG_container:show()
     end
 end
@@ -2487,6 +2572,9 @@ wnd:open()
 
 wnd.onresize = function(self, w, h) 
     update_geometry(w, h)
+    if popup_by_path.opened then
+        popup_by_path:close()
+    end
 end
 
 update_geometry(wnd.w)
