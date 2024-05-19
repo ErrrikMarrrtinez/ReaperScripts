@@ -477,32 +477,37 @@ popupOption = rtk.Popup{h=2, bg='transparent', border='transparent', margin=-2}
 
 function PopupOption(widg, VB, menu)
     VB:remove_index(2)
-    new_vb = VB:add(rtk.VBox{w=1})
+    new_vb = VB:add(rtk.VBox{y=-5,w=1})
     
     local menu = widg.menu
     for i, name in ipairs(menu) do
         local elem_name = menu[i][1]
-        local txt = new_vb:add(rtk.Text{font='Arial', fontscale=1, fontsize=17, cursor=rtk.mouse.cursors.HAND, lpadding=10, margin=0, w=1, valign='center', bborder='#4a4a4a', text=elem_name},{fillh=true})
+        local txt = new_vb:add(RoundButton{z=3, h=25, round=0, color='#8a8a8a', toggle=false, font='Calibri', fontsize=19, lpadding=10, margin=0, w=1, valign='center', bborder='#4a4a4a', text=elem_name},{})
+        if i == 1 then
+            txt:attr('round',6)
+            txt:attr('z',-1)
+            txt:attr('h',txt.h+4)
+            txt:attr('y',4)
+        elseif i == #menu then
+            txt:attr('round',6)
+            txt:attr('y',-2)
+            txt:attr('h',txt.h+4)
+            txt:attr('z',-1)
+        end
         txt.onclick=function(self,event)
             widg:attr('current', i)
             popupOption:close{}
             SELECTED = true
             return SELECTED
         end
-        txt.onmouseenter=function(self,event)
-            self:attr('bg', "#6a6a6a")
-            return true
-        end
-        txt.onmouseleave=function(self,event)
-            self:attr('bg',"transparent")
-        end
+        
         if i == #menu then txt:attr('bborder', false) end
-        if i == widg.current then txt:attr('text', elem_name.."  ☑") end
+        if i == widg.current then txt:attr('text', elem_name.."  ☑") txt:attr('color', '#ffffff')end
     end
     popupOption:attr('anchor', widg)
     popupOption:attr('child', VB)
     popupOption:attr('h', 2)
-    popupOption:animate{'h', dst=VB.h, duration=0.1}
+    popupOption:animate{'h', dst=VB.calc.h+2, duration=0.1}
     popupOption:open{}
 end
 
@@ -636,7 +641,7 @@ function RoundButton:_handle_mouseenter(event)
         return ok
     end
     self.original_color = self.color
-    self.hover_color = shift_color(self.color, 1, 1, 1.1)
+    self.hover_color = shift_color(self.color, 1, 1, 1.3)
     self.color = self.hover_color
     
     return true
@@ -807,15 +812,16 @@ end
 
 function create_container(params, parent, txt)
     local container = parent:add(rtk.Container(params))
+    container:attr('autofocus', true)
     local vbox = container:add(rtk.VBox{ref='VBOX', fillw=true},{})
-    local heading = vbox:add(rtk.Container{z=-5, ref='HEAD', margin=0,h=40},{fillw=true})
+    local heading = vbox:add(rtk.Container{autofocus=true, z=-5, ref='HEAD', margin=0,h=40},{fillw=true})
     if txt then heading:add(rtk.Text{fontsize=18,fontflags=rtk.font.BOLD,y=heading.calc.h/5,txt,halign='center',h=1,w=1}) end
     local rect_heading = create_spacer(heading, COL1, COL2, round_rect_window)
     local hiden_bottom = heading:add(rtk.Spacer{ref='HIDE', margin=-0.5,y=32,h=35,w=1,bg=COL3})
     local bg_roundrect = create_spacer(container, COL1, COL3, round_rect_window)
     bg_roundrect:attr('ref','BG')
-    local vp_vbox = rtk.VBox{spacing=def_spacing, padding=2, margin=2,w=1}
-    local viewport = vbox:add(rtk.Viewport{child = vp_vbox, smoothscroll = true,scrollbar_size = 2,z=2})
+    local vp_vbox = rtk.VBox{sautofocus=true, pacing=def_spacing, padding=2, margin=2,w=1}
+    local viewport = vbox:add(rtk.Viewport{autofocus=true, child = vp_vbox, smoothscroll = true,scrollbar_size = 2,z=2})
     
     return container, heading, vp_vbox, viewport
 end
