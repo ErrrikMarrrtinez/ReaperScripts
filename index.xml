@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="442fa00ea5b88400065234638d0cba7c33bd7c64">
+<index version="1" name="ReaperScripts" commit="98bc34ca8034473701cbcdd0f2dd2d22be3860e7">
   <category name="Item Editing">
     <reapack name="mrtnz_change fade in and fade out(gui).lua" type="script" desc="Change fade in and fade out or crop(gui)">
       <metadata>
@@ -1080,6 +1080,21 @@ Tooltip with events]]></changelog>
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/32655b86e4ceccb8c7d4be9d0ff92716cfc2cfe1/Various/mrtnz_Insert%20fx%20and%20show%20x%20parameter%20creating%20a%20pool%20by%20razor%20edit.lua</source>
       </version>
     </reapack>
+    <reapack name="mrtnz_reverse preview item from mouse cursor (perform until shortcut released).lua" type="script" desc="Preview reverse item from mouse cursor (perform until shortcut released)">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 test\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.01" author="mrtnz" time="2024-08-31T09:31:32Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/98bc34ca8034473701cbcdd0f2dd2d22be3860e7/Various/mrtnz_reverse%20preview%20item%20from%20mouse%20cursor%20(perform%20until%20shortcut%20released).lua</source>
+        <source file="speaker.cur">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/98bc34ca8034473701cbcdd0f2dd2d22be3860e7/Various/speaker.cur</source>
+      </version>
+    </reapack>
     <reapack name="mrtnz_solo and play selected items(pressed).lua" type="script" desc="Smart solo-playitem (under cursor or selected) while the key is held down">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
@@ -1140,7 +1155,7 @@ to try to correctly hide this window.]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
