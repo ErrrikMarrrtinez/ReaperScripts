@@ -1,6 +1,6 @@
 -- @description Preview reverse item from mouse cursor (perform until shortcut released)
 -- @author mrtnz
--- @version 1.01
+-- @version 1.02
 -- @about
 --  test
 -- @provides
@@ -170,7 +170,7 @@ local function CheckPreview(preview)
             -- Ограничиваем значение edit_cursor_value, чтобы оно не могло быть меньше data.item_start
             local edit_cursor_value = math.max(data.item_start, data.item_start + (length - position) - data.take_offset / data.playrate)
             r.SetEditCurPos(edit_cursor_value, false, false)
-            r.JS_Mouse_LoadCursorFromFile(p..'/speaker.cur')
+            r.JS_Mouse_SetCursor(r.JS_Mouse_LoadCursorFromFile(p..'/speaker.cur'))
             if edit_cursor_value <= data.item_start then
                 r.CF_Preview_StopAll()
                 return
