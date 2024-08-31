@@ -1,9 +1,10 @@
 -- @description Preview reverse item from mouse cursor (perform until shortcut released)
 -- @author mrtnz
--- @version 1.00
+-- @version 1.01
 -- @about
+--  test
 -- @provides
---   speaker.cur
+--   *.cur
 
 local r = reaper
 local reverse = true
