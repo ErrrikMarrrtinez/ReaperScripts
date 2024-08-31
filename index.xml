@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="e705e5ce9b88b21a5b4f6c67f2e63a0526de3619">
+<index version="1" name="ReaperScripts" commit="78036aa92a69b136bb9dfe7bd6a8632d69ae0e9c">
   <category name="Item Editing">
     <reapack name="mrtnz_change fade in and fade out(gui).lua" type="script" desc="Change fade in and fade out or crop(gui)">
       <metadata>
@@ -1456,6 +1456,20 @@ Added group editor (beta)]]></changelog>
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7b9dd24824a842293596735951cd37a12097c7a5/Tracks/mrtnz_close%20all%20fx%20windows%20for%20selected%20tracks.lua</source>
       </version>
     </reapack>
+    <reapack name="mrtnz_create VCA link for selected tracks after freeze (stereo).lua" type="script" desc="Create VCA link for selected tracks after freeze">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 test\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.00" author="mrtnz" time="2024-07-04T08:58:38Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/78036aa92a69b136bb9dfe7bd6a8632d69ae0e9c/Tracks/mrtnz_create%20VCA%20link%20for%20selected%20tracks%20after%20freeze%20(stereo).lua</source>
+      </version>
+    </reapack>
     <reapack name="mrtnz_fast sidechain from selected tracks to track under mouse.lua" type="script" desc="Quick sidechain from selected tracks to track under mouse">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
@@ -1661,7 +1675,7 @@ to try to correctly hide this window.]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
