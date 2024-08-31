@@ -1,6 +1,6 @@
 -- @description Preview reverse item from mouse cursor (perform until shortcut released)
 -- @author mrtnz
--- @version 1.02
+-- @version 1.03
 -- @about
 --  test
 -- @provides
@@ -136,6 +136,18 @@ local function PrintTraceback(err)
     )
 end
 
+local function Release()
+    if data and data.is_track_solo == 0.0 then
+        r.SetMediaTrackInfo_Value(data.track, "I_SOLO", 0)
+    end
+    r.JS_Mouse_SetCursor(r.JS_Mouse_LoadCursor(32512))
+    if original_edit_cursor_pos then
+        r.SetEditCurPos(original_edit_cursor_pos, false, false)
+    end
+    r.JS_VKeys_Intercept(KEY, -1)
+    r.CF_Preview_StopAll()
+end
+
 local function PDefer(func)
     r.defer(function()
         local status, err = xpcall(func, debug.traceback)
@@ -170,7 +182,8 @@ local function CheckPreview(preview)
             -- Ограничиваем значение edit_cursor_value, чтобы оно не могло быть меньше data.item_start
             local edit_cursor_value = math.max(data.item_start, data.item_start + (length - position) - data.take_offset / data.playrate)
             r.SetEditCurPos(edit_cursor_value, false, false)
-            r.JS_Mouse_SetCursor(r.JS_Mouse_LoadCursorFromFile(p..'/speaker.cur'))
+            local cursor = r.JS_Mouse_LoadCursorFromFile(p..'/speaker.cur')
+            r.JS_Mouse_SetCursor(cursor)
             if edit_cursor_value <= data.item_start then
                 r.CF_Preview_StopAll()
                 return
@@ -212,17 +225,6 @@ local function Main()
     PDefer(Main)
 end
 
-local function Release()
-    if data and data.is_track_solo == 0.0 then
-        r.SetMediaTrackInfo_Value(data.track, "I_SOLO", 0)
-    end
-    r.JS_Mouse_SetCursor(r.JS_Mouse_LoadCursor(32512))
-    if original_edit_cursor_pos then
-        r.SetEditCurPos(original_edit_cursor_pos, false, false)
-    end
-    r.JS_VKeys_Intercept(KEY, -1)
-    r.CF_Preview_StopAll()
-end
 
 PDefer(Main)
 r.atexit(Release)
