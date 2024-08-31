@@ -1081,15 +1081,18 @@ Tooltip with events]]></changelog>
       </version>
     </reapack>
     <reapack name="mrtnz_reverse preview item from mouse cursor (perform until shortcut released).lua" type="script" desc="Preview reverse item from mouse cursor (perform until shortcut released)">
-      <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+      <metadata> HEAD
+        
+      <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+=======
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+>>>>>>> bfac91064b7ae2c1feccf86d66e86a20445c55f7
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
 {\pard \ql \f0 \sa180 \li0 \fi0 test\par}
 }
-]]></description>
-      </metadata>
+]]></description></metadata>
       <version name="1.01" author="mrtnz" time="2024-08-31T09:31:32Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/98bc34ca8034473701cbcdd0f2dd2d22be3860e7/Various/mrtnz_reverse%20preview%20item%20from%20mouse%20cursor%20(perform%20until%20shortcut%20released).lua</source>
         <source file="speaker.cur">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/98bc34ca8034473701cbcdd0f2dd2d22be3860e7/Various/speaker.cur</source>
