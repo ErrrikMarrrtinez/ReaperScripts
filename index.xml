@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="98bc34ca8034473701cbcdd0f2dd2d22be3860e7">
+<index version="1" name="ReaperScripts" commit="71e9aac5718c6efbfcd881d411dd5477fcea43a1">
   <category name="Item Editing">
     <reapack name="mrtnz_change fade in and fade out(gui).lua" type="script" desc="Change fade in and fade out or crop(gui)">
       <metadata>
@@ -1083,10 +1083,7 @@ Tooltip with events]]></changelog>
     <reapack name="mrtnz_reverse preview item from mouse cursor (perform until shortcut released).lua" type="script" desc="Preview reverse item from mouse cursor (perform until shortcut released)">
       <metadata> HEAD
         
-      <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
-=======
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
->>>>>>> bfac91064b7ae2c1feccf86d66e86a20445c55f7
+      <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
@@ -1096,6 +1093,10 @@ Tooltip with events]]></changelog>
       <version name="1.01" author="mrtnz" time="2024-08-31T09:31:32Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/98bc34ca8034473701cbcdd0f2dd2d22be3860e7/Various/mrtnz_reverse%20preview%20item%20from%20mouse%20cursor%20(perform%20until%20shortcut%20released).lua</source>
         <source file="speaker.cur">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/98bc34ca8034473701cbcdd0f2dd2d22be3860e7/Various/speaker.cur</source>
+      </version>
+      <version name="1.02" author="mrtnz" time="2024-08-31T10:10:21Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/71e9aac5718c6efbfcd881d411dd5477fcea43a1/Various/mrtnz_reverse%20preview%20item%20from%20mouse%20cursor%20(perform%20until%20shortcut%20released).lua</source>
+        <source file="speaker.cur">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/71e9aac5718c6efbfcd881d411dd5477fcea43a1/Various/speaker.cur</source>
       </version>
     </reapack>
     <reapack name="mrtnz_solo and play selected items(pressed).lua" type="script" desc="Smart solo-playitem (under cursor or selected) while the key is held down">
@@ -1158,7 +1159,7 @@ to try to correctly hide this window.]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
