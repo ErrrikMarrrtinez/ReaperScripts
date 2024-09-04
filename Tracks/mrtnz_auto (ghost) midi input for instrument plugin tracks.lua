@@ -1,6 +1,6 @@
 -- @description Auto (ghost) midi input for instrument plugin tracks
 -- @author mrtnz
--- @version 1.0
+-- @version 1.2
 -- @about
 --  ...
 
