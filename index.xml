@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="7e65f12723e75073028dd2098449eb96cee08cbc">
+<index version="1" name="ReaperScripts" commit="e6819385fdadf22ef215aad9b470073cddb28c30">
   <category name="Item Editing">
     <reapack name="mrtnz_change fade in and fade out(gui).lua" type="script" desc="Change fade in and fade out or crop(gui)">
       <metadata>
@@ -867,6 +867,9 @@
       </metadata>
       <version name="1.0" author="mrtnz" time="2023-12-13T09:19:54Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/014985a0bbe1a2885b450ad75e9c66759d0aa7be/Tracks/mrtnz_auto%20(ghost)%20midi%20input%20for%20instrument%20plugin%20tracks.lua</source>
+      </version>
+      <version name="1.2" author="mrtnz" time="2024-09-04T09:17:34Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/e6819385fdadf22ef215aad9b470073cddb28c30/Tracks/mrtnz_auto%20(ghost)%20midi%20input%20for%20instrument%20plugin%20tracks.lua</source>
       </version>
     </reapack>
     <reapack name="mrtnz_change pan for paired selected tracks (mousewheel ctx).lua" type="script" desc="Change pan for paired selected tracks (mousewheel ctx)">
