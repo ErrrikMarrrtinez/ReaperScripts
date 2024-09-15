@@ -1,6 +1,6 @@
--- @description MIDI Chopper 1.212
+-- @description MIDI Chopper
 -- @author mrtnz
--- @version 1.9
+-- @version 1.1
 -- @about
 --   ..
 -- @provides
