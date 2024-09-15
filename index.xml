@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="e6819385fdadf22ef215aad9b470073cddb28c30">
+<index version="1" name="ReaperScripts" commit="b7abb83e84c2e3b464721c0b884b6330136f128b">
   <category name="Item Editing">
     <reapack name="mrtnz_change fade in and fade out(gui).lua" type="script" desc="Change fade in and fade out or crop(gui)">
       <metadata>
@@ -721,13 +721,13 @@
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/356d9b3abb4153707a362398c61ea9c060e6b957/MIDI%20Editor/mrtnz_Arpeggiator(chord%20to%20arp).lua</source>
       </version>
     </reapack>
-    <reapack name="mrtnz_MIDI chopper.lua" type="script" desc="MIDI Chopper v1.212">
+    <reapack name="mrtnz_MIDI chopper.lua" type="script" desc="MIDI Chopper">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
-{\pard \ql \f0 \sa180 \li0 \fi0 ...\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 ..\par}
 }
 ]]></description>
       </metadata>
@@ -760,6 +760,11 @@
       </version>
       <version name="1.6" author="mrtnz" time="2023-12-14T12:35:59Z">
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/0aa18bd457e855735b776291349aa4119b3474d7/MIDI%20Editor/mrtnz_MIDI%20chopper.lua</source>
+      </version>
+      <version name="1.9" author="mrtnz" time="2024-09-15T16:12:40Z">
+        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/b7abb83e84c2e3b464721c0b884b6330136f128b/MIDI%20Editor/mrtnz_MIDI%20chopper.lua</source>
+        <source file="core.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/b7abb83e84c2e3b464721c0b884b6330136f128b/MIDI%20Editor/core.lua</source>
+        <source file="color.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/b7abb83e84c2e3b464721c0b884b6330136f128b/MIDI%20Editor/color.lua</source>
       </version>
     </reapack>
     <reapack name="mrtnz_move velocity up or down (mousewheel).lua" type="script" desc="Move velocity note up or down (mousewheel ctx)">
