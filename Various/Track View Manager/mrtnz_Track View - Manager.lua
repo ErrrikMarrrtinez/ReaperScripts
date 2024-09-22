@@ -1,15 +1,15 @@
 -- @description Track View Manager
 -- @author mrtnz
--- @version 1.0
+-- @version 1.1
 -- @about
 --  Track View Manager
 -- @provides
 --   [main] .
 --   [main] mrtnz_Track view - Save by slot number.lua
 --   [main] mrtnz_Track view - Load by slot number.lua
--- rtk.lua
--- json.lua
--- functions.lua
+--   rtk.lua
+--   json.lua
+--   functions.lua
 
 
 local r = reaper ; function print(...) local t = {...} for i = 1, select('#', ...) do t[i] = tostring(t[i]) end r.ShowConsoleMsg(table.concat(t, '\t') .. '\n') end
