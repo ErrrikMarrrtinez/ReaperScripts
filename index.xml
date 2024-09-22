@@ -1140,26 +1140,8 @@ to try to correctly hide this window.]]></changelog>
       </version>
     </reapack>
   </category>
-  <category name="Various/Track View Manager">
-    <reapack name="mrtnz_Track View - Manager.lua" type="script" desc="Track View Manager">
-      <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
-{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
-\widowctrl\hyphauto
-
-{\pard \ql \f0 \sa180 \li0 \fi0 Track View Manager\par}
-}
-]]></description>
-      </metadata>
-      <version name="1.0" author="mrtnz" time="2024-09-22T06:52:23Z">
-        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/b787016eb475ec26b3aaceb510f18908f0b4acdb/Various/Track%20View%20Manager/mrtnz_Track%20View%20-%20Manager.lua</source>
-        <source main="main" file="mrtnz_Track view - Save by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/b787016eb475ec26b3aaceb510f18908f0b4acdb/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Save%20by%20slot%20number.lua</source>
-        <source main="main" file="mrtnz_Track view - Load by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/b787016eb475ec26b3aaceb510f18908f0b4acdb/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Load%20by%20slot%20number.lua</source>
-      </version>
-    </reapack>
-  </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
