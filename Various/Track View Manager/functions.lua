@@ -4,16 +4,12 @@ local r = reaper
 package.path = package.path .. ";" .. string.match(({r.get_action_context()})[2], "(.-)([^\\/]-%.?([^%.\\/]*))$") .. "?.lua"
 
 local json = require "json"
-
+require "rtk"
 local func = {}
 
 local script_path = ({r.get_action_context()})[2]:match("(.*[/\\])")
+local USE_SELECTION_MODE = true
 
-local script_template = [[
-package.path = package.path .. ";" .. string.match(({reaper.get_action_context()})[2], "(.-)([^\\/]-%%.?([^%%.\\/]*))$") .. "?.lua"
-local f = require "functions"
-f.restoreVisibleTracksSnapshot(%d)
-]]
 
 function func.formatDate()
   local current_time = os.date("*t")
@@ -40,6 +36,11 @@ end
 
 function func.createScript(index)
     local name = 'mrtnz_Track View slot '
+    local script_template = [[
+package.path = package.path .. ";" .. string.match(({reaper.get_action_context()})[2], "(.-)([^\\/]-%%.?([^%%.\\/]*))$") .. "?.lua"
+local f = require "functions"
+f.restoreVisibleTracksSnapshot(%d)
+]]
     local filename = name .. string.format("%d.lua", index)
     local filepath = script_path .. filename
     local file = io.open(filepath, "w")
@@ -115,7 +116,7 @@ function func.createHeaderTab(main_vbox)
 end
 
 function func.getTrackInfo(track)
-  local _, guid = r.GetSetMediaTrackInfo_String(track, "GUID", "", false)
+  local guid = r.GetTrackGUID(track)
   local height = r.GetMediaTrackInfo_Value(track, "I_TCPH")
   local y = r.GetMediaTrackInfo_Value(track, "I_TCPY")
   return {guid = guid, height = height, y = y}
@@ -131,33 +132,43 @@ end
 function func.saveVisibleTracks(index)
   r.Undo_BeginBlock()
   r.PreventUIRefresh(1)
-
-  local _, _, _, tcp_height = func.getClientBounds(r.JS_Window_FindChildByID(r.GetMainHwnd(), 1000))
-
   local visible_tracks = {}
-  local first_selected_track = r.GetSelectedTrack(0, 0)
+  local first_visible_track = nil
 
-  if first_selected_track then
-
-    local first_selected_info = func.getTrackInfo(first_selected_track)
-    visible_tracks[first_selected_info.guid] = first_selected_info
-
-    local track_count = r.CountTracks(0)
-    for i = r.GetMediaTrackInfo_Value(first_selected_track, "IP_TRACKNUMBER"), track_count do
-      local track = r.GetTrack(0, i-1)
-      if r.GetMediaTrackInfo_Value(track, "B_SHOWINTCP") == 1 then
-        local track_info = func.getTrackInfo(track)
-        if track_info.y >= tcp_height then break end
-        visible_tracks[track_info.guid] = track_info
+  if USE_SELECTION_MODE then
+    -- Режим выбора определенных треков
+    local selected_track_count = r.CountSelectedTracks(0)
+    for i = 0, selected_track_count - 1 do
+      local track = r.GetSelectedTrack(0, i)
+      local track_info = func.getTrackInfo(track)
+      visible_tracks[track_info.guid] = track_info
+      if not first_visible_track or track_info.y < first_visible_track.y then
+        first_visible_track = track_info
+      end
+    end
+  else
+    -- Текущий режим (поиск по высоте)
+    local _, _, _, tcp_height = func.getClientBounds(r.JS_Window_FindChildByID(r.GetMainHwnd(), 1000))
+    local first_selected_track = r.GetSelectedTrack(0, 0)
+    if first_selected_track then
+      first_visible_track = func.getTrackInfo(first_selected_track)
+      visible_tracks[first_visible_track.guid] = first_visible_track
+      local track_count = r.CountTracks(0)
+      for i = r.GetMediaTrackInfo_Value(first_selected_track, "IP_TRACKNUMBER"), track_count do
+        local track = r.GetTrack(0, i-1)
+        if r.GetMediaTrackInfo_Value(track, "B_SHOWINTCP") == 1 then
+          local track_info = func.getTrackInfo(track)
+          if track_info.y >= tcp_height then break end
+          visible_tracks[track_info.guid] = track_info
+        end
       end
     end
   end
 
   local data_to_save = {
-    first_visible = first_selected_track and func.getTrackInfo(first_selected_track) or nil,
+    first_visible = first_visible_track,
     tracks = visible_tracks
   }
-
   local encoded_data = json.encode(data_to_save)
   r.SetProjExtState(0, "VisibleTracksSnapshot", "data_" .. index, encoded_data)
   r.PreventUIRefresh(-1)
@@ -208,34 +219,73 @@ function func.restoreVisibleTracks(encoded_data)
       end
     end
   end
-  r.TrackList_AdjustWindows(false)
-
-  r.TrackList_AdjustWindows(false)
-  r.PreventUIRefresh(-1)
-
-  r.TrackList_UpdateAllExternalSurfaces()
 
   if data.first_visible then
     return r.BR_GetMediaTrackByGUID(0, data.first_visible.guid)
   end
 end
 
-function func.main_loader(index)
-  local retval, encoded_data = r.GetProjExtState(0, "VisibleTracksSnapshot", "data_" .. index)
-  if retval == 0 then
-    return
+function func.main_loader(selected_slots)
+  r.Undo_BeginBlock()
+  r.UpdateArrange()
+  local first_tracks = {}
+  local all_tracks = {}
+
+  -- Сначала собираем данные со всех слотов
+  for index in pairs(selected_slots) do
+    local retval, encoded_data = r.GetProjExtState(0, "VisibleTracksSnapshot", "data_" .. index)
+    if retval ~= 0 then
+      local data = json.decode(encoded_data)
+      if data.tracks then
+        for guid, track_info in pairs(data.tracks) do
+          all_tracks[guid] = track_info
+        end
+      end
+      if data.first_visible then
+        table.insert(first_tracks, r.BR_GetMediaTrackByGUID(0, data.first_visible.guid))
+      end
+    end
   end
 
-  r.Undo_BeginBlock()
+  -- Теперь применяем изменения один раз
+  local track_count = r.CountTracks(0)
+  for i = 0, track_count - 1 do
+    local track = r.GetTrack(0, i)
+    local guid = r.GetTrackGUID(track)
+    if all_tracks[guid] then
+      r.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 1)
+      r.SetMediaTrackInfo_Value(track, "I_HEIGHTOVERRIDE", all_tracks[guid].height)
+    else
+      r.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 0)
+    end
+  end
 
-  r.UpdateArrange()
-  local first_track = func.restoreVisibleTracks(encoded_data)
+  r.TrackList_AdjustWindows(false)
+  r.TrackList_UpdateAllExternalSurfaces()
 
   r.Undo_EndBlock("Restore visible tracks snapshot", -1)
-  if first_track then
-    func.scrollTrackToTop(first_track)
-  end
   r.UpdateArrange()
+
+  local top_track
+  if #first_tracks > 0 then
+    top_track = first_tracks[1]
+    local top_track_index = r.GetMediaTrackInfo_Value(top_track, "IP_TRACKNUMBER")
+    for i = 2, #first_tracks do
+      local track_index = r.GetMediaTrackInfo_Value(first_tracks[i], "IP_TRACKNUMBER")
+      if track_index < top_track_index then
+        top_track = first_tracks[i]
+        top_track_index = track_index
+      end
+    end
+    
+    r.UpdateArrange()
+  end
+  if top_track then
+    rtk.callafter(0.00001, function()
+      func.scrollTrackToTop(top_track)
+    end)
+  end
+  r.TrackList_AdjustWindows(true)
 end
 
 function func.saveSlotData(index, name, checkboxState)

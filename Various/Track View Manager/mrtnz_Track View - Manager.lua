@@ -1,6 +1,6 @@
 -- @description Track View Manager
 -- @author mrtnz
--- @version 1.1
+-- @version 1.2
 -- @about
 --  Track View Manager
 -- @provides
@@ -12,9 +12,9 @@
 --   functions.lua
 
 
-local r = reaper ; function print(...) local t = {...} for i = 1, select('#', ...) do t[i] = tostring(t[i]) end r.ShowConsoleMsg(table.concat(t, '\t') .. '\n') end
+local r = reaper
+function print(...) local t = {...} for i = 1, select('#', ...) do t[i] = tostring(t[i]) end r.ShowConsoleMsg(table.concat(t, '\t') .. '\n') end
 r.gmem_attach('Viewer')
-
 
 package.path = package.path .. ";" .. string.match(({r.get_action_context()})[2], "(.-)([^\\/]-%.?([^%.\\/]*))$") .. "?.lua"
 local json = require "json"
@@ -32,7 +32,7 @@ cells_menu:set({
     {'Create action', id='1'},
 })
 
-local wnd = rtk.Window{opacity=0.975, minw=230, minh=250, border='#5a5a5a', borderless=true, title='Track View Manager', w=300, h=400, x=440}
+local wnd = rtk.Window{opacity=0.965, minw=230, minh=250, border='#5a5a5a', borderless=true, title='Track View Manager', w=300, h=400, x=440}
 local container = wnd:add(rtk.VBox{}, fills)
 
 function Main()
@@ -43,7 +43,8 @@ function Main()
           x = {},
           h = {},
           c = {},
-        }
+        },
+        selected_slots = {}
     }
     
     local widgets = DATA.widgets
@@ -73,7 +74,6 @@ function Main()
         })
         
         local slotData = loadSlotData(i)
-        --if i == 5 then print(table.tostring(slotData), type(i)) end
         updateButtonAppearance(button_screenset, i, slotData)
         
         local hide_all_checkbox = hbox:add(rtk.CheckBox{
@@ -102,19 +102,28 @@ function Main()
         })
        
         button_screenset.onclick = function(self, event)
-            for _, v in pairs(widgets.b) do
-                v:attr('color', '#4a4a4a')
-                v.click = false
+            if event.ctrl then
+                self.selected = not self.selected
+                if self.selected then
+                    DATA.selected_slots[i] = true
+                else
+                    DATA.selected_slots[i] = nil
+                end
+            else
+                for idx, v in pairs(widgets.b) do
+                    v:attr('color', '#4a4a4a')
+                    v.selected = false
+                    DATA.selected_slots[idx] = nil
+                end
+                for _, v in pairs(widgets.h) do
+                    v:attr('bg', '#2a2a2a')
+                end
+                DATA.selected_slots[i] = true
+                self.selected = true
             end
-            
-            for _, v in pairs(widgets.h) do
-                v:attr('bg', '#2a2a2a')
-                v.click = false
-            end
-            self.click = not self.click
-            self:attr('color', self.click and '#8a8a8a' or '#4a4a4a')
-            hbox:attr('bg', self.click and '#8a8a8a59' or '#4a4a4a59')
-            idx_cell = i
+                
+            self:attr('color', self.selected and '#8a8a8a' or '#4a4a4a')
+            hbox:attr('bg', self.selected and '#8a8a8a59' or '#4a4a4a59')
             
             if event.button == rtk.mouse.BUTTON_RIGHT then
                 cells_menu:open_at_mouse(self, "right", "bottom"):done(function(item) 
@@ -122,34 +131,30 @@ function Main()
                     if item.id == '1' then
                         createScript(i)
                     elseif item.id == '2' then
-                        if idx_cell >= 0 and idx_cell <= 25 then
-                            local retval, _ = r.GetProjExtState(0, "VisibleTracksSnapshot", "data_" .. idx_cell)
+                        if i >= 0 and i <= 25 then
+                            local retval, _ = r.GetProjExtState(0, "VisibleTracksSnapshot", "data_" .. i)
                             if retval ~= 0 then
                                 local ok = r.ShowMessageBox("This slot already contains data. Do you want to overwrite it?", "Confirm Overwrite", 1)
                                 if ok ~= 1 then return end
                             end
-                            saveVisibleTracks(idx_cell)
-                            widgets.b[idx_cell]:hide()
-                            widgets.e[idx_cell]:show()
-                            widgets.e[idx_cell]:focus()
+                            saveVisibleTracks(i)
+                            widgets.b[i]:hide()
+                            widgets.e[i]:show()
+                            widgets.e[i]:focus()
                         else
                             r.ShowMessageBox("Please select a slot first.", "Error", 0)
                         end
                     elseif item.id == 'rename' then
-
-                        widgets.b[idx_cell]:hide()
-                        widgets.e[idx_cell]:show()
-                        widgets.e[idx_cell]:focus()
-                        
-                        --saveSlotData(idx_cell, 
-                    -- TODO: вызвать entry onfocus, т.е чтоб оно открылось с полем для ввода
+                        widgets.b[i]:hide()
+                        widgets.e[i]:show()
+                        widgets.e[i]:focus()
                     end
                 end)
             end
         end
       
         button_screenset.ondoubleclick = function(self, event)
-            main_loader(i)
+            main_loader(DATA.selected_slots)
         end
         
         entry.onfocus = function(self)
@@ -189,7 +194,7 @@ function Main()
         end
         
         delete_button.onclick = function(self, event)
-            r.SetProjExtState(0, "VisibleTracksSnapshot", "data_" .. i, "") -- Очищаем данные для этого слота
+            r.SetProjExtState(0, "VisibleTracksSnapshot", "data_" .. i, "")
             updateButtonAppearance(button_screenset, i, nil)
             hide_all_checkbox:attr('value', false)
         end
@@ -207,23 +212,23 @@ function Main()
     local show_button = hbox:add(rtk.Button{cursor=rtk.mouse.cursors.HAND, cell=fills, wrap=true, halign='center', color=shift('#6ba295', 0.5, 0.5, 0.5), gradient=0.5, 'Show all', padding=2, onclick=setAllVisibleTracks})
     
     load_button.onclick = function()
-        if idx_cell >= 0 and idx_cell <= 25 then
-            main_loader(idx_cell)
-        end
+        main_loader(DATA.selected_slots)
+        -- print(table.tostring(DATA.selected_slots))
     end
     
     save_button.onclick = function()
-        if idx_cell >= 0 and idx_cell <= 25 then
+        local selected_index = next(DATA.selected_slots)
+        if selected_index then
             DAT.button_save = true
-            local retval, _ = r.GetProjExtState(0, "VisibleTracksSnapshot", "data_" .. idx_cell)
+            local retval, _ = r.GetProjExtState(0, "VisibleTracksSnapshot", "data_" .. selected_index)
             if retval ~= 0 then
-                --local ok = r.ShowMessageBox("This slot already contains data. Do you want to overwrite it?", "Confirm Overwrite", 1)
-                --if ok ~= 1 then return end
+                local ok = r.ShowMessageBox("This slot already contains data. Do you want to overwrite it?", "Confirm Overwrite", 1)
+                if ok ~= 1 then return end
             end
-            saveVisibleTracks(idx_cell)
-            widgets.b[idx_cell]:hide()
-            widgets.e[idx_cell]:show()
-            widgets.e[idx_cell]:focus()
+            saveVisibleTracks(selected_index)
+            widgets.b[selected_index]:hide()
+            widgets.e[selected_index]:show()
+            widgets.e[selected_index]:focus()
         else
             r.ShowMessageBox("Please select a slot first.", "Error", 0)
         end
@@ -260,7 +265,6 @@ wnd.onupdate = function(self)
 end
 
 wnd.onmousedown=function(self,event)
-    
     return true
 end
 wnd:open()
