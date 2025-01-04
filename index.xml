@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="0d9918f855ab4025e29e720f9843d1615f551a4d">
+<index version="1" name="ReaperScripts" commit="5c542be39dd912bdc54ae5ecba4cde94d3d3dc12">
   <category name="Item Editing">
     <reapack name="mrtnz_change fade in and fade out(gui).lua" type="script" desc="Change fade in and fade out or crop(gui)">
       <metadata>
@@ -826,6 +826,15 @@
       <version name="1.015" author="mrtnz" time="2023-11-29T12:47:37Z">
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1808e73a7194864eb55e213f1622ed1d99fb094e/MIDI%20Editor/mrtnz_split%20selected%20notes%20to%20equal(mousewheel%20ctx).lua</source>
         <source main="midi_editor" file="mrtnz_set the offset after splitting (add-on to splitting notes).lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1808e73a7194864eb55e213f1622ed1d99fb094e/MIDI%20Editor/mrtnz_set%20the%20offset%20after%20splitting%20(add-on%20to%20splitting%20notes).lua</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="Midi Multi Tool">
+    <reapack name="mrtnz_Midi Multi Tool (betta).lua" type="script" desc="Midi Multi Tool (betta)">
+      <version name="0.1.1-betta.1" author="mrtnz" time="2025-01-04T13:36:32Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5c542be39dd912bdc54ae5ecba4cde94d3d3dc12/Midi%20Multi%20Tool/mrtnz_Midi%20Multi%20Tool%20(betta).lua</source>
+        <source file="color-and-utils.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5c542be39dd912bdc54ae5ecba4cde94d3d3dc12/Midi%20Multi%20Tool/color-and-utils.lua</source>
+        <source file="other.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5c542be39dd912bdc54ae5ecba4cde94d3d3dc12/Midi%20Multi%20Tool/other.lua</source>
       </version>
     </reapack>
   </category>
