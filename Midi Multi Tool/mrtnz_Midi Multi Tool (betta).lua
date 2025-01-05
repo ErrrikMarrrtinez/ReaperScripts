@@ -1,10 +1,11 @@
 -- @description Midi Multi Tool (betta)
 -- @author mrtnz
--- @version 0.1.1-betta.1
+-- @version 0.1.2-betta.1
 -- @provides
 --   color-and-utils.lua
 --   other.lua
-
+-- @changelog
+--   - fix scale > 1.0 in dpi and reaper scale
 
 
 
@@ -17,8 +18,9 @@ r.set_action_options(5)
 local current_path = debug.getinfo(1, "S").source:match [[^@?(.*[\/])[^\/]-$]]
 local imgui_path = r.ImGui_GetBuiltinPath() .. '/?.lua'
 package.path = current_path .. '?.lua;' .. imgui_path .. ';' .. package.path
-local im = require 'imgui' '0.9.2'
+local im = require 'imgui' '0.9.3.2'
 local tk = require 'color-and-utils'
+
 
 -- Create two separate contexts
 ctx = im.CreateContext('MIDI Editor Frame')
@@ -26,12 +28,14 @@ ctx = im.CreateContext('MIDI Editor Frame')
 -- Globals for controller window
 local selected_scale = tk.ordered_scales[1]
 local selected_key = tk.keys[1]
-local checkbox_state = false
+local checkbox_state = true
 local last_checkbox_state = false
 
 -- Constants for both windows
 local MIDI_RULLER_OFFSET = 64
 local midiview = 0x000003E9
+local rv_scale, scale = r.get_config_var_string("uiscale")
+dpi_scale = r.ImGui_GetWindowDpiScale(ctx)
 
 -- Controller window flags
 flags_control = im.WindowFlags_NoResize | 
@@ -179,7 +183,7 @@ local function UpdateZOrder(midi_hwnd)
         set_attempts = 0
     else
     
-        if script_hwnd and set_attempts < 10 then
+        if script_hwnd and set_attempts < 20 then
             r.JS_Window_SetZOrder(foreground_hwnd, "TOP", nil)
             set_attempts = set_attempts + 1
         end
@@ -241,6 +245,138 @@ local function isNoteInPattern(pitch, pattern)
     return pattern[noteInOctave] == 1
 end
 
+local function splitNotesByLine(x1, y1, x2, y2)
+  local take, LTick, zoom, topPitch, ppP, timebase = MidiInfo()
+  if not take then return end
+  
+  r.MIDI_DisableSort(take)
+  
+  local _, noteCount = r.MIDI_CountEvts(take)
+  local notesToSplit = {}
+  
+  for i = 0, noteCount - 1 do
+    local retval, selected, muted,
+          startppq, endppq, chan, pitch, vel = r.MIDI_GetNote(take, i)
+    if retval then
+      local box = noteBoxes[i+1]
+      if box then
+
+        
+        local px, py = lineRectIntersection(x1, y1, x2, y2, box.x1, box.y1, box.x2, box.y2)
+        
+        if px then
+          -- схуяли так оно работает я так и не понял
+          local localX = (px - WX) * dpi_scale
+          local splitPosPPQ
+
+          if timebase == "1" then
+            local timeLeftmost = r.MIDI_GetProjTimeFromPPQPos(take, LTick)
+            local rawTime = timeLeftmost + (localX / zoom)
+            local snappedTime = r.SnapToGrid(0, rawTime)
+            splitPosPPQ = r.MIDI_GetPPQPosFromProjTime(take, snappedTime)
+          else
+            splitPosPPQ = LTick + (localX / zoom)
+            splitPosPPQ = math.floor(splitPosPPQ + 0.5)
+          end
+          
+          if splitPosPPQ > startppq and splitPosPPQ < endppq then
+            notesToSplit[#notesToSplit+1] = {
+              idx = i,
+              selected = selected,
+              muted = muted,
+              startppq = startppq,
+              endppq = endppq,
+              chan = chan,
+              pitch = pitch,
+              vel = vel,
+              splitPosPPQ= splitPosPPQ
+            }
+          end
+        end
+      end
+    end
+  end
+  
+  table.sort(notesToSplit, function(a, b) return a.idx > b.idx end)
+  
+  for _, noteData in ipairs(notesToSplit) do
+    r.MIDI_DeleteNote(take, noteData.idx)
+    r.MIDI_InsertNote(take,
+      noteData.selected, 
+      noteData.muted,
+      noteData.startppq,
+      noteData.splitPosPPQ,
+      noteData.chan,
+      noteData.pitch,
+      noteData.vel,
+      true)
+    r.MIDI_InsertNote(take,
+      noteData.selected,
+      noteData.muted,
+      noteData.splitPosPPQ,
+      noteData.endppq,
+      noteData.chan,
+      noteData.pitch,
+      noteData.vel,
+      true)
+  end
+  
+  r.MIDI_Sort(take)
+end
+
+
+local function getNoteText(pitch)
+    local noteInOctave = pitch % 12
+    local octave = math.floor(pitch / 12) - 1
+    return tk.keys[noteInOctave + 1] .. octave
+end
+
+
+function ApplyDPIScale(value)
+  
+  return value / dpi_scale
+end
+
+function GetVelocityLanes()
+  local HWND = r.MIDIEditor_GetActive()
+  local take = r.MIDIEditor_GetTake(HWND)
+  local item = r.GetMediaItemTake_Item(take)
+  local retval, m_chunk = r.GetItemStateChunk(item, "")
+  
+  local v_s = m_chunk:find("VELLANE", nil, false)
+  local v_e = m_chunk:find("CFGEDITVIEW", nil, false)
+  local vel_lanes = m_chunk:sub(v_s, v_e)
+  
+  local lanes = {}
+  local total_height = 0
+  
+  for lane_h in vel_lanes:gmatch("VELLANE %S+ (%S+)") do
+    local height = tonumber(lane_h)
+    total_height = total_height + height
+    lanes[#lanes + 1] = height
+  end
+  
+  return lanes, ApplyDPIScale(total_height)
+end
+
+local function DrawOverMidi(hwnd, ctx)
+    local retval, left, top, right, bottom = r.JS_Window_GetClientRect(hwnd)
+
+    local lanes, total_lane_height = GetVelocityLanes()
+    
+    ctx_piano = ctx
+    
+    if old_val ~= left + top + right + bottom  or old_val2 ~= total_lane_height then
+        old_val, old_val2 = left + top + right + bottom, total_lane_height
+        left, top = im.PointConvertNative(ctx_piano, left, top)
+        top = top + MIDI_RULLER_OFFSET * scale
+        
+        right, bottom = im.PointConvertNative(ctx_piano, right, bottom)
+        im.SetNextWindowPos(ctx_piano, left, top)
+        im.SetNextWindowSize(ctx_piano, (right - left), (bottom - top) - total_lane_height)
+    end
+end
+
 local function DrawMidiNotes(dl)
   noteBoxes = {}
   local take, LTick, zoom, topPitch, ppP, timebase = MidiInfo()
@@ -255,22 +391,22 @@ local function DrawMidiNotes(dl)
       local startTime = r.MIDI_GetProjTimeFromPPQPos(take, startppq)
       local endTime = r.MIDI_GetProjTimeFromPPQPos(take, endppq)
       local leftTime = r.MIDI_GetProjTimeFromPPQPos(take, LTick)
-      note_x = (startTime - leftTime) * zoom
-      note_w = (endTime - startTime) * zoom
+      note_x = ApplyDPIScale((startTime - leftTime) * zoom)
+      note_w = ApplyDPIScale((endTime - startTime) * zoom)
     else
       local ppq_diff = startppq - LTick
-      note_x = ppq_diff * zoom
-      note_w = (endppq - startppq) * zoom
+      note_x = ApplyDPIScale(ppq_diff * zoom)
+      note_w = ApplyDPIScale((endppq - startppq) * zoom)
     end
     
-    local diff = (topPitch - pitch)
+    local diff = ApplyDPIScale((topPitch - pitch))
     local note_y = diff * ppP + MIDI_RULLER_OFFSET
     
-    local xs, ys = WX + note_x, WY + note_y - MIDI_RULLER_OFFSET
-    local xe, ye = xs + note_w, ys + ppP
+    local xs, ys = WX + note_x, WY + note_y - MIDI_RULLER_OFFSET 
+    local xe, ye = xs + note_w, ys + ApplyDPIScale(ppP)
     local col = sel and 0xFF00FF00 or 0xFF0000FF
     
-    --im.DrawList_AddRect(dl, xs, ys, xe, ye, col, nil, nil, 2) 
+    im.DrawList_AddRect(dl, xs, ys, xe, ye, col, nil, nil, 2) 
     
     noteBoxes[#noteBoxes+1] = {
       idx = i,
@@ -283,22 +419,16 @@ local function DrawMidiNotes(dl)
   end
 end
 
-local function getNoteText(pitch)
-    local noteInOctave = pitch % 12
-    local octave = math.floor(pitch / 12) - 1
-    return tk.keys[noteInOctave + 1] .. octave
-end
-
 local function DrawPianoKeys(draw_list, windowWidth, windowHeight, ME_TopPitch, ME_PixelsPerPitch, scalePattern)
-    local keyHeight = ME_PixelsPerPitch
+    local keyHeight = ApplyDPIScale( ME_PixelsPerPitch )
     
     for pitch = 0, 127 do
         local pitch_diff = (ME_TopPitch - pitch)
-        local key_y = WY + pitch_diff * ME_PixelsPerPitch
+        local key_y = WY + ApplyDPIScale(pitch_diff) * ME_PixelsPerPitch
         
         local keyColor = isNoteInPattern(pitch, scalePattern) 
-            and tk.set_color('orange#10') 
-            or tk.set_color('#1a1a1a50')
+            and tk.set_color('purple#30') 
+            or tk.set_color('#1a1a1a80')
         
         im.DrawList_AddRectFilled(
             draw_list,
@@ -320,62 +450,13 @@ local function DrawPianoKeys(draw_list, windowWidth, windowHeight, ME_TopPitch, 
     end
 end
 
-local function FasterSearch(bmp, target, start_px)
-    local step = 10
-    local px_start = start_px
-    while true do
-        px_start = px_start + step
-        if r.JS_LICE_GetPixel(bmp, 0, px_start) ~= target then
-            if r.JS_LICE_GetPixel(bmp, 0, px_start - 1) == target then
-                return px_start
-            end
-            step = -1
-        end
-    end
-end
-
-local function takeScreenshot(window)
-    local rv_scale, scale = r.get_config_var_string("uiscale")
-    local UI_SCALE = rv_scale and tonumber(scale) or 1
-    local retval, left, top, right, bottom = r.JS_Window_GetRect(window)
-    
-    if retval then
-        local srcDC = r.JS_GDI_GetWindowDC(window)
-        local destBmp = r.JS_LICE_CreateBitmap(true, 1, bottom - top)
-        local destDC = r.JS_LICE_GetDC(destBmp)
-        r.JS_GDI_Blit(destDC, 0, 0, srcDC, right - left - 1, 0, right - left, bottom - top)
-        local color = r.JS_LICE_GetPixel(destBmp, 0, math.ceil(64 * UI_SCALE))
-        local bot_px = FasterSearch(destBmp, color, math.ceil(65 * UI_SCALE))
-        r.JS_GDI_ReleaseDC(window, srcDC)
-        r.JS_LICE_DestroyBitmap(destBmp)
-        return bot_px
-    end
-end
-
-local function DrawOverMidi(hwnd, ctx)
-    local retval, left, top, right, bottom = r.JS_Window_GetClientRect(hwnd)
-    local bot_px = takeScreenshot(hwnd) + 5
-    local b_v = bottom - (top + bot_px)
-    ctx_piano = ctx
-    
-    if old_val ~= left + top + right + bottom  or old_val2 ~= b_v then
-        old_val, old_val2 = left + top + right + bottom, b_v
-        left, top = im.PointConvertNative(ctx_piano, left, top)
-        top = top + MIDI_RULLER_OFFSET
-        
-        right, bottom = im.PointConvertNative(ctx_piano, right, bottom)
-        im.SetNextWindowPos(ctx_piano, left, top)
-        im.SetNextWindowSize(ctx_piano, (right - left), (bottom - top) - b_v)
-    end
-end
-
-
 local function DrawControlWindow(HWND, child_hwnd)
     local retval, left, top, right, bottom = r.JS_Window_GetRect(child_hwnd)
     local width_window = tk.clamp((right-left) * 0.55, 150, 420)
+    
     ctx_control = ctx
     if not HWND and ctx then left = -100 top = -100 end
-    im.SetNextWindowPos(ctx, left + 1, top + 1)
+    im.SetNextWindowPos(ctx, ApplyDPIScale(left + 1), ApplyDPIScale(top + 1))
     im.SetNextWindowSize(ctx, width_window, 35)
     
     -- Style setup
@@ -446,80 +527,6 @@ local function DrawControlWindow(HWND, child_hwnd)
     return open
 end
 
-local function splitNotesByLine(x1, y1, x2, y2)
-  local take, LTick, zoom, topPitch, ppP, timebase = MidiInfo()
-  if not take then return end
-  
-  r.MIDI_DisableSort(take)
-  
-  local _, noteCount = r.MIDI_CountEvts(take)
-  local notesToSplit = {}
-  
-  for i = 0, noteCount - 1 do
-    local retval, selected, muted,
-          startppq, endppq, chan, pitch, vel = r.MIDI_GetNote(take, i)
-    if retval then
-      local box = noteBoxes[i+1]
-      if box then
-        local px, py = lineRectIntersection(x1, y1, x2, y2, box.x1, box.y1, box.x2, box.y2)
-        if px then
-          local localX = px - WX
-          local splitPosPPQ
-          
-          if timebase == "1" then
-            local timeLeftmost = r.MIDI_GetProjTimeFromPPQPos(take, LTick)
-            local rawTime = timeLeftmost + (localX / zoom)
-            local snappedTime = r.SnapToGrid(0, rawTime)
-            splitPosPPQ = r.MIDI_GetPPQPosFromProjTime(take, snappedTime)
-          else
-            splitPosPPQ = LTick + (localX / zoom)
-            splitPosPPQ = math.floor(splitPosPPQ + 0.5)
-          end
-          
-          if splitPosPPQ > startppq and splitPosPPQ < endppq then
-            notesToSplit[#notesToSplit+1] = {
-              idx = i,
-              selected = selected,
-              muted = muted,
-              startppq = startppq,
-              endppq = endppq,
-              chan = chan,
-              pitch = pitch,
-              vel = vel,
-              splitPosPPQ= splitPosPPQ
-            }
-          end
-        end
-      end
-    end
-  end
-  
-  table.sort(notesToSplit, function(a, b) return a.idx > b.idx end)
-  
-  for _, noteData in ipairs(notesToSplit) do
-    r.MIDI_DeleteNote(take, noteData.idx)
-    r.MIDI_InsertNote(take,
-      noteData.selected, 
-      noteData.muted,
-      noteData.startppq,
-      noteData.splitPosPPQ,
-      noteData.chan,
-      noteData.pitch,
-      noteData.vel,
-      true)
-    r.MIDI_InsertNote(take,
-      noteData.selected,
-      noteData.muted,
-      noteData.splitPosPPQ,
-      noteData.endppq,
-      noteData.chan,
-      noteData.pitch,
-      noteData.vel,
-      true)
-  end
-  
-  r.MIDI_Sort(take)
-end
 
 local function DrawPianoWindow(child_hwnd)
     if not checkbox_state then return true end
@@ -532,7 +539,7 @@ local function DrawPianoWindow(child_hwnd)
         
         WX, WY = im.GetWindowPos(ctx)
         draw_list = im.GetWindowDrawList(ctx)
-        
+        -- DrawMidiNotes(draw_list)
         local _, _, _, ME_TopPitch, ME_PixelsPerPitch = MidiInfo()
         local windowWidth = im.GetWindowWidth(ctx)
         local windowHeight = im.GetWindowHeight(ctx)
@@ -541,8 +548,9 @@ local function DrawPianoWindow(child_hwnd)
         
         
         local mx, my = r.GetMousePosition()
+        mx, my = ApplyDPIScale(mx), ApplyDPIScale(my)
         local _, l, t, rr, bb = r.JS_Window_GetClientRect(child_hwnd)
-
+        l, t, rr, bb = ApplyDPIScale(l), ApplyDPIScale(t), ApplyDPIScale(rr), ApplyDPIScale(bb)
         local mouseState = r.JS_Mouse_GetState(14)
         
         if mode == "lasso" then
