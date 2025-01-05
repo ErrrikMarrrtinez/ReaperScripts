@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="5c542be39dd912bdc54ae5ecba4cde94d3d3dc12">
+<index version="1" name="ReaperScripts" commit="5f438ad20479301b43c97acb086921dab65a9fb2">
   <category name="Item Editing">
     <reapack name="mrtnz_change fade in and fade out(gui).lua" type="script" desc="Change fade in and fade out or crop(gui)">
       <metadata>
@@ -836,6 +836,12 @@
         <source file="color-and-utils.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5c542be39dd912bdc54ae5ecba4cde94d3d3dc12/Midi%20Multi%20Tool/color-and-utils.lua</source>
         <source file="other.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5c542be39dd912bdc54ae5ecba4cde94d3d3dc12/Midi%20Multi%20Tool/other.lua</source>
       </version>
+      <version name="0.1.2-betta.1" author="mrtnz" time="2025-01-05T09:53:34Z">
+        <changelog><![CDATA[- fix scale > 1.0 in dpi and reaper scale]]></changelog>
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5f438ad20479301b43c97acb086921dab65a9fb2/Midi%20Multi%20Tool/mrtnz_Midi%20Multi%20Tool%20(betta).lua</source>
+        <source file="color-and-utils.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5f438ad20479301b43c97acb086921dab65a9fb2/Midi%20Multi%20Tool/color-and-utils.lua</source>
+        <source file="other.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5f438ad20479301b43c97acb086921dab65a9fb2/Midi%20Multi%20Tool/other.lua</source>
+      </version>
     </reapack>
   </category>
   <category name="Tracks">
@@ -1179,7 +1185,7 @@ to try to correctly hide this window.]]></changelog>
     </reapack>
   </category>
   <metadata>
-    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
