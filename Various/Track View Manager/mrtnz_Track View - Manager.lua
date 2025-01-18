@@ -1,6 +1,6 @@
 -- @description Track View Manager
 -- @author mrtnz
--- @version 1.2
+-- @version 1.3
 -- @about
 --  Track View Manager
 -- @provides
@@ -59,7 +59,14 @@ function Main()
     
     local viewport = main_vbox:add(rtk.Viewport{scrollbar_size=2, vscrollbar='hover', child=rtk.VBox{border='#1a1a1a50'}}, fills)
     
-    for i=0, 25 do
+    -- Функция для проверки существования данных в слоте
+    local function hasSlotData(slot_number)
+        local retval, _ = r.GetProjExtState(0, "VisibleTracksSnapshot", "data_" .. slot_number)
+        return retval ~= 0
+    end
+
+    -- Функция создания UI для слота
+    local function createSlotUI(i)
         local hbox = viewport.child:add(rtk.HBox{hotzone=-1, border=false, padding=1, w=1, bg='#2a2a2a', h=27})
         hoverHbox(hbox)
         local entry = hbox:add(rtk.Entry{visible=false, cell={fillw=true, fillh=true, spacing=5}})
@@ -131,19 +138,15 @@ function Main()
                     if item.id == '1' then
                         createScript(i)
                     elseif item.id == '2' then
-                        if i >= 0 and i <= 25 then
-                            local retval, _ = r.GetProjExtState(0, "VisibleTracksSnapshot", "data_" .. i)
-                            if retval ~= 0 then
-                                local ok = r.ShowMessageBox("This slot already contains data. Do you want to overwrite it?", "Confirm Overwrite", 1)
-                                if ok ~= 1 then return end
-                            end
-                            saveVisibleTracks(i)
-                            widgets.b[i]:hide()
-                            widgets.e[i]:show()
-                            widgets.e[i]:focus()
-                        else
-                            r.ShowMessageBox("Please select a slot first.", "Error", 0)
+                        local retval, _ = r.GetProjExtState(0, "VisibleTracksSnapshot", "data_" .. i)
+                        if retval ~= 0 then
+                            local ok = r.ShowMessageBox("This slot already contains data. Do you want to overwrite it?", "Confirm Overwrite", 1)
+                            if ok ~= 1 then return end
                         end
+                        saveVisibleTracks(i)
+                        widgets.b[i]:hide()
+                        widgets.e[i]:show()
+                        widgets.e[i]:focus()
                     elseif item.id == 'rename' then
                         widgets.b[i]:hide()
                         widgets.e[i]:show()
@@ -205,6 +208,25 @@ function Main()
         widgets.h[i] = hbox
         widgets.c[i] = hide_all_checkbox
     end
+
+    -- Создаем стандартные слоты (0-35)
+    for i = 0, 35 do
+        createSlotUI(i)
+    end
+
+    -- Находим и создаем существующие слоты за пределами стандартного диапазона
+    local existing_slots = {}
+    for i = 36, 1000 do
+        if hasSlotData(i) then
+            table.insert(existing_slots, i)
+        end
+    end
+    table.sort(existing_slots) -- Сортируем для последовательного отображения
+    
+    -- Создаем UI для найденных слотов
+    for _, i in ipairs(existing_slots) do
+        createSlotUI(i)
+    end
     
     local hbox = main_vbox:add(rtk.HBox{spacing=5, padding=5, alpha=0.8, h=40}, {fillw=true})
     local load_button = hbox:add(rtk.Button{cursor=rtk.mouse.cursors.HAND, cell=fills, wrap=true, halign='center', color=shift('#3c6be5', 1, 0.5, 0.5), gradient=0.5, 'Load', padding=2})
@@ -213,7 +235,6 @@ function Main()
     
     load_button.onclick = function()
         main_loader(DATA.selected_slots)
-        -- print(table.tostring(DATA.selected_slots))
     end
     
     save_button.onclick = function()
@@ -268,5 +289,4 @@ wnd.onmousedown=function(self,event)
     return true
 end
 wnd:open()
-
 
