@@ -86,7 +86,7 @@ inputContainer.onkeypress = function(self, event)
     elseif event.keycode == rtk.keycodes.ENTER then
         local value = tonumber(header.text)
         if value then
-            if value < 0 or value > 25 then
+            if value < 0 or value > 1025 then
                 setHeaderText("Value exceeds range", 35, 'center')
                 f.closeAfterDelay(0.65)
             else
