@@ -1,6 +1,6 @@
 -- @description Track View Manager
 -- @author mrtnz
--- @version 1.3
+-- @version 1.4
 -- @about
 --  Track View Manager
 -- @provides
