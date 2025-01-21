@@ -312,11 +312,11 @@ function func.loadSlotData(index)
   return nil
 end
 
-function func.updateButtonAppearance(button, index, slotData)
+function func.updateButtonAppearance(button, index, slotData, hbox)
   local isEmpty = not slotData or not slotData.name or slotData.name == ""
   button:attr('textcolor', isEmpty and 'gray' or 'white')
   button:attr('textcolor2', isEmpty and 'gray' or 'white')
-  button:attr('label', isEmpty and ('Slot ' .. index) or slotData.name)
+  button:attr('label', isEmpty and ('Slot ' .. index) or '(' .. index..') '..slotData.name)
 end
 
 function func.hoverHbox(hbox)
