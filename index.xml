@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="02cf30c4a1ec0c3e1b5af47eb97e809a086a31bc">
+<index version="1" name="ReaperScripts" commit="c6d97d5eaf02673a0e7d43f67df08f215bfd1be6">
   <category name="Item Editing">
     <reapack name="mrtnz_change fade in and fade out(gui).lua" type="script" desc="Change fade in and fade out or crop(gui)">
       <metadata>
@@ -1197,6 +1197,14 @@ to try to correctly hide this window.]]></changelog>
         <source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02cf30c4a1ec0c3e1b5af47eb97e809a086a31bc/Various/Track%20View%20Manager/rtk.lua</source>
         <source file="json.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02cf30c4a1ec0c3e1b5af47eb97e809a086a31bc/Various/Track%20View%20Manager/json.lua</source>
         <source file="functions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02cf30c4a1ec0c3e1b5af47eb97e809a086a31bc/Various/Track%20View%20Manager/functions.lua</source>
+      </version>
+      <version name="1.5" author="mrtnz" time="2025-01-21T12:07:58Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/mrtnz_Track%20View%20-%20Manager.lua</source>
+        <source main="main" file="mrtnz_Track view - Save by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Save%20by%20slot%20number.lua</source>
+        <source main="main" file="mrtnz_Track view - Load by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Load%20by%20slot%20number.lua</source>
+        <source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/rtk.lua</source>
+        <source file="json.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/json.lua</source>
+        <source file="functions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/functions.lua</source>
       </version>
     </reapack>
   </category>
