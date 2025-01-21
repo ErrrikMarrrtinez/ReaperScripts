@@ -1,6 +1,6 @@
 -- @description Track View Manager
 -- @author mrtnz
--- @version 1.4
+-- @version 1.5
 -- @about
 --  Track View Manager
 -- @provides
@@ -16,11 +16,17 @@ local r = reaper
 function print(...) local t = {...} for i = 1, select('#', ...) do t[i] = tostring(t[i]) end r.ShowConsoleMsg(table.concat(t, '\t') .. '\n') end
 r.gmem_attach('Viewer')
 
+
 package.path = package.path .. ";" .. string.match(({r.get_action_context()})[2], "(.-)([^\\/]-%.?([^%.\\/]*))$") .. "?.lua"
 local json = require "json"
 require 'rtk'
 
 local functions = require 'functions' for name, func in pairs(functions) do _G[name] = func end
+
+
+
+
+
 
 local fills = {fillw=true, fillh=true}
 local DAT = {}
@@ -57,7 +63,7 @@ function Main()
     local main_vbox = main_cont:add(rtk.VBox{spacing=5}, fills)
     local b_header = createHeaderTab(main_vbox)
     
-    local viewport = main_vbox:add(rtk.Viewport{scrollbar_size=2, vscrollbar='hover', child=rtk.VBox{border='#1a1a1a50'}}, fills)
+    local viewport = main_vbox:add(rtk.Viewport{smoothscroll=true, scrollbar_size=2, vscrollbar='hover', child=rtk.VBox{border='#1a1a1a50'}}, fills)
     
     -- Функция для проверки существования данных в слоте
     local function hasSlotData(slot_number)
@@ -67,7 +73,11 @@ function Main()
 
     -- Функция создания UI для слота
     local function createSlotUI(i)
+        
         local hbox = viewport.child:add(rtk.HBox{hotzone=-1, border=false, padding=1, w=1, bg='#2a2a2a', h=27})
+        
+        
+        
         hoverHbox(hbox)
         local entry = hbox:add(rtk.Entry{visible=false, cell={fillw=true, fillh=true, spacing=5}})
         local button_screenset = hbox:add(rtk.Button{
@@ -81,7 +91,7 @@ function Main()
         })
         
         local slotData = loadSlotData(i)
-        updateButtonAppearance(button_screenset, i, slotData)
+        updateButtonAppearance(button_screenset, i, slotData, hbox)
         
         local hide_all_checkbox = hbox:add(rtk.CheckBox{
             hotzone=6,
@@ -202,6 +212,7 @@ function Main()
             hide_all_checkbox:attr('value', false)
         end
         
+        
         widgets.b[i] = button_screenset
         widgets.e[i] = entry
         widgets.x[i] = delete_button
@@ -210,18 +221,18 @@ function Main()
     end
 
     -- Создаем стандартные слоты (0-35)
-    for i = 0, 35 do
+    for i = 0, 15 do
         createSlotUI(i)
     end
 
     -- Находим и создаем существующие слоты за пределами стандартного диапазона
     local existing_slots = {}
-    for i = 36, 1000 do
+    for i = 16, 1000 do
         if hasSlotData(i) then
             table.insert(existing_slots, i)
         end
     end
-    table.sort(existing_slots) -- Сортируем для последовательного отображения
+    table.sort(existing_slots)
     
     -- Создаем UI для найденных слотов
     for _, i in ipairs(existing_slots) do
@@ -289,4 +300,6 @@ wnd.onmousedown=function(self,event)
     return true
 end
 wnd:open()
+
+
 
