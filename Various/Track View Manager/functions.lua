@@ -281,7 +281,7 @@ function func.main_loader(selected_slots)
     r.UpdateArrange()
   end
   if top_track then
-    rtk.callafter(0.00001, function()
+    rtk.callafter(0.01, function()
       func.scrollTrackToTop(top_track)
     end)
   end
