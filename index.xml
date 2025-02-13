@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<index version="1" name="ReaperScripts" commit="d914e8ff949f7fc69ad7a1f15b2ef190e5f394c6">
   <category name="Item Editing">
     <reapack name="mrtnz_change fade in and fade out(gui).lua" type="script" desc="Change fade in and fade out or crop(gui)">
       <metadata>
@@ -52,7 +53,7 @@
     </reapack>
     <reapack name="mrtnz_pre-reverb for item(time selection).lua" type="script" desc="Pre-reverb, reverse reverb for item(time selection)">
       <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
@@ -78,7 +79,7 @@
     </reapack>
     <reapack name="mrtnz_shuffle selected items down or up(mousewheel).lua" type="script" desc="Shuffle selected items down or up(mousewheel)">
       <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
@@ -591,6 +592,12 @@
         <source file="Widgets.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/libs/Widgets.lua</source>
         <source file="Window.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5d4ee12cd11ac8a109714b803f8dacb8cdae3679/libs/Window.lua</source>
       </version>
+      <version name="1.0" author="mrtnz" time="2023-10-28T07:27:21Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/e6c4e360b3a9fde26767f20e3c086533a7a5fc0e/libs/Functions.lua</source>
+        <source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/e6c4e360b3a9fde26767f20e3c086533a7a5fc0e/libs/rtk.lua</source>
+        <source file="Widgets.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/e6c4e360b3a9fde26767f20e3c086533a7a5fc0e/libs/Widgets.lua</source>
+        <source file="Window.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/e6c4e360b3a9fde26767f20e3c086533a7a5fc0e/libs/Window.lua</source>
+      </version>
     </reapack>
   </category>
   <category name="MIDI Editor">
@@ -722,7 +729,7 @@
     </reapack>
     <reapack name="mrtnz_MIDI chopper 2.lua" type="script" desc="MIDI Chopper">
       <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
@@ -738,7 +745,7 @@
     </reapack>
     <reapack name="mrtnz_move velocity up or down (mousewheel).lua" type="script" desc="Move velocity note up or down (mousewheel ctx)">
       <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
@@ -792,10 +799,18 @@
         <changelog><![CDATA[- fix scale > 1.0]]></changelog>
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/356d9b3abb4153707a362398c61ea9c060e6b957/MIDI%20Editor/mrtnz_MVelocity.lua</source>
       </version>
+      <version name="1.0" author="mrtnz" time="2023-10-19T09:57:34Z">
+        <changelog><![CDATA[- Initial release, version 1.0]]></changelog>
+        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/a3fd4e3f210cdce02918fd153aa96b6ec42879e3/MIDI%20Editor/mrtnz_MVelocity.lua</source>
+      </version>
+      <version name="1.0.1" author="mrtnz" time="2023-10-19T10:05:14Z">
+        <changelog><![CDATA[- Initial release]]></changelog>
+        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/4db86a0a7a7e34c2cadcfd9521e8c8d7fc8e506b/MIDI%20Editor/mrtnz_MVelocity.lua</source>
+      </version>
     </reapack>
     <reapack name="mrtnz_split selected notes to equal(mousewheel ctx).lua" type="script" desc="Split note to equal parts(mousewheel ctx)">
       <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
@@ -825,6 +840,9 @@
       <version name="1.015" author="mrtnz" time="2023-11-29T12:47:37Z">
         <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1808e73a7194864eb55e213f1622ed1d99fb094e/MIDI%20Editor/mrtnz_split%20selected%20notes%20to%20equal(mousewheel%20ctx).lua</source>
         <source main="midi_editor" file="mrtnz_set the offset after splitting (add-on to splitting notes).lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/1808e73a7194864eb55e213f1622ed1d99fb094e/MIDI%20Editor/mrtnz_set%20the%20offset%20after%20splitting%20(add-on%20to%20splitting%20notes).lua</source>
+      </version>
+      <version name="1.0" author="mrtnz" time="2023-11-29T05:12:50Z">
+        <source main="midi_editor">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/ec53cd12b7e09c92e8738aca4499b4dc1a56e5f3/MIDI%20Editor/mrtnz_split%20selected%20notes%20to%20equal(mousewheel%20ctx).lua</source>
       </version>
     </reapack>
   </category>
@@ -877,6 +895,12 @@
       <version name="1.3" author="mrtnz" time="2023-12-13T10:27:55Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/ed9de0d7dc91234ee93539ba7537c01e0c8b2fbf/Tracks/mrtnz_change%20pan%20for%20paired%20selected%20tracks%20(mousewheel%20ctx).lua</source>
       </version>
+      <version name="1.0" author="mrtnz" time="2023-12-13T09:51:47Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/e913e4684214b07470b97a02d9352bef4a48d962/Tracks/mrtnz_change%20pan%20for%20paired%20selected%20tracks%20(mousewheel%20ctx).lua</source>
+      </version>
+      <version name="1.1" author="mrtnz" time="2023-12-13T10:23:59Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/8f5ae6f0c1dcc539978b1862b87d4c0eb8ebc35b/Tracks/mrtnz_change%20pan%20for%20paired%20selected%20tracks%20(mousewheel%20ctx).lua</source>
+      </version>
     </reapack>
     <reapack name="mrtnz_change the pan of two tracks to the opposite side(forward, animated version).lua" type="script" desc="Change the pan of two tracks to the opposite side(animated).">
       <metadata>
@@ -915,7 +939,7 @@
     </reapack>
     <reapack name="mrtnz_create VCA link for selected tracks after freeze (stereo).lua" type="script" desc="Create VCA link for selected tracks after freeze">
       <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
@@ -1022,7 +1046,7 @@ Tooltip with events]]></changelog>
     </reapack>
     <reapack name="mrtnz_set track color red while ARM is enabled.lua" type="script" desc="Set track color red while ARM is enabled">
       <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
@@ -1046,7 +1070,7 @@ Tooltip with events]]></changelog>
   <category name="Various">
     <reapack name="mrtnz_Insert fx and show x parameter creating a pool by razor edit.lua" type="script" desc="Insert fx and show x parameter creating a pool by razor edit">
       <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
@@ -1097,7 +1121,7 @@ Tooltip with events]]></changelog>
     </reapack>
     <reapack name="mrtnz_solo and play selected items(pressed).lua" type="script" desc="Smart solo-playitem (under cursor or selected) while the key is held down">
       <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 Courier;}}
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
@@ -1154,69 +1178,30 @@ to try to correctly hide this window.]]></changelog>
       </version>
     </reapack>
   </category>
+  <category name="Various/anibla">
+    <reapack name="mrtnz_scripts-anibla.lua" type="script" desc="Anibla scripts">
+      <version name="0.1.4" author="mrtnz" time="2025-02-13T07:21:26Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/d914e8ff949f7fc69ad7a1f15b2ef190e5f394c6/Various/anibla/mrtnz_scripts-anibla.lua</source>
+        <source main="main" file="mrtnz_insert text item by region under mouse.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/d914e8ff949f7fc69ad7a1f15b2ef190e5f394c6/Various/anibla/mrtnz_insert%20text%20item%20by%20region%20under%20mouse.lua</source>
+        <source main="main" file="mrtnz_Create subproject for selected tracks.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/d914e8ff949f7fc69ad7a1f15b2ef190e5f394c6/Various/anibla/mrtnz_Create%20subproject%20for%20selected%20tracks.lua</source>
+        <source main="main" file="mrtnz_Load subprojects in current project.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/d914e8ff949f7fc69ad7a1f15b2ef190e5f394c6/Various/anibla/mrtnz_Load%20subprojects%20in%20current%20project.lua</source>
+        <source main="main" file="mrtnz_insert update regions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/d914e8ff949f7fc69ad7a1f15b2ef190e5f394c6/Various/anibla/mrtnz_insert%20update%20regions.lua</source>
+        <source file="Reateam_RPP-Parser.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/d914e8ff949f7fc69ad7a1f15b2ef190e5f394c6/Various/anibla/Reateam_RPP-Parser.lua</source>
+      </version>
+    </reapack>
+  </category>
   <category name="Various/Track View Manager">
-    <reapack name="mrtnz_Track View - Manager.lua" type="script" desc="Track View Manager">
-      <metadata>
-        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+    <reapack name="mrtnz_Track View - Manager.lua" type="script" desc="Track View Manager"> HEAD
+      
+=======
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; 2af630dbe290a4545156b457615f65469f5a6e31
+    <metadata><description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
 {\pard \ql \f0 \sa180 \li0 \fi0 Track View Manager\par}
 }
-]]></description>
-      </metadata>
-      <version name="1.1" author="mrtnz" time="2024-09-22T07:06:04Z">
-        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7aa519f48ab047621c49ebee060d2f99b5202ae5/Various/Track%20View%20Manager/mrtnz_Track%20View%20-%20Manager.lua</source>
-        <source main="main" file="mrtnz_Track view - Save by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7aa519f48ab047621c49ebee060d2f99b5202ae5/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Save%20by%20slot%20number.lua</source>
-        <source main="main" file="mrtnz_Track view - Load by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7aa519f48ab047621c49ebee060d2f99b5202ae5/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Load%20by%20slot%20number.lua</source>
-        <source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7aa519f48ab047621c49ebee060d2f99b5202ae5/Various/Track%20View%20Manager/rtk.lua</source>
-        <source file="json.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7aa519f48ab047621c49ebee060d2f99b5202ae5/Various/Track%20View%20Manager/json.lua</source>
-        <source file="functions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7aa519f48ab047621c49ebee060d2f99b5202ae5/Various/Track%20View%20Manager/functions.lua</source>
-      </version>
-      <version name="1.2" author="mrtnz" time="2024-09-23T16:21:07Z">
-        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/0d9918f855ab4025e29e720f9843d1615f551a4d/Various/Track%20View%20Manager/mrtnz_Track%20View%20-%20Manager.lua</source>
-        <source main="main" file="mrtnz_Track view - Save by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/0d9918f855ab4025e29e720f9843d1615f551a4d/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Save%20by%20slot%20number.lua</source>
-        <source main="main" file="mrtnz_Track view - Load by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/0d9918f855ab4025e29e720f9843d1615f551a4d/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Load%20by%20slot%20number.lua</source>
-        <source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/0d9918f855ab4025e29e720f9843d1615f551a4d/Various/Track%20View%20Manager/rtk.lua</source>
-        <source file="json.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/0d9918f855ab4025e29e720f9843d1615f551a4d/Various/Track%20View%20Manager/json.lua</source>
-        <source file="functions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/0d9918f855ab4025e29e720f9843d1615f551a4d/Various/Track%20View%20Manager/functions.lua</source>
-      </version>
-      <version name="1.3" author="mrtnz" time="2025-01-18T17:43:09Z">
-        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3aafb9afd3165ae9cc7fc0f2664756db6a175573/Various/Track%20View%20Manager/mrtnz_Track%20View%20-%20Manager.lua</source>
-        <source main="main" file="mrtnz_Track view - Save by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3aafb9afd3165ae9cc7fc0f2664756db6a175573/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Save%20by%20slot%20number.lua</source>
-        <source main="main" file="mrtnz_Track view - Load by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3aafb9afd3165ae9cc7fc0f2664756db6a175573/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Load%20by%20slot%20number.lua</source>
-        <source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3aafb9afd3165ae9cc7fc0f2664756db6a175573/Various/Track%20View%20Manager/rtk.lua</source>
-        <source file="json.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3aafb9afd3165ae9cc7fc0f2664756db6a175573/Various/Track%20View%20Manager/json.lua</source>
-        <source file="functions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3aafb9afd3165ae9cc7fc0f2664756db6a175573/Various/Track%20View%20Manager/functions.lua</source>
-      </version>
-      <version name="1.4" author="mrtnz" time="2025-01-20T09:21:18Z">
-        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02cf30c4a1ec0c3e1b5af47eb97e809a086a31bc/Various/Track%20View%20Manager/mrtnz_Track%20View%20-%20Manager.lua</source>
-        <source main="main" file="mrtnz_Track view - Save by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02cf30c4a1ec0c3e1b5af47eb97e809a086a31bc/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Save%20by%20slot%20number.lua</source>
-        <source main="main" file="mrtnz_Track view - Load by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02cf30c4a1ec0c3e1b5af47eb97e809a086a31bc/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Load%20by%20slot%20number.lua</source>
-        <source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02cf30c4a1ec0c3e1b5af47eb97e809a086a31bc/Various/Track%20View%20Manager/rtk.lua</source>
-        <source file="json.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02cf30c4a1ec0c3e1b5af47eb97e809a086a31bc/Various/Track%20View%20Manager/json.lua</source>
-        <source file="functions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02cf30c4a1ec0c3e1b5af47eb97e809a086a31bc/Various/Track%20View%20Manager/functions.lua</source>
-      </version>
-      <version name="1.5" author="mrtnz" time="2025-01-21T12:07:58Z">
-        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/mrtnz_Track%20View%20-%20Manager.lua</source>
-        <source main="main" file="mrtnz_Track view - Save by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Save%20by%20slot%20number.lua</source>
-        <source main="main" file="mrtnz_Track view - Load by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Load%20by%20slot%20number.lua</source>
-        <source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/rtk.lua</source>
-        <source file="json.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/json.lua</source>
-        <source file="functions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/functions.lua</source>
-      </version>
-<<<<<<< HEAD
-      <version name="1.6" author="mrtnz" time="2025-02-10T17:38:40Z">
-        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02779f48c26f40708def3b866304461cb585edd5/Various/Track%20View%20Manager/mrtnz_Track%20View%20-%20Manager.lua</source>
-        <source main="main" file="mrtnz_Track view - Save by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02779f48c26f40708def3b866304461cb585edd5/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Save%20by%20slot%20number.lua</source>
-        <source main="main" file="mrtnz_Track view - Load by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02779f48c26f40708def3b866304461cb585edd5/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Load%20by%20slot%20number.lua</source>
-        <source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02779f48c26f40708def3b866304461cb585edd5/Various/Track%20View%20Manager/rtk.lua</source>
-        <source file="json.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02779f48c26f40708def3b866304461cb585edd5/Various/Track%20View%20Manager/json.lua</source>
-        <source file="functions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02779f48c26f40708def3b866304461cb585edd5/Various/Track%20View%20Manager/functions.lua</source>
-      </version>
-=======
->>>>>>> 2af630dbe290a4545156b457615f65469f5a6e31
-    </reapack>
+]]></description></metadata><version name="1.1" author="mrtnz" time="2024-09-22T07:06:04Z"><source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7aa519f48ab047621c49ebee060d2f99b5202ae5/Various/Track%20View%20Manager/mrtnz_Track%20View%20-%20Manager.lua</source><source main="main" file="mrtnz_Track view - Save by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7aa519f48ab047621c49ebee060d2f99b5202ae5/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Save%20by%20slot%20number.lua</source><source main="main" file="mrtnz_Track view - Load by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7aa519f48ab047621c49ebee060d2f99b5202ae5/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Load%20by%20slot%20number.lua</source><source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7aa519f48ab047621c49ebee060d2f99b5202ae5/Various/Track%20View%20Manager/rtk.lua</source><source file="json.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7aa519f48ab047621c49ebee060d2f99b5202ae5/Various/Track%20View%20Manager/json.lua</source><source file="functions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/7aa519f48ab047621c49ebee060d2f99b5202ae5/Various/Track%20View%20Manager/functions.lua</source></version><version name="1.2" author="mrtnz" time="2024-09-23T16:21:07Z"><source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/0d9918f855ab4025e29e720f9843d1615f551a4d/Various/Track%20View%20Manager/mrtnz_Track%20View%20-%20Manager.lua</source><source main="main" file="mrtnz_Track view - Save by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/0d9918f855ab4025e29e720f9843d1615f551a4d/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Save%20by%20slot%20number.lua</source><source main="main" file="mrtnz_Track view - Load by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/0d9918f855ab4025e29e720f9843d1615f551a4d/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Load%20by%20slot%20number.lua</source><source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/0d9918f855ab4025e29e720f9843d1615f551a4d/Various/Track%20View%20Manager/rtk.lua</source><source file="json.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/0d9918f855ab4025e29e720f9843d1615f551a4d/Various/Track%20View%20Manager/json.lua</source><source file="functions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/0d9918f855ab4025e29e720f9843d1615f551a4d/Various/Track%20View%20Manager/functions.lua</source></version><version name="1.3" author="mrtnz" time="2025-01-18T17:43:09Z"><source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3aafb9afd3165ae9cc7fc0f2664756db6a175573/Various/Track%20View%20Manager/mrtnz_Track%20View%20-%20Manager.lua</source><source main="main" file="mrtnz_Track view - Save by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3aafb9afd3165ae9cc7fc0f2664756db6a175573/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Save%20by%20slot%20number.lua</source><source main="main" file="mrtnz_Track view - Load by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3aafb9afd3165ae9cc7fc0f2664756db6a175573/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Load%20by%20slot%20number.lua</source><source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3aafb9afd3165ae9cc7fc0f2664756db6a175573/Various/Track%20View%20Manager/rtk.lua</source><source file="json.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3aafb9afd3165ae9cc7fc0f2664756db6a175573/Various/Track%20View%20Manager/json.lua</source><source file="functions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3aafb9afd3165ae9cc7fc0f2664756db6a175573/Various/Track%20View%20Manager/functions.lua</source></version><version name="1.4" author="mrtnz" time="2025-01-20T09:21:18Z"><source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02cf30c4a1ec0c3e1b5af47eb97e809a086a31bc/Various/Track%20View%20Manager/mrtnz_Track%20View%20-%20Manager.lua</source><source main="main" file="mrtnz_Track view - Save by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02cf30c4a1ec0c3e1b5af47eb97e809a086a31bc/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Save%20by%20slot%20number.lua</source><source main="main" file="mrtnz_Track view - Load by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02cf30c4a1ec0c3e1b5af47eb97e809a086a31bc/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Load%20by%20slot%20number.lua</source><source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02cf30c4a1ec0c3e1b5af47eb97e809a086a31bc/Various/Track%20View%20Manager/rtk.lua</source><source file="json.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02cf30c4a1ec0c3e1b5af47eb97e809a086a31bc/Various/Track%20View%20Manager/json.lua</source><source file="functions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02cf30c4a1ec0c3e1b5af47eb97e809a086a31bc/Various/Track%20View%20Manager/functions.lua</source></version><version name="1.5" author="mrtnz" time="2025-01-21T12:07:58Z"><source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/mrtnz_Track%20View%20-%20Manager.lua</source><source main="main" file="mrtnz_Track view - Save by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Save%20by%20slot%20number.lua</source><source main="main" file="mrtnz_Track view - Load by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Load%20by%20slot%20number.lua</source><source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/rtk.lua</source><source file="json.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/json.lua</source><source file="functions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6d97d5eaf02673a0e7d43f67df08f215bfd1be6/Various/Track%20View%20Manager/functions.lua</source></version><version name="1.6" author="mrtnz" time="2025-02-10T17:38:40Z"><source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02779f48c26f40708def3b866304461cb585edd5/Various/Track%20View%20Manager/mrtnz_Track%20View%20-%20Manager.lua</source><source main="main" file="mrtnz_Track view - Save by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02779f48c26f40708def3b866304461cb585edd5/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Save%20by%20slot%20number.lua</source><source main="main" file="mrtnz_Track view - Load by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02779f48c26f40708def3b866304461cb585edd5/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Load%20by%20slot%20number.lua</source><source file="rtk.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02779f48c26f40708def3b866304461cb585edd5/Various/Track%20View%20Manager/rtk.lua</source><source file="json.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02779f48c26f40708def3b866304461cb585edd5/Various/Track%20View%20Manager/json.lua</source><source file="functions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/02779f48c26f40708def3b866304461cb585edd5/Various/Track%20View%20Manager/functions.lua</source></version><version name="1.0" author="mrtnz" time="2024-09-22T06:52:23Z"><source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/b787016eb475ec26b3aaceb510f18908f0b4acdb/Various/Track%20View%20Manager/mrtnz_Track%20View%20-%20Manager.lua</source><source main="main" file="mrtnz_Track view - Save by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/b787016eb475ec26b3aaceb510f18908f0b4acdb/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Save%20by%20slot%20number.lua</source><source main="main" file="mrtnz_Track view - Load by slot number.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/b787016eb475ec26b3aaceb510f18908f0b4acdb/Various/Track%20View%20Manager/mrtnz_Track%20view%20-%20Load%20by%20slot%20number.lua</source></version></reapack>
   </category>
   <metadata>
     <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
