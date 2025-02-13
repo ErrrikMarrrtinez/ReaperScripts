@@ -2,7 +2,6 @@
 --NoIndex: true
 
 
-
 local position = reaper.BR_PositionAtMouseCursor(true)
 if position == -1 then position = reaper.GetCursorPosition() end
 
@@ -12,58 +11,68 @@ if not track then return reaper.defer(function() end) end
 local _, regionidx = reaper.GetLastMarkerAndCurRegion(0, position)
 if regionidx == -1 then return reaper.defer(function() end) end
 
-reaper.Undo_BeginBlock()
 local _, _, rgnpos, rgnend, region_name = reaper.EnumProjectMarkers(regionidx)
+if position < rgnpos or position > rgnend then return reaper.defer(function() end) end
+if not region_name then region_name = "" end
+
+reaper.Undo_BeginBlock()
 reaper.PreventUIRefresh(1)
 
-local function findTextItemInRegion(track)
+local function findAndDeleteTextItemInRegion(track)
     local item_count = reaper.GetTrackNumMediaItems(track)
-    for i = 0, item_count-1 do
+    for i = item_count-1, 0, -1 do
         local item = reaper.GetTrackMediaItem(track, i)
-        local take = reaper.GetActiveTake(item)
-        if take then
-            local _, take_name = reaper.GetSetMediaItemTakeInfo_String(take, "P_NAME", "", false)
-            if take_name == region_name then return item end
+        local item_pos = reaper.GetMediaItemInfo_Value(item, "D_POSITION")
+        local item_len = reaper.GetMediaItemInfo_Value(item, "D_LENGTH")
+        local item_end = item_pos + item_len
+        
+        if item_pos < rgnend and item_end > rgnpos then
+            local _, item_notes = reaper.GetSetMediaItemInfo_String(item, "P_NOTES", "", false)
+            if item_notes == region_name then
+                local take = reaper.GetActiveTake(item)
+                if take then
+                    local is_midi = reaper.TakeIsMIDI(take)
+                    if not is_midi then
+                        reaper.DeleteTrackMediaItem(track, item)
+                        return true
+                    end
+                end
+            end
         end
     end
-    return nil
+    return false
 end
 
-local existing_item = nil
+local found = false
 local current_track_idx = reaper.GetMediaTrackInfo_Value(track, "IP_TRACKNUMBER") - 1
-existing_item = findTextItemInRegion(track)
+
+if not found then
+    found = findAndDeleteTextItemInRegion(track)
+end
 
 local track_idx = current_track_idx - 1
-while not existing_item and track_idx >= 0 do
+while not found and track_idx >= 0 do
     local track_above = reaper.GetTrack(0, track_idx)
     if track_above then
-        existing_item = findTextItemInRegion(track_above)
+        found = findAndDeleteTextItemInRegion(track_above)
         track_idx = track_idx - 1
     else break end
 end
 
 track_idx = current_track_idx + 1
-while not existing_item do
+while not found do
     local track_below = reaper.GetTrack(0, track_idx)
     if track_below then
-        existing_item = findTextItemInRegion(track_below)
+        found = findAndDeleteTextItemInRegion(track_below)
         track_idx = track_idx + 1
     else break end
 end
 
-local final_item
-if existing_item then
-    reaper.MoveMediaItemToTrack(existing_item, track)
-    reaper.SetMediaItemPosition(existing_item, rgnpos, false)
-    reaper.SetMediaItemLength(existing_item, rgnend - rgnpos, false)
-    final_item = existing_item
-else
-    final_item = reaper.AddMediaItemToTrack(track)
-    reaper.SetMediaItemPosition(final_item, rgnpos, false)
-    reaper.SetMediaItemLength(final_item, rgnend - rgnpos, false)
-    local take = reaper.AddTakeToMediaItem(final_item)
-    reaper.GetSetMediaItemTakeInfo_String(take, "P_NAME", region_name, true)
-end
+local final_item = reaper.AddMediaItemToTrack(track)
+reaper.SetMediaItemPosition(final_item, rgnpos, false)
+reaper.SetMediaItemLength(final_item, rgnend - rgnpos, false)
+local take = reaper.AddTakeToMediaItem(final_item)
+reaper.GetSetMediaItemTakeInfo_String(take, "P_NAME", region_name, true)
 
 if final_item then
     reaper.GetSetMediaItemInfo_String(final_item, "P_NOTES", region_name, true)
