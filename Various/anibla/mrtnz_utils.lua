@@ -302,7 +302,7 @@ function f.CreateSubprojectForTrack(sel_track, current_rpp, parent_dir)
   if not trimmed_name:lower():find("%[subproject%]") then
     reaper.GetSetMediaTrackInfo_String(sel_track, "P_NAME", trimmed_name .. " [subproject]", true)
   end
-  
+
   local newproj = CreateRPP()
 
   for i, node in ipairs(root.children or {}) do
@@ -626,6 +626,7 @@ end
 
 
 function f.checkDependencies()
+  -- Проверка ReaPack
   if not reaper.ReaPack_BrowsePackages then
     local msg = "Для работы скрипта требуется ReaPack.\n" ..
                 "Skript ishlashi uchun ReaPack kerak.\n\n" ..
@@ -640,6 +641,7 @@ function f.checkDependencies()
     return false
   end
   
+  -- Проверка ReaImGui
   if not reaper.APIExists("ImGui_GetBuiltinPath") then
     local msg = "Для работы скрипта требуется ReaImGui.\n" ..
                 "Skript ishlashi uchun ReaImGui kerak.\n\n" ..
@@ -654,6 +656,27 @@ function f.checkDependencies()
     
     if ret == 6 then 
       reaper.ReaPack_BrowsePackages("ReaImGui: ReaScript binding for Dear ImGui")
+      return false
+    else
+      return false
+    end
+  end
+  
+  -- Проверка js_ReaScriptAPI
+  if not reaper.APIExists("JS_Window_Find") then
+    local msg = "Для работы скрипта требуется js_ReaScriptAPI.\n" ..
+                "Skript ishlashi uchun js_ReaScriptAPI kerak.\n\n" ..
+                "Хотите установить его через ReaPack?\n" ..
+                "Uni ReaPack orqali o'rnatishni xohlaysizmi?"
+                
+    local ret = reaper.ShowMessageBox(
+      msg,
+      "Требуется js_ReaScriptAPI / js_ReaScriptAPI kerak",
+      4 -- Yes/No
+    )
+    
+    if ret == 6 then 
+      reaper.ReaPack_BrowsePackages("js_ReaScriptAPI: API functions for ReaScripts")
       return false
     else
       return false
