@@ -299,6 +299,10 @@ function f.CreateSubprojectForTrack(sel_track, current_rpp, parent_dir)
     return false
   end
 
+  if not trimmed_name:lower():find("%[subproject%]") then
+    reaper.GetSetMediaTrackInfo_String(sel_track, "P_NAME", trimmed_name .. " [subproject]", true)
+  end
+  
   local newproj = CreateRPP()
 
   for i, node in ipairs(root.children or {}) do
@@ -372,9 +376,7 @@ MAINSEND 1 0
     newproj:addNode(empty_track)
   end
 
-  if not trimmed_name:lower():find("%[subproject%]") then
-    reaper.GetSetMediaTrackInfo_String(sel_track, "P_NAME", trimmed_name .. " [subproject]", true)
-  end
+
 
   local ok, err = WriteRPP(new_project_path, newproj)
   if not ok then
@@ -621,5 +623,91 @@ function f.AddScriptStartup()
     end
 end
   
+
+
+function f.checkDependencies()
+  if not reaper.ReaPack_BrowsePackages then
+    local msg = "Для работы скрипта требуется ReaPack.\n" ..
+                "Skript ishlashi uchun ReaPack kerak.\n\n" ..
+                "Хотите перейти на страницу загрузки?\n" ..
+                "Yuklab olish sahifasiga o'tishni xohlaysizmi?"
+    
+    local ret = reaper.ShowMessageBox(msg, "ReaPack не установлен / ReaPack o'rnatilmagan", 4)
+    
+    if ret == 6 then -- Yes
+      reaper.CF_ShellExecute("https://reapack.com/upload/reascript")
+    end
+    return false
+  end
+  
+  if not reaper.APIExists("ImGui_GetBuiltinPath") then
+    local msg = "Для работы скрипта требуется ReaImGui.\n" ..
+                "Skript ishlashi uchun ReaImGui kerak.\n\n" ..
+                "Хотите установить его через ReaPack?\n" ..
+                "Uni ReaPack orqali o'rnatishni xohlaysizmi?"
+                
+    local ret = reaper.ShowMessageBox(
+      msg,
+      "Требуется ReaImGui / ReaImGui kerak",
+      4 -- Yes/No
+    )
+    
+    if ret == 6 then 
+      reaper.ReaPack_BrowsePackages("ReaImGui: ReaScript binding for Dear ImGui")
+      return false
+    else
+      return false
+    end
+  end
+  
+  return true 
+end
+
+function f.get_regions()
+  local regions = {}
+  local count = reaper.CountProjectMarkers(0)
+  for i = 0, count - 1 do
+    local retval, isrgn, pos, rgnend, name = reaper.EnumProjectMarkers3(0, i)
+    if isrgn then 
+      regions[#regions+1] = {start = pos, endPos = rgnend, name = name} 
+    end
+  end
+  return regions
+end
+
+
+
+
+
+local function lerp(a, b, t) 
+  return a + (b - a) * t 
+end
+
+function f.getColorComponents(color)
+  local a = math.floor(color / 0x1000000) % 256
+  local b = math.floor(color / 0x10000) % 256
+  local g = math.floor(color / 0x100) % 256
+  local r = color % 256
+  return a, b, g, r
+end
+
+local function combineColor(a, b, g, r)
+  return ((a * 0x1000000) + (b * 0x10000) + (g * 0x100) + r)
+end
+
+function f.lerpColor(c1, c2, t)
+  local a1, b1, g1, r1 = f.getColorComponents(c1)
+  local a2, b2, g2, r2 = f.getColorComponents(c2)
+  local a = math.floor(lerp(a1, a2, t) + 0.5)
+  local b = math.floor(lerp(b1, b2, t) + 0.5)
+  local g = math.floor(lerp(g1, g2, t) + 0.5)
+  local r = math.floor(lerp(r1, r2, t) + 0.5)
+  return combineColor(a, b, g, r)
+end
+
+function f.getBrightness(color)
+  local a, b, g, r = f.getColorComponents(color)
+  return (r + g + b) / 3
+end
   
 return f

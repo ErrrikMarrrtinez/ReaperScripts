@@ -14,58 +14,19 @@ f.importSubtitlesAsRegions        = importSubtitlesAsRegions
 f.exportRegionsAsSRTDialog        = exportRegionsAsSRTDialog
 f.convertASStoSRT                 = convertASStoSRT
 f.importSubtitlesAsRegionsDialog  = importSubtitlesAsRegionsDialog
-]]
+]]                               -- srtass.importSubtitlesAsRegionsDialog()
 
---srtass.importSubtitlesAsRegionsDialog()
-local function checkDependencies()
-  if not reaper.ReaPack_BrowsePackages then
-    local msg = "Для работы скрипта требуется ReaPack.\n" ..
-                "Skript ishlashi uchun ReaPack kerak.\n\n" ..
-                "Хотите перейти на страницу загрузки?\n" ..
-                "Yuklab olish sahifasiga o'tishni xohlaysizmi?"
-    
-    local ret = reaper.ShowMessageBox(msg, "ReaPack не установлен / ReaPack o'rnatilmagan", 4)
-    
-    if ret == 6 then -- Yes
-      reaper.CF_ShellExecute("https://reapack.com/upload/reascript")
-    end
-    return false
-  end
-  
-  if not reaper.APIExists("ImGui_GetBuiltinPath") then
-    local msg = "Для работы скрипта требуется ReaImGui.\n" ..
-                "Skript ishlashi uchun ReaImGui kerak.\n\n" ..
-                "Хотите установить его через ReaPack?\n" ..
-                "Uni ReaPack orqali o'rnatishni xohlaysizmi?"
-                
-    local ret = reaper.ShowMessageBox(
-      msg,
-      "Требуется ReaImGui / ReaImGui kerak",
-      4 -- Yes/No
-    )
-    
-    if ret == 6 then 
-      reaper.ReaPack_BrowsePackages("ReaImGui: ReaScript binding for Dear ImGui")
-      return false
-    else
-      return false
-    end
-  end
-  
-  return true 
-end
 
-if not checkDependencies() then
+if not f.checkDependencies() then
   return
 end
-
 
 local ctx = ImGui.CreateContext('Subtitles Window')
 local COLOR_ACTIVE   = 0xFFFFFFFF
 local COLOR_NEIGHBOR = 0x4a4a4aFF
 local COLOR_INACTIVE = 0x1a1a1aFF
 local fontSize = 25
-local savedFontSize = reaper.GetExtState("SubtitlesWindow", "fontSize")
+local savedFontSize = r.GetExtState("SubtitlesWindow", "fontSize")
 if savedFontSize and savedFontSize ~= "" then fontSize = tonumber(savedFontSize) or fontSize end
 local font = ImGui.CreateFont("sans-serif", fontSize, 0)
 ImGui.Attach(ctx, font)
@@ -74,94 +35,26 @@ local cachedRegions = {}
 local cachedRegionsTime = 0
 local CACHE_INTERVAL = 0.25
 local regionColors = {}
-
-
-f.AddScriptStartup()
-
-local function get_regions()
-  local regions = {}
-  local count = reaper.CountProjectMarkers(0)
-  for i = 0, count - 1 do
-    local retval, isrgn, pos, rgnend, name = reaper.EnumProjectMarkers3(0, i)
-    if isrgn then 
-      regions[#regions+1] = {start = pos, endPos = rgnend, name = name} 
-    end
-  end
-  return regions
-end
-
-local function get_cached_regions()
-  local now = reaper.time_precise()
-  if now - cachedRegionsTime > CACHE_INTERVAL then
-    cachedRegions = get_regions()
-    cachedRegionsTime = now
-  end
-  return cachedRegions
-end
-
-
-
-local function lerp(a, b, t) 
-  return a + (b - a) * t 
-end
-
-local function getColorComponents(color)
-  local a = math.floor(color / 0x1000000) % 256
-  local b = math.floor(color / 0x10000) % 256
-  local g = math.floor(color / 0x100) % 256
-  local r = color % 256
-  return a, b, g, r
-end
-
-local function combineColor(a, b, g, r)
-  return ((a * 0x1000000) + (b * 0x10000) + (g * 0x100) + r)
-end
-
-local function lerpColor(c1, c2, t)
-  local a1, b1, g1, r1 = getColorComponents(c1)
-  local a2, b2, g2, r2 = getColorComponents(c2)
-  local a = math.floor(lerp(a1, a2, t) + 0.5)
-  local b = math.floor(lerp(b1, b2, t) + 0.5)
-  local g = math.floor(lerp(g1, g2, t) + 0.5)
-  local r = math.floor(lerp(r1, r2, t) + 0.5)
-  return combineColor(a, b, g, r)
-end
-
 local scrollY = 0
 
 font2 = ImGui.CreateFont("sans-serif", 15, 0)
 ImGui.Attach(ctx, font2)
-
--- Кэш для высот текста
-
-local function getBrightness(color)
-  local a, b, g, r = getColorComponents(color)
-  return (r + g + b) / 3
-end
-
-
 local textHeightsCache = {}
 
+f.AddScriptStartup()
 
-local function calculateWrappedTextHeight(ctx, text, wrap_width)
+function calculateWrappedTextHeight(ctx, text, wrap_width)
   wrap_width = wrap_width or ImGui.GetContentRegionAvail(ctx)
   local lines = {}
   local currentLine = ""
-  
-  -- Get exact line height for the current font
-  local lineHeight = select(2, ImGui.CalcTextSize(ctx, "Ag"))  -- Using "Ag" to get max height
-  local extraSpacing = lineHeight * 0.3  -- Dynamic spacing based on line height
-  
-  -- Split text into words and respect newlines
+  local lineHeight = select(2, ImGui.CalcTextSize(ctx, "Ag"))
+  local extraSpacing = lineHeight * 0.3
   for word in string.gmatch(text.."\n", "([^\n]*)\n") do
     local subLines = {}
     local currentSubLine = ""
-    
-    -- Process each line separately
     for subWord in string.gmatch(word, "%S+") do
       local candidate = (currentSubLine == "" and subWord or currentSubLine .. " " .. subWord)
       local textWidth = select(1, ImGui.CalcTextSize(ctx, candidate))
-      
       if textWidth > wrap_width and currentSubLine ~= "" then
         table.insert(subLines, currentSubLine)
         currentSubLine = subWord
@@ -169,11 +62,9 @@ local function calculateWrappedTextHeight(ctx, text, wrap_width)
         currentSubLine = candidate
       end
     end
-    
     if currentSubLine ~= "" then
       table.insert(subLines, currentSubLine)
     end
-    
     for _, line in ipairs(subLines) do
       table.insert(lines, line)
     end
@@ -182,36 +73,31 @@ local function calculateWrappedTextHeight(ctx, text, wrap_width)
   return #lines * lineHeight + (#lines - 1) * extraSpacing, lines, lineHeight, extraSpacing
 end
 
--- Improved text drawing function with proper vertical spacing
 local function draw_centered_wrapped_text(ctx, text, wrap_width)
   wrap_width = wrap_width or ImGui.GetContentRegionAvail(ctx)
   local totalHeight, lines, lineHeight, extraSpacing = calculateWrappedTextHeight(ctx, text, wrap_width)
-  
-  -- Store initial cursor position
   local startX = ImGui.GetCursorPosX(ctx)
   local startY = ImGui.GetCursorPosY(ctx)
-  
-  -- Draw each line with proper spacing
   for i, line in ipairs(lines) do
     local textWidth = select(1, ImGui.CalcTextSize(ctx, line))
     local offset = (wrap_width - textWidth) * 0.5
-    
-    -- Ensure minimum left margin
     offset = math.max(offset, 0)
-    
-    -- Set position for this line
     ImGui.SetCursorPos(ctx, startX + offset, startY + (i-1) * (lineHeight + extraSpacing))
     ImGui.Text(ctx, line)
   end
-  
-  -- Return total height used
   return totalHeight
 end
 
+function get_cached_regions()
+  local now = r.time_precise()
+  if now - cachedRegionsTime > CACHE_INTERVAL then
+    cachedRegions = f.get_regions()
+    cachedRegionsTime = now
+  end
+  return cachedRegions
+end
 
-
-local lastAvailW = nil
-local function main_loop()
+function main_loop()
   if reloadFont then
     if font then ImGui.Detach(ctx, font) end
     font = ImGui.CreateFont("sans-serif", fontSize, 0)
@@ -232,7 +118,7 @@ local function main_loop()
     if ImGui.BeginChild(ctx, "ScrollingChild", avail_w, avail_h, 1, ImGui.WindowFlags_NoScrollWithMouse | ImGui.WindowFlags_NoScrollbar) then
       if ImGui.BeginPopupContextWindow(ctx, "context_menu") then
         if ImGui.MenuItem(ctx, "Import subtitles (.srt or .ass)") then
-          reaper.Main_OnCommand(reaper.NamedCommandLookup("_SWSMARKERLIST10"), 0)
+          r.Main_OnCommand(r.NamedCommandLookup("_SWSMARKERLIST10"), 0)
           srtass.importSubtitlesAsRegionsDialog()
         end
         if ImGui.MenuItem(ctx, "Export subtitles (.srt file)") then
@@ -244,8 +130,8 @@ local function main_loop()
       ImGui.PopFont(ctx)
       ImGui.PushFont(ctx, font)
       local regions = get_cached_regions()
-      local play_state = reaper.GetPlayState()
-      local cursor_pos = ((play_state & 1) == 1) and reaper.GetPlayPosition() or reaper.GetCursorPosition()
+      local play_state = r.GetPlayState()
+      local cursor_pos = ((play_state & 1) == 1) and r.GetPlayPosition() or r.GetCursorPosition()
       local activeIndex = nil
       for i, region in ipairs(regions) do
         if cursor_pos >= region.start and cursor_pos <= region.endPos then
@@ -267,13 +153,13 @@ local function main_loop()
         if not regionColors[i] then
           regionColors[i] = target
         else
-          local currentBrightness = getBrightness(regionColors[i])
-          local targetBrightness = getBrightness(target)
+          local currentBrightness = f.getBrightness(regionColors[i])
+          local targetBrightness = f.getBrightness(target)
           local factor = darkenFactor
           if targetBrightness > currentBrightness then
             factor = brightenFactor * brightenFactor * brightenFactor
           end
-          regionColors[i] = lerpColor(regionColors[i], target, factor)
+          regionColors[i] = f.lerpColor(regionColors[i], target, factor)
         end
       end
       local totalHeight = 0
@@ -321,6 +207,39 @@ local function main_loop()
       end
       ImGui.Dummy(ctx, 0, avail_h * 0.25)
       ImGui.EndChild(ctx)
+      
+      -- Рисуем таймлайн внизу окна, если есть активный регион
+if activeIndex then
+    local activeRegion = regions[activeIndex]
+    local regionLength = activeRegion.endPos - activeRegion.start
+    local progress = (cursor_pos - activeRegion.start) / regionLength
+    progress = math.min(math.max(progress, 0), 1)
+    
+    local draw_list = reaper.ImGui_GetForegroundDrawList(ctx)
+    local win_pos_x, win_pos_y = ImGui.GetWindowPos(ctx)
+    local win_size_x, win_size_y = ImGui.GetWindowSize(ctx)
+    
+    local margin = 10
+    local bar_height = 10
+    local bar_x1 = win_pos_x + margin
+    local bar_y1 = win_pos_y + win_size_y - margin - bar_height
+    local bar_x2 = win_pos_x + win_size_x - margin
+    local bar_y2 = win_pos_y + win_size_y - margin
+    
+    local bar_color = 0xFF8B0000    -- базовый багровый цвет
+    local progress_color = 0xcd583330  -- цвет заполненной части
+    local border_color = 0xFFFFFF40 -- белая рамка
+    
+    -- Рисуем основной фон
+    ImGui.DrawList_AddRectFilled(draw_list, bar_x1, bar_y1, bar_x2, bar_y2, bar_color, 0, 0)
+    
+    -- Рисуем прогресс
+    local progress_x = bar_x1 + (bar_x2 - bar_x1) * progress
+    ImGui.DrawList_AddRectFilled(draw_list, bar_x1, bar_y1, progress_x, bar_y2, progress_color, 0, 0)
+    
+    -- Рисуем рамку
+    --ImGui.DrawList_AddRect(draw_list, bar_x1, bar_y1, bar_x2, bar_y2, border_color, 0, 0, 1)
+end
     end
     ImGui.PopFont(ctx)
     ImGui.End(ctx)
@@ -336,12 +255,11 @@ local function main_loop()
     end
   end
   if ImGui.IsMouseClicked(ctx, 0) then
-    cachedRegions = get_regions()
-    cachedRegionsTime = reaper.time_precise()
+    cachedRegions = f.get_regions()
+    cachedRegionsTime = r.time_precise()
   end
-  if open then reaper.defer(main_loop) end
+  if open then r.defer(main_loop) end
 end
 
-
-reaper.atexit()
-reaper.defer(main_loop)
+r.atexit()
+r.defer(main_loop)
