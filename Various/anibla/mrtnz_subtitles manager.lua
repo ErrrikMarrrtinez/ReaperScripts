@@ -146,7 +146,7 @@ local function apply_theme()
   if theme == "alternative" then
     COLOR_ACTIVE   = 0x000000FF   -- Чёрный текст
     COLOR_NEIGHBOR = 0x333333FF   -- Чуть светлее, чем чёрный
-    COLOR_INACTIVE = 0xABB1B1FF   -- Фон окна (светлый)
+    COLOR_INACTIVE = 0x6a6a6aff   -- Фон окна (светлый)
     WINDOW_BG      = 0xABB1B1FF   -- Цвет фона окна
   else
     COLOR_ACTIVE   = 0xFFFFFFFF   -- Белый текст
