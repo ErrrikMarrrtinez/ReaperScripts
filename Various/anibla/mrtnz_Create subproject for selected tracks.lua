@@ -4,6 +4,15 @@
 local r = reaper
 local f = dofile(debug.getinfo(1, "S").source:match([[^@?(.*[\/])[^\/]-$]]) .. 'mrtnz_utils.lua')
 math.randomseed(os.time())
+r.Main_OnCommand(40026, 0)
+
+local track = r.GetTrack(0, 0)
+if track then
+    local retval, track_name = r.GetSetMediaTrackInfo_String(track, "P_NAME", "", false)
+    if not track_name:find("%[video%]") then
+        r.GetSetMediaTrackInfo_String(track, "P_NAME", track_name.." [video]" , true)
+    end
+end
 
 local _, current_rpp = r.EnumProjects(-1, "")
 if not current_rpp or current_rpp == "" then
