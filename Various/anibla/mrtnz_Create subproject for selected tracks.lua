@@ -51,7 +51,7 @@ for i = 0, num_selected - 1 do
       exists = true
       io.close(file)
     end
-    
+
     table.insert(tracksToProcess, { track = sel_track, name_no_sub = name_no_sub, new_project_path = new_project_path, exists = exists })
     if exists then
       table.insert(overwriteProjects, name_no_sub)
