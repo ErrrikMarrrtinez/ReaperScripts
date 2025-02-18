@@ -17,15 +17,14 @@ f.convertASStoSRT                 = convertASStoSRT
 f.importSubtitlesAsRegionsDialog  = importSubtitlesAsRegionsDialog
 ]]                               -- srtass.importSubtitlesAsRegionsDialog()
 
-
 if not f.checkDependencies() then
   return
 end
 
 local ctx = ImGui.CreateContext('Subtitles Window')
 local COLOR_ACTIVE   = 0xFFFFFFFF
-local COLOR_NEIGHBOR = 0x4a4a4aFF
-local COLOR_INACTIVE = 0x1a1a1aFF
+local COLOR_NEIGHBOR = 0x5a5a5aFF
+local COLOR_INACTIVE = 0x3a3a3aFF
 local fontSize = 25
 local savedFontSize = r.GetExtState("SubtitlesWindow", "fontSize")
 if savedFontSize and savedFontSize ~= "" then fontSize = tonumber(savedFontSize) or fontSize end
@@ -126,6 +125,7 @@ function draw_progress_subtitle(activeIndex, regions, cursor_pos)
         local bar_color = 0xFF8B0000    -- базовый багровый цвет
         local progress_color = 0xcd583320  -- цвет заполненной части
         local border_color = 0xFFFFFF40 -- белая рамка
+ -- белая рамка
         
         -- Рисуем основной фон
         ImGui.DrawList_AddRectFilled(draw_list, bar_x1, bar_y1, bar_x2, bar_y2, bar_color, 0, 0)
@@ -139,6 +139,26 @@ function draw_progress_subtitle(activeIndex, regions, cursor_pos)
     end
 end
 
+local theme = r.GetExtState("SubtitlesWindow", "theme")
+if theme == "" then theme = "default" end
+
+local function apply_theme()
+  if theme == "alternative" then
+    COLOR_ACTIVE   = 0x000000FF   -- Чёрный текст
+    COLOR_NEIGHBOR = 0x333333FF   -- Чуть светлее, чем чёрный
+    COLOR_INACTIVE = 0xABB1B1FF   -- Фон окна (светлый)
+    WINDOW_BG      = 0xABB1B1FF   -- Цвет фона окна
+  else
+    COLOR_ACTIVE   = 0xFFFFFFFF   -- Белый текст
+    COLOR_NEIGHBOR = 0x5a5a5aFF   -- Серый
+    COLOR_INACTIVE = 0x3a3a3aFF   -- Тёмно-серый фон
+    WINDOW_BG      = 0x1c1c1cFF   -- Чёрный фон окна
+  end
+end
+
+apply_theme()
+
+
 function main_loop()
   if reloadFont then
     if font then ImGui.Detach(ctx, font) end
@@ -149,7 +169,14 @@ function main_loop()
     textHeightsCache = {}
   end
   ImGui.SetNextWindowSize(ctx, 640, 640, ImGui.Cond_FirstUseEver)
+  
+  ImGui.PushStyleColor(ctx, ImGui.Col_WindowBg, WINDOW_BG)
+  
+  
   local visible, open = ImGui.Begin(ctx, "Subtitles", true)
+  
+  ImGui.PopStyleColor(ctx)
+  
   if visible then
     ImGui.PushFont(ctx, font2)
     local avail_w, avail_h = ImGui.GetContentRegionAvail(ctx)
@@ -157,7 +184,22 @@ function main_loop()
       textHeightsCache = {}
       lastAvailW = avail_w
     end
-    if ImGui.BeginChild(ctx, "ScrollingChild", avail_w, avail_h, 1, ImGui.WindowFlags_NoScrollWithMouse | ImGui.WindowFlags_NoScrollbar) then
+    
+    
+    if ImGui.BeginChild(ctx, "ScrollingChild", avail_w, avail_h, 1, ImGui.WindowFlags_NoScrollWithMouse|ImGui.WindowFlags_NoScrollbar) then
+      
+      local win_x, win_y = ImGui.GetWindowPos(ctx)
+      local win_w, _ = ImGui.GetWindowSize(ctx)
+      
+      ImGui.SetCursorScreenPos(ctx, win_x + win_w - 40, win_y + 10) -- 10 пикселей от верха окна
+      
+      if ImGui.Button(ctx, "Col") then
+          theme = (theme == "default") and "alternative" or "default"
+          r.SetExtState("SubtitlesWindow", "theme", theme, true)
+          apply_theme()
+      end
+      
+      
       if ImGui.BeginPopupContextWindow(ctx, "context_menu") then
           if ImGui.MenuItem(ctx, "Import subtitles (.srt or .ass)") then
               r.Main_OnCommand(r.NamedCommandLookup("_SWSMARKERLIST10"), 0)
