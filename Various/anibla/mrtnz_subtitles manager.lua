@@ -1,4 +1,5 @@
-
+--@noindex
+--NoIndex: true
 
 local r = reaper
 local script_path = debug.getinfo(1, "S").source:match("@(.*[\\/])")
@@ -28,8 +29,7 @@ local COLOR_INACTIVE = 0x1a1a1aFF
 local fontSize = 25
 local savedFontSize = r.GetExtState("SubtitlesWindow", "fontSize")
 if savedFontSize and savedFontSize ~= "" then fontSize = tonumber(savedFontSize) or fontSize end
-local font = ImGui.CreateFont("sans-serif", fontSize, 0)
-ImGui.Attach(ctx, font)
+
 local reloadFont = false
 local cachedRegions = {}
 local cachedRegionsTime = 0
@@ -37,8 +37,16 @@ local CACHE_INTERVAL = 0.25
 local regionColors = {}
 local scrollY = 0
 
-font2 = ImGui.CreateFont("sans-serif", 15, 0)
+local showProgressBar = true
+local savedProgressBarState = r.GetExtState("SubtitlesWindow", "showProgressBar")
+if savedProgressBarState and savedProgressBarState ~= "" then 
+    showProgressBar = savedProgressBarState == "true"
+end
+
+local font = ImGui.CreateFont("sans-serif", fontSize, 0)
+local font2 = ImGui.CreateFont("sans-serif", 15, 0)
 ImGui.Attach(ctx, font2)
+ImGui.Attach(ctx, font)
 local textHeightsCache = {}
 
 f.AddScriptStartup()
@@ -97,13 +105,47 @@ function get_cached_regions()
   return cachedRegions
 end
 
+function draw_progress_subtitle(activeIndex, regions, cursor_pos)
+    if activeIndex then
+        local activeRegion = regions[activeIndex]
+        local regionLength = activeRegion.endPos - activeRegion.start
+        local progress = (cursor_pos - activeRegion.start) / regionLength
+        progress = math.min(math.max(progress, 0), 1)
+        
+        local draw_list = reaper.ImGui_GetForegroundDrawList(ctx)
+        local win_pos_x, win_pos_y = ImGui.GetWindowPos(ctx)
+        local win_size_x, win_size_y = ImGui.GetWindowSize(ctx)
+        
+        local margin = 10
+        local bar_height = 15
+        local bar_x1 = win_pos_x + margin
+        local bar_y1 = win_pos_y + win_size_y - margin - bar_height
+        local bar_x2 = win_pos_x + win_size_x - margin
+        local bar_y2 = win_pos_y + win_size_y - margin
+        
+        local bar_color = 0xFF8B0000    -- базовый багровый цвет
+        local progress_color = 0xcd583320  -- цвет заполненной части
+        local border_color = 0xFFFFFF40 -- белая рамка
+        
+        -- Рисуем основной фон
+        ImGui.DrawList_AddRectFilled(draw_list, bar_x1, bar_y1, bar_x2, bar_y2, bar_color, 0, 0)
+        
+        -- Рисуем прогресс
+        local progress_x = bar_x1 + (bar_x2 - bar_x1) * progress
+        ImGui.DrawList_AddRectFilled(draw_list, bar_x1, bar_y1, progress_x, bar_y2, progress_color, 0, 0)
+        
+        -- Рисуем рамку
+        --ImGui.DrawList_AddRect(draw_list, bar_x1, bar_y1, bar_x2, bar_y2, border_color, 0, 0, 1)
+    end
+end
+
 function main_loop()
   if reloadFont then
     if font then ImGui.Detach(ctx, font) end
     font = ImGui.CreateFont("sans-serif", fontSize, 0)
     ImGui.Attach(ctx, font)
     reloadFont = false
-    reaper.SetExtState("SubtitlesWindow", "fontSize", tostring(fontSize), true)
+    r.SetExtState("SubtitlesWindow", "fontSize", tostring(fontSize), true)
     textHeightsCache = {}
   end
   ImGui.SetNextWindowSize(ctx, 640, 640, ImGui.Cond_FirstUseEver)
@@ -117,14 +159,20 @@ function main_loop()
     end
     if ImGui.BeginChild(ctx, "ScrollingChild", avail_w, avail_h, 1, ImGui.WindowFlags_NoScrollWithMouse | ImGui.WindowFlags_NoScrollbar) then
       if ImGui.BeginPopupContextWindow(ctx, "context_menu") then
-        if ImGui.MenuItem(ctx, "Import subtitles (.srt or .ass)") then
-          r.Main_OnCommand(r.NamedCommandLookup("_SWSMARKERLIST10"), 0)
-          srtass.importSubtitlesAsRegionsDialog()
-        end
-        if ImGui.MenuItem(ctx, "Export subtitles (.srt file)") then
-          srtass.exportRegionsAsSRTDialog()
-        end
-        ImGui.EndPopup(ctx)
+          if ImGui.MenuItem(ctx, "Import subtitles (.srt or .ass)") then
+              r.Main_OnCommand(r.NamedCommandLookup("_SWSMARKERLIST10"), 0)
+              srtass.importSubtitlesAsRegionsDialog()
+          end
+          if ImGui.MenuItem(ctx, "Export subtitles (.srt file)") then
+              srtass.exportRegionsAsSRTDialog()
+          end
+          ImGui.Separator(ctx)
+          local progress_clicked
+          progress_clicked, showProgressBar = ImGui.MenuItem(ctx, "Show progress bar", nil, showProgressBar)
+          if progress_clicked then
+              r.SetExtState("SubtitlesWindow", "showProgressBar", tostring(showProgressBar), true)
+          end
+          ImGui.EndPopup(ctx)
       end
       ImGui.Dummy(ctx, 0, avail_h * 0.25)
       ImGui.PopFont(ctx)
@@ -207,39 +255,10 @@ function main_loop()
       end
       ImGui.Dummy(ctx, 0, avail_h * 0.25)
       ImGui.EndChild(ctx)
+      if showProgressBar then
+          draw_progress_subtitle(activeIndex, regions, cursor_pos)
+      end
       
-      -- Рисуем таймлайн внизу окна, если есть активный регион
-if activeIndex then
-    local activeRegion = regions[activeIndex]
-    local regionLength = activeRegion.endPos - activeRegion.start
-    local progress = (cursor_pos - activeRegion.start) / regionLength
-    progress = math.min(math.max(progress, 0), 1)
-    
-    local draw_list = reaper.ImGui_GetForegroundDrawList(ctx)
-    local win_pos_x, win_pos_y = ImGui.GetWindowPos(ctx)
-    local win_size_x, win_size_y = ImGui.GetWindowSize(ctx)
-    
-    local margin = 10
-    local bar_height = 10
-    local bar_x1 = win_pos_x + margin
-    local bar_y1 = win_pos_y + win_size_y - margin - bar_height
-    local bar_x2 = win_pos_x + win_size_x - margin
-    local bar_y2 = win_pos_y + win_size_y - margin
-    
-    local bar_color = 0xFF8B0000    -- базовый багровый цвет
-    local progress_color = 0xcd583330  -- цвет заполненной части
-    local border_color = 0xFFFFFF40 -- белая рамка
-    
-    -- Рисуем основной фон
-    ImGui.DrawList_AddRectFilled(draw_list, bar_x1, bar_y1, bar_x2, bar_y2, bar_color, 0, 0)
-    
-    -- Рисуем прогресс
-    local progress_x = bar_x1 + (bar_x2 - bar_x1) * progress
-    ImGui.DrawList_AddRectFilled(draw_list, bar_x1, bar_y1, progress_x, bar_y2, progress_color, 0, 0)
-    
-    -- Рисуем рамку
-    --ImGui.DrawList_AddRect(draw_list, bar_x1, bar_y1, bar_x2, bar_y2, border_color, 0, 0, 1)
-end
     end
     ImGui.PopFont(ctx)
     ImGui.End(ctx)
