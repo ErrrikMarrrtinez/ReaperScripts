@@ -157,68 +157,85 @@ local function apply_theme()
 end
 
 apply_theme()
-
+-- Функция безопасного отсоединения шрифта
+local function safeDetachFont(ctx, font)
+  if font and r.ImGui_ValidatePtr(font, "ImGui_Font*") then
+    pcall(function() ImGui.Detach(ctx, font) end)
+  end
+end
 
 function main_loop()
+  if not r.ImGui_ValidatePtr(ctx, "ImGui_Context*") then
+    ctx = r.ImGui_CreateContext("Subtitles Window")
+    reloadFont = true
+  end
+
   if reloadFont then
-    if font then ImGui.Detach(ctx, font) end
+    if font then safeDetachFont(ctx, font) end
     font = ImGui.CreateFont("sans-serif", fontSize, 0)
     ImGui.Attach(ctx, font)
     reloadFont = false
     r.SetExtState("SubtitlesWindow", "fontSize", tostring(fontSize), true)
     textHeightsCache = {}
   end
+
   ImGui.SetNextWindowSize(ctx, 640, 640, ImGui.Cond_FirstUseEver)
-  
   ImGui.PushStyleColor(ctx, ImGui.Col_WindowBg, WINDOW_BG)
-  
-  
   local visible, open = ImGui.Begin(ctx, "Subtitles", true)
-  
   ImGui.PopStyleColor(ctx)
-  
+
   if visible then
-    ImGui.PushFont(ctx, font2)
+    local font2Pushed = false
+    if font2 and r.ImGui_ValidatePtr(font2, "ImGui_Font*") then
+      ImGui.PushFont(ctx, font2)
+      font2Pushed = true
+    end
+
     local avail_w, avail_h = ImGui.GetContentRegionAvail(ctx)
     if lastAvailW ~= avail_w then
       textHeightsCache = {}
       lastAvailW = avail_w
     end
-    
-    
-    if ImGui.BeginChild(ctx, "ScrollingChild", avail_w, avail_h, 1, ImGui.WindowFlags_NoScrollWithMouse|ImGui.WindowFlags_NoScrollbar) then
-      
+
+    if ImGui.BeginChild(ctx, "ScrollingChild", avail_w, avail_h, 1, ImGui.WindowFlags_NoScrollWithMouse | ImGui.WindowFlags_NoScrollbar) then
       local win_x, win_y = ImGui.GetWindowPos(ctx)
       local win_w, _ = ImGui.GetWindowSize(ctx)
-      
-      ImGui.SetCursorScreenPos(ctx, win_x + win_w - 40, win_y + 10) -- 10 пикселей от верха окна
-      
+      ImGui.SetCursorScreenPos(ctx, win_x + win_w - 40, win_y + 10)
       if ImGui.Button(ctx, "Col") then
-          theme = (theme == "default") and "alternative" or "default"
-          r.SetExtState("SubtitlesWindow", "theme", theme, true)
-          apply_theme()
+        theme = (theme == "default") and "alternative" or "default"
+        r.SetExtState("SubtitlesWindow", "theme", theme, true)
+        apply_theme()
       end
-      
-      
+
       if ImGui.BeginPopupContextWindow(ctx, "context_menu") then
-          if ImGui.MenuItem(ctx, "Import subtitles (.srt or .ass)") then
-              r.Main_OnCommand(r.NamedCommandLookup("_SWSMARKERLIST10"), 0)
-              srtass.importSubtitlesAsRegionsDialog()
-          end
-          if ImGui.MenuItem(ctx, "Export subtitles (.srt file)") then
-              srtass.exportRegionsAsSRTDialog()
-          end
-          ImGui.Separator(ctx)
-          local progress_clicked
-          progress_clicked, showProgressBar = ImGui.MenuItem(ctx, "Show progress bar", nil, showProgressBar)
-          if progress_clicked then
-              r.SetExtState("SubtitlesWindow", "showProgressBar", tostring(showProgressBar), true)
-          end
-          ImGui.EndPopup(ctx)
+        if ImGui.MenuItem(ctx, "Import subtitles (.srt or .ass)") then
+          r.Main_OnCommand(r.NamedCommandLookup("_SWSMARKERLIST10"), 0)
+          srtass.importSubtitlesAsRegionsDialog()
+        end
+        if ImGui.MenuItem(ctx, "Export subtitles (.srt file)") then
+          srtass.exportRegionsAsSRTDialog()
+        end
+        ImGui.Separator(ctx)
+        local progress_clicked, _ = ImGui.MenuItem(ctx, "Show progress bar", nil, showProgressBar)
+        if progress_clicked then
+          showProgressBar = not showProgressBar
+          r.SetExtState("SubtitlesWindow", "showProgressBar", tostring(showProgressBar), true)
+        end
+        ImGui.EndPopup(ctx)
       end
+
       ImGui.Dummy(ctx, 0, avail_h * 0.25)
-      ImGui.PopFont(ctx)
-      ImGui.PushFont(ctx, font)
+      if font2Pushed then
+        ImGui.PopFont(ctx)
+        font2Pushed = false
+      end
+
+      local fontPushed = false
+      if font and r.ImGui_ValidatePtr(font, "ImGui_Font*") then
+        ImGui.PushFont(ctx, font)
+        fontPushed = true
+      end
+
       local regions = get_cached_regions()
       local play_state = r.GetPlayState()
       local cursor_pos = ((play_state & 1) == 1) and r.GetPlayPosition() or r.GetCursorPosition()
@@ -229,6 +246,7 @@ function main_loop()
           break
         end
       end
+
       local brightenFactor = 0.89
       local darkenFactor = 0.1
       for i, region in ipairs(regions) do
@@ -252,6 +270,7 @@ function main_loop()
           regionColors[i] = f.lerpColor(regionColors[i], target, factor)
         end
       end
+
       local totalHeight = 0
       for i, region in ipairs(regions) do
         if not textHeightsCache[region.name] then
@@ -259,6 +278,7 @@ function main_loop()
         end
         totalHeight = totalHeight + textHeightsCache[region.name] + 5
       end
+
       local verticalOffset = 0
       if totalHeight < avail_h then verticalOffset = (avail_h - totalHeight) * 0.5 end
       local currentY = verticalOffset
@@ -272,6 +292,7 @@ function main_loop()
         regionCenters[i] = currentY + textHeight * 0.5
         currentY = currentY + textHeight + 5
       end
+
       local desiredCenter = nil
       if activeIndex then
         desiredCenter = regionCenters[activeIndex]
@@ -290,21 +311,25 @@ function main_loop()
           end
         end
       end
+
       if desiredCenter then
         local desiredScroll = desiredCenter - avail_h * 0.5
         scrollY = scrollY + (desiredScroll - scrollY) * 0.2
         ImGui.SetScrollY(ctx, scrollY)
       end
+
       ImGui.Dummy(ctx, 0, avail_h * 0.25)
+      if fontPushed then ImGui.PopFont(ctx) end
       ImGui.EndChild(ctx)
+
       if showProgressBar then
-          draw_progress_subtitle(activeIndex, regions, cursor_pos)
+        draw_progress_subtitle(activeIndex, regions, cursor_pos)
       end
-      
     end
-    ImGui.PopFont(ctx)
+
     ImGui.End(ctx)
   end
+
   if ImGui.IsKeyDown(ctx, ImGui.Key_LeftCtrl) then
     local wheel = ImGui.GetMouseWheel(ctx)
     if wheel ~= 0 then
@@ -315,12 +340,15 @@ function main_loop()
       end
     end
   end
+
   if ImGui.IsMouseClicked(ctx, 0) then
     cachedRegions = f.get_regions()
     cachedRegionsTime = r.time_precise()
   end
+
   if open then r.defer(main_loop) end
 end
 
 r.atexit()
 r.defer(main_loop)
+

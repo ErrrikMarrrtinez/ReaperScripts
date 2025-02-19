@@ -172,24 +172,51 @@ function f.ImportSubproject(subproj_path)
     return
   end
   
-  local notes_found = false
-  local main_project_in_notes = nil
-  for i, node in ipairs(root.children or {}) do
-    if node:getName() == "NOTES" then
-      local notes_str = StringifyRPPNode(node)
-      main_project_in_notes = notes_str:match("|main_project=([%w%.%-_]+)")
-      if main_project_in_notes then
-        notes_found = true
-        break
-      end
+local notes_found = false
+local main_project_in_notes = nil
+for i, node in ipairs(root.children or {}) do
+  if node:getName() == "NOTES" then
+    local notes_str = StringifyRPPNode(node)
+    main_project_in_notes = notes_str:match("|main[_]?project=([^\n]+)")
+    if main_project_in_notes then
+      main_project_in_notes = main_project_in_notes:match("^%s*(.-)%s*$")
+      notes_found = true
+      break
     end
   end
-  
+end
+
+
+
   if not notes_found or main_project_in_notes ~= current_proj_filename then
     return
   end
 
+  reaper.ShowConsoleMsg(current_proj_filename)
+
   local parent_name = subproj_name .. " [subproject]"
+
+  local r = reaper
+
+  local track_exists = false
+  local track_count = r.CountTracks(0)
+  for i = 0, track_count - 1 do
+      local track = r.GetTrack(0, i)
+      local retval, track_name = r.GetSetMediaTrackInfo_String(track, "P_NAME", "", false)
+      if track_name == parent_name then
+          track_exists = true
+          break
+      end
+  end
+
+
+
+  if not track_exists then
+      r.InsertTrackAtIndex(-1, false)
+      local track = r.GetTrack(0, r.CountTracks(0)-1)
+      r.GetSetMediaTrackInfo_String(track, "P_NAME", parent_name, true)
+  end
+
   local current_proj_track_name = current_proj_filename:match("(.+)%.rpp$") .. " [subproject]"
   if parent_name == current_proj_track_name then return end
 
@@ -204,6 +231,8 @@ function f.ImportSubproject(subproj_path)
     reaper.ShowMessageBox("В подпроекте нет треков!", "Внимание", 0)
     return
   end
+
+
   
   local inserted = {}
   local insert_idx = parent_idx + 1
@@ -317,6 +346,8 @@ function f.CreateSubprojectForTrack(sel_track, current_rpp, parent_dir)
   local notes_str = string.format("<NOTES 0 0\n  |main_project=%s\n>", main_proj_filename)
   local notes_node = RNode:new({ line = notes_str })
   newproj:addNode(notes_node)
+  
+
 
   for i = 0, reaper.CountTracks(0) - 1 do
     local track = reaper.GetTrack(0, i)
@@ -387,6 +418,7 @@ MAINSEND 1 0
   local new_project_name = name_no_sub .. ".rpp"
   
   f.MarkAsParentProject(new_project_name)
+  
 
   return true
 end
@@ -624,7 +656,6 @@ function f.AddScriptStartup()
 end
   
 
-
 function f.checkDependencies()
   -- Проверка ReaPack
   if not reaper.ReaPack_BrowsePackages then
@@ -699,9 +730,6 @@ function f.get_regions()
 end
 
 
-
-
-
 local function lerp(a, b, t) 
   return a + (b - a) * t 
 end
@@ -733,4 +761,94 @@ function f.getBrightness(color)
   return (r + g + b) / 3
 end
   
+local r = reaper
+
+local function delete_marker_track()
+    local num_tracks = r.CountTracks(0)
+    for i = 0, num_tracks - 1 do
+        local track = r.GetTrack(0, i)
+        local retval, track_name = r.GetSetMediaTrackInfo_String(track, "P_NAME", "", false)
+        if track_name == "### VIDEO MARKERS ###" then
+            r.DeleteTrack(track)
+            break
+        end
+    end
+end
+
+local function create_track()
+    delete_marker_track()
+    local new_track_index = r.CountTracks(0)
+    r.InsertTrackAtIndex(new_track_index, false)
+    local new_track = r.GetTrack(0, new_track_index)
+    r.GetSetMediaTrackInfo_String(new_track, "P_NAME", "### VIDEO MARKERS ###", true)
+    return new_track
+end
+
+function f.CreateVideoItemsInRegions()
+    r.Undo_BeginBlock()
+    r.PreventUIRefresh(1)
+    local marker_track = create_track()
+    r.SetMediaTrackInfo_Value(marker_track, "D_PLAYOFFTIME", 0.030)
+    local num_markers, num_regions = r.CountProjectMarkers(0)
+    local total_regions = num_markers + num_regions
+
+    for index = 0, total_regions - 1 do
+        local retval, isRegion, pos, rgnend, name = r.EnumProjectMarkers3(0, index)
+        if isRegion then            
+            local item = r.AddMediaItemToTrack(marker_track)
+            r.SetMediaItemInfo_Value(item, "D_POSITION", pos)
+            r.SetMediaItemInfo_Value(item, "D_LENGTH", rgnend - pos + 0.05)
+            local take = r.AddTakeToMediaItem(item)
+            r.GetSetMediaItemTakeInfo_String(take, "P_NAME", name, true)
+            r.ULT_SetMediaItemNote(item, name)
+            local retval, chunk = r.GetItemStateChunk(item, "", false)
+            chunk = chunk:gsub("<SOURCE EMPTY", [[<SOURCE VIDEOEFFECT
+<CODE
+|// Text/timecode overlay
+|#text=""; font="Arial";
+|//@param1:size 'text height' 0.06 0.01 0.2 0.1 0.001
+|//@param2:ypos 'y position' 0.93 0 1 0.5 0.01
+|//@param3:xpos 'x position' 0.5 0 1 0.5 0.01
+|//@param4:border 'bg pad' 0.1 0 1 0.5 0.01
+|//@param5:fgc 'text bright' 1.0 0 1 0.5 0.01
+|//@param6:fga 'text alpha' 1.0 0 1 0.5 0.01
+|//@param7:bgc 'bg bright' 0.35 0 1 0.5 0.01
+|//@param8:bga 'bg alpha' 0.99 0 1 0.5 0.01
+|//@param9:bgfit 'fit bg to text' 0 0 1 0.5 1
+|//@param10:ignoreinput 'ignore input' 0 0 1 0.5 1
+|//@param12:tc 'show timecode' 0 0 1 0.5 1
+|//@param13:tcdf 'dropframe timecode' 0 0 1 0.5 1
+|input = ignoreinput ? -2:0;
+|project_wh_valid===0 ? input_info(input,project_w,project_h);
+|gfx_a2=0;
+|gfx_blit(input,1);
+|gfx_setfont(size*project_h,font);
+|tc>0.5 ? (
+|  t = floor((project_time + project_timeoffs) * framerate + 0.0000001);
+|  f = ceil(framerate);
+|  tcdf > 0.5 && f != framerate ? (
+|    period = floor(framerate * 600);
+|    ds = floor(framerate * 60);
+|    ds > 0 ? t += 18 * ((t / period)|0) + ((((t%%period)-2)/ds)|0)*2;
+|  );
+|  sprintf(#text,"%%02d:%%02d:%%02d:%%02d",(t/(f*3600))|0,(t/(f*60))%%60,(t/f)%%60,t%%f);
+|) : strcmp(#text,"")==0 ? input_get_name(-1,#text);
+|gfx_str_measure(#text,txtw,txth);
+|b = (border*txth)|0;
+|yt = ((project_h - txth - b*2)*ypos)|0;
+|xp = (xpos * (project_w-txtw))|0;
+|gfx_set(bgc,bgc,bgc,bga);
+|bga>0?gfx_fillrect(bgfit?xp-b:0, yt, bgfit?txtw+b*2:project_w, txth+b*2);
+|gfx_set(fgc,fgc,fgc,fga);
+|gfx_str_draw(#text,xp,yt+b);
+>
+CODEPARM 0.06 0.93 0.5 0.1 1 1 0.35 0.99 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]])
+            r.SetItemStateChunk(item, chunk, false)
+        end
+    end
+    r.PreventUIRefresh(-1)
+    r.Undo_EndBlock("Create Video Markers Track", -1)
+    r.UpdateArrange()
+end
+
 return f

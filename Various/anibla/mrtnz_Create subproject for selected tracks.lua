@@ -91,3 +91,4 @@ if #createdSubprojects > 0 then
                   "Kichik loyihalar muvaffaqiyatli yaratildi:\n" .. table.concat(createdSubprojects, "\n") .. "\n\n"
   r.ShowMessageBox(message, "Успех / Muvaffaqiyat", 0)
 end
+r.Main_OnCommand(40026, 0)
