@@ -158,6 +158,10 @@ end
 
 apply_theme()
 -- Функция безопасного отсоединения шрифта
+-- Если переменные ещё не определены, задаём начальные значения
+if showProgressBar == nil then showProgressBar = false end
+if font2_attached == nil then font2_attached = false end
+
 local function safeDetachFont(ctx, font)
   if font and r.ImGui_ValidatePtr(font, "ImGui_Font*") then
     pcall(function() ImGui.Detach(ctx, font) end)
@@ -168,6 +172,7 @@ function main_loop()
   if not r.ImGui_ValidatePtr(ctx, "ImGui_Context*") then
     ctx = r.ImGui_CreateContext("Subtitles Window")
     reloadFont = true
+    font2_attached = false
   end
 
   if reloadFont then
@@ -187,6 +192,9 @@ function main_loop()
   if visible then
     local font2Pushed = false
     if font2 and r.ImGui_ValidatePtr(font2, "ImGui_Font*") then
+      if not font2_attached then
+        font2_attached = true
+      end
       ImGui.PushFont(ctx, font2)
       font2Pushed = true
     end
@@ -216,8 +224,7 @@ function main_loop()
           srtass.exportRegionsAsSRTDialog()
         end
         ImGui.Separator(ctx)
-        local progress_clicked, _ = ImGui.MenuItem(ctx, "Show progress bar", nil, showProgressBar)
-        if progress_clicked then
+        if ImGui.MenuItem(ctx, "Show progress bar", nil, showProgressBar) then
           showProgressBar = not showProgressBar
           r.SetExtState("SubtitlesWindow", "showProgressBar", tostring(showProgressBar), true)
         end
@@ -351,4 +358,3 @@ end
 
 r.atexit()
 r.defer(main_loop)
-
