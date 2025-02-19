@@ -252,11 +252,19 @@ function main_loop()
       local cursor_pos = ((play_state & 1) == 1) and r.GetPlayPosition() or r.GetCursorPosition()
       local activeIndex = nil
       for i, region in ipairs(regions) do
-        if cursor_pos >= region.start and cursor_pos <= region.endPos then
+        if cursor_pos >= region.start and cursor_pos < region.endPos then
           activeIndex = i
+          break
+        elseif cursor_pos == region.endPos then
+          if regions[i+1] and regions[i+1].start == cursor_pos then
+            activeIndex = i+1
+          else
+            activeIndex = i
+          end
           break
         end
       end
+      
 
       local brightenFactor = 0.89
       local darkenFactor = 0.1
