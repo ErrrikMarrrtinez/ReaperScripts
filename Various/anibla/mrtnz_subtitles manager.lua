@@ -218,7 +218,11 @@ function main_loop()
       if ImGui.BeginPopupContextWindow(ctx, "context_menu") then
         if ImGui.MenuItem(ctx, "Import subtitles (.srt or .ass)") then
           r.Main_OnCommand(r.NamedCommandLookup("_SWSMARKERLIST10"), 0)
-          srtass.importSubtitlesAsRegionsDialog()
+          if srtass.importSubtitlesAsRegionsDialog() then
+            
+          end
+          
+          
         end
         if ImGui.MenuItem(ctx, "Export subtitles (.srt file)") then
           srtass.exportRegionsAsSRTDialog()
