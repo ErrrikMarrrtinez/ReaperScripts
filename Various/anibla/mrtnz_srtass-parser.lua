@@ -52,10 +52,20 @@ end
 -- Очистка текста: замена “кривых” кавычек (‘, ’, `) на стандартный апостроф (')
 function cleanText(text)
   if not text then return text end
+  -- Удаляем последовательности вида "Рђ'¦"
+  text = text:gsub("Рђ'%¦", "j")
   text = text:gsub("[‘’`]+", "'")
   text = text:gsub("\\[Nn]", "  ")
+  text = text:gsub("[''`]+", "'")
+  text = text:gsub("…", "...")
+  text = text:gsub("ʻ", "'")
+  text = text:gsub("¦", ":")
+  text = text:gsub("ђ", "j")
   return text
 end
+
+
+
 -------------------------------------------------------------
 -- Форматирование времени для SRT "HH:MM:SS,mmm"
 local function formatSRTTime(seconds)
@@ -263,14 +273,14 @@ function exportRegionsAsSRTDialog(directory, name)
       table.insert(regions, {start = pos, _end = rgnend, text = nameMarker})
     end
   end
-  
+
   if #regions == 0 then
     reaper.ShowMessageBox("В проекте нет регионов для экспорта.", "Ошибка", 0)
     return
   end
-  
+
   table.sort(regions, function(a, b) return a.start < b.start end)
-  
+
   local srt_content = ""
   for i, region in ipairs(regions) do
     local start_time = formatSRTTime(region.start)
@@ -278,16 +288,19 @@ function exportRegionsAsSRTDialog(directory, name)
     local text = region.text or ""
     srt_content = srt_content .. string.format("%d\n%s --> %s\n%s\n\n", i, start_time, end_time, text)
   end
-  
-  -- Определяем значения по умолчанию для папки и имени
+
   local proj, projfn = reaper.EnumProjects(-1)
   if projfn == "" then projfn = "untitled.rpp" end
   local defaultName = name or ((projfn:match("([^\\/:]+)%.rpp$") or projfn) .. ".srt")
   local initialFolder = directory or reaper.GetProjectPath(0, "")
-  
-  local extensionList = "SRT files\0*.srt\0All files\0*.*\0\0"
+
+  local extensionList = "SRT files\0.srt\0All files\0.*\0\0"
   local retval, fileName = reaper.JS_Dialog_BrowseForSaveFile("Экспорт SRT", initialFolder, defaultName, extensionList)
   if retval == 1 and fileName and fileName ~= "" then
+    fileName = fileName:match("^%s*(.-)%s*$")  -- удаляем пробелы
+    if not fileName:lower():match("%.srt$") then
+      fileName = fileName .. ".srt"
+    end
     local file, err = io.open(fileName, "w")
     if not file then
       reaper.ShowMessageBox("Ошибка создания файла SRT: " .. err, "Ошибка", 0)
@@ -356,6 +369,8 @@ function importSubtitlesAsRegionsDialog()
     end
     importSubtitlesAsRegions(fullPath)
   end
+
+  
 end
 
 -------------------------------------------------------------
