@@ -3,7 +3,7 @@
 
 -- Импорт RPP-парсера (файл Reateam_RPP-Parser.lua должен быть в той же папке)
 dofile(debug.getinfo(1, "S").source:match([[^@?(.*[\/])[^\/]-$]]) .. 'Reateam_RPP-Parser.lua')
-
+local r = reaper
 local f = {}
 
 -------------------------------------------------------
@@ -192,7 +192,7 @@ end
     return
   end
 
-  reaper.ShowConsoleMsg(current_proj_filename)
+  -- reaper.ShowConsoleMsg(current_proj_filename)
 
   local parent_name = subproj_name .. " [subproject]"
 
@@ -760,8 +760,6 @@ function f.getBrightness(color)
   local a, b, g, r = f.getColorComponents(color)
   return (r + g + b) / 3
 end
-  
-local r = reaper
 
 local function delete_marker_track()
     local num_tracks = r.CountTracks(0)
@@ -850,5 +848,202 @@ CODEPARM 0.06 0.93 0.5 0.1 1 1 0.35 0.99 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
     r.Undo_EndBlock("Create Video Markers Track", -1)
     r.UpdateArrange()
 end
+
+function f.GetSubprojectTracks()
+  local notes = reaper.GetSetProjectNotes(0, false, "")
+  local subprojects_str = notes:match("subprojects=(.+)")
+  if not subprojects_str then return {} end
+
+  local subproj_files = {}
+  for file in subprojects_str:gmatch("([^;]+)") do
+    subproj_files[#subproj_files+1] = file
+  end
+
+  local subproj_names = {}
+  for _, fname in ipairs(subproj_files) do
+    local base = fname:gsub("%.rpp$", "")
+    subproj_names[base] = base .. " [subproject]"
+  end
+
+  local proj, projfn = reaper.EnumProjects(-1, "")
+  if not projfn then return {} end
+  local proj_dir = projfn:match("^(.*[\\/])")
+  if not proj_dir then return {} end
+
+  local found_bases = {}
+  local i = 0
+  while true do
+    local file = reaper.EnumerateFiles(proj_dir, i)
+    if not file then break end
+    for base, _ in pairs(subproj_names) do
+      if file:find(base) then
+        found_bases[base] = true
+      end
+    end
+    i = i + 1
+  end
+
+  local final_lookup = {}
+  for base, _ in pairs(found_bases) do
+    final_lookup[subproj_names[base]] = true
+  end
+
+  local matched_tracks = {}
+  local track_count = reaper.CountTracks(0)
+  for i = 0, track_count - 1 do
+    local track = reaper.GetTrack(0, i)
+    local retval, track_name = reaper.GetTrackName(track, "")
+    if final_lookup[track_name] then
+      table.insert(matched_tracks, track)
+    end
+  end
+  return matched_tracks
+end
+
+function f.selectChildTracks(parentTrack)
+  if not parentTrack then return {} end
+  local isFolder = reaper.GetMediaTrackInfo_Value(parentTrack, "I_FOLDERDEPTH") == 1
+  if not isFolder then return {} end
+  local parentDepth = reaper.GetTrackDepth(parentTrack)
+  local parentNumber = reaper.CSurf_TrackToID(parentTrack, false)
+  local childTracks = {}
+  for i = parentNumber, reaper.CountTracks(0) - 1 do
+    local track = reaper.GetTrack(0, i)
+    if track then
+      local currentDepth = reaper.GetTrackDepth(track)
+      if currentDepth > parentDepth then
+        table.insert(childTracks, track)
+      else
+        if i > parentNumber then break end
+      end
+    end
+  end
+  return childTracks
+end
+
+function f.getAndRenameTrackItems(track)
+  if not track then return {} end
+  local items = {}
+  local itemCount = reaper.GetTrackNumMediaItems(track)
+  for i = 0, itemCount - 1 do
+    local item = reaper.GetTrackMediaItem(track, i)
+    if item then
+      table.insert(items, item)
+    end
+  end
+  return items
+end
+
+function f.CalculateUsefulSeconds(items, params)
+  params = params or {}
+  local coarse_dt        = params.coarse_dt       or 0.01
+  local fine_dt          = params.fine_dt         or 0.001
+  local silenceThreshDB  = params.silenceThreshDB or -50
+  local silenceThreshAmp = params.silenceThreshAmp or 10^(silenceThreshDB/20)
+  local silenceMinDur    = params.silenceMinDur   or 0.41
+
+  local function getState(accessor, sr, nCh, t, sampleDur)
+    sampleDur = sampleDur or fine_dt
+    local numSamples = math.floor(sampleDur * sr)
+    local buf = reaper.new_array(numSamples * nCh)
+    local samplesRead = reaper.GetAudioAccessorSamples(accessor, sr, nCh, t, numSamples, buf)
+    local maxAmp = 0
+    for j = 1, samplesRead * nCh do
+      local amp = math.abs(buf[j])
+      if amp > maxAmp then maxAmp = amp end
+    end
+    return maxAmp < silenceThreshAmp
+  end
+
+  local function refineTransition(accessor, sr, nCh, tLow, tHigh)
+    for i = 1, 10 do
+      local mid = (tLow + tHigh) / 2
+      if getState(accessor, sr, nCh, mid, fine_dt) then
+        tLow = mid
+      else
+        tHigh = mid
+      end
+    end
+    return (tLow + tHigh) / 2
+  end
+
+  local totalUseful = 0
+
+  for _, item in ipairs(items) do
+    local itemLen = reaper.GetMediaItemInfo_Value(item, "D_LENGTH")
+    local take = reaper.GetActiveTake(item)
+    if take and not reaper.TakeIsMIDI(take) then
+      local source = reaper.GetMediaItemTake_Source(take)
+      local sr = reaper.GetMediaSourceSampleRate(source)
+      local nCh = reaper.GetMediaSourceNumChannels(source)
+      local accessor = reaper.CreateTakeAudioAccessor(take)
+      local silenceTotal = 0
+      local t = 0
+      local lastState = getState(accessor, sr, nCh, 0)
+      local silenceStart = lastState and 0 or nil
+
+      while t < itemLen do
+        local currentState = getState(accessor, sr, nCh, t)
+        if currentState ~= lastState then
+          local boundary = refineTransition(accessor, sr, nCh, t - coarse_dt, t)
+          if currentState then
+            silenceStart = boundary
+          else
+            if silenceStart then
+              local segDur = boundary - silenceStart
+              if segDur >= silenceMinDur then silenceTotal = silenceTotal + segDur end
+              silenceStart = nil
+            end
+          end
+          lastState = currentState
+        end
+        t = t + coarse_dt
+      end
+
+      if lastState and silenceStart then
+        local segDur = itemLen - silenceStart
+        if segDur >= silenceMinDur then silenceTotal = silenceTotal + segDur end
+      end
+
+      reaper.DestroyAudioAccessor(accessor)
+      local useful = itemLen - silenceTotal
+      totalUseful = totalUseful + useful
+    end
+  end
+
+  return math.floor(totalUseful + 0.5)
+end
+
+function f.GetSubprojectItems()
+  local subprojectTracks = f.GetSubprojectTracks()
+  local subprojectItems = {}
+  for i, subProjTrack in ipairs(subprojectTracks) do
+    local retval, trackName = reaper.GetTrackName(subProjTrack, "")
+    local childTracks = f.selectChildTracks(subProjTrack)
+    local items = {}
+    for j, childTrack in ipairs(childTracks) do
+      local trackItems = f.getAndRenameTrackItems(childTrack)
+      for k, item in ipairs(trackItems) do
+        table.insert(items, item)
+      end
+    end
+    subprojectItems[trackName] = items
+  end
+  return subprojectItems
+end
+
+function f.ShowSubprojectUsefulSeconds()
+  local subprojectItems = f.GetSubprojectItems()
+  local results = {}
+  for subProjName, items in pairs(subprojectItems) do
+    local usefulSeconds = f.CalculateUsefulSeconds(items)
+    table.insert(results, {
+      name = subProjName,
+      usefulSeconds = usefulSeconds
+    })
+  end
+  return results
+end
+
 
 return f
