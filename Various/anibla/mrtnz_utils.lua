@@ -172,32 +172,27 @@ function f.ImportSubproject(subproj_path)
     return
   end
   
-local notes_found = false
-local main_project_in_notes = nil
-for i, node in ipairs(root.children or {}) do
-  if node:getName() == "NOTES" then
-    local notes_str = StringifyRPPNode(node)
-    main_project_in_notes = notes_str:match("|main[_]?project=([^\n]+)")
-    if main_project_in_notes then
-      main_project_in_notes = main_project_in_notes:match("^%s*(.-)%s*$")
-      notes_found = true
-      break
+  local notes_found = false
+  local main_project_in_notes = nil
+  for i, node in ipairs(root.children or {}) do
+    if node:getName() == "NOTES" then
+      local notes_str = StringifyRPPNode(node)
+      main_project_in_notes = notes_str:match("|main[_]?project=([^\n]+)")
+      if main_project_in_notes then
+        main_project_in_notes = main_project_in_notes:match("^%s*(.-)%s*$")
+        notes_found = true
+        break
+      end
     end
   end
-end
-
-
-
+  
   if not notes_found or main_project_in_notes ~= current_proj_filename then
     return
   end
-
-  -- reaper.ShowConsoleMsg(current_proj_filename)
-
+  
   local parent_name = subproj_name .. " [subproject]"
-
+  
   local r = reaper
-
   local track_exists = false
   local track_count = r.CountTracks(0)
   for i = 0, track_count - 1 do
@@ -208,9 +203,7 @@ end
           break
       end
   end
-
-
-
+  
   if not track_exists then
       r.InsertTrackAtIndex(-1, false)
       local track = r.GetTrack(0, r.CountTracks(0)-1)
@@ -232,8 +225,6 @@ end
     return
   end
 
-
-  
   local inserted = {}
   local insert_idx = parent_idx + 1
   local skipNext = false
@@ -246,22 +237,27 @@ end
     elseif first_line:find("%[subproject%]") then
       -- пропускаем трек с [subproject]
     else
-      local new_tr = f.InsertTrackFromChunk(tr_chunk, insert_idx, 1)
+      -- Вставляем трек без смещения глубины
+      local new_tr = f.InsertTrackFromChunk(tr_chunk, insert_idx, 0)
       f.RemoveParams(new_tr)
       table.insert(inserted, new_tr)
       insert_idx = insert_idx + 1
     end
   end
   
+  -- Устанавливаем родительскому треку I_FOLDERDEPTH = 1
   reaper.SetMediaTrackInfo_Value(parent_tr, "I_FOLDERDEPTH", 1)
-  if #inserted > 0 then
-    local last_tr = inserted[#inserted]
-    local last_depth = reaper.GetMediaTrackInfo_Value(last_tr, "I_FOLDERDEPTH")
-    reaper.SetMediaTrackInfo_Value(last_tr, "I_FOLDERDEPTH", last_depth - 1)
-  else
-    reaper.SetMediaTrackInfo_Value(parent_tr, "I_FOLDERDEPTH", 0)
+  
+  -- Явно переопределяем I_FOLDERDEPTH для вставленных треков:
+  for i, tr in ipairs(inserted) do
+    if i == #inserted then
+      reaper.SetMediaTrackInfo_Value(tr, "I_FOLDERDEPTH", -1)  -- последний трек закрывает папку
+    else
+      reaper.SetMediaTrackInfo_Value(tr, "I_FOLDERDEPTH", 0)
+    end
   end
 end
+
 
 function f.AutoImportAllSubprojects()
   reaper.PreventUIRefresh(1)
@@ -283,6 +279,16 @@ function f.AutoImportAllSubprojects()
     f.ImportSubproject(file.path)
   end
   
+                                                        for i = 1, reaper.CountTracks() do
+                                                        tr = reaper.GetTrack(0, i-1)
+                                                        depth = reaper.GetTrackDepth(tr)
+                                                        if depth == 0 then 
+                                                        col = reaper.GetTrackColor( tr )
+                                                                    else
+                                                        reaper.SetMediaTrackInfo_Value( tr, 'I_CUSTOMCOLOR', col )
+                                                        end
+                                                        end
+
   reaper.Undo_EndBlock("Auto-import all subprojects", -1)
   reaper.PreventUIRefresh(-1)
   reaper.UpdateArrange()
