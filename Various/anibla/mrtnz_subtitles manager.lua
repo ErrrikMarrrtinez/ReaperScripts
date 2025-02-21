@@ -29,7 +29,7 @@ local fontSize = 25
 local savedFontSize = r.GetExtState("SubtitlesWindow", "fontSize")
 if savedFontSize and savedFontSize ~= "" then fontSize = tonumber(savedFontSize) or fontSize end
 
-local reloadFont = false
+local reloadFont = true
 local cachedRegions = {}
 local cachedRegionsTime = 0
 local CACHE_INTERVAL = 0.25
@@ -42,10 +42,10 @@ if savedProgressBarState and savedProgressBarState ~= "" then
     showProgressBar = savedProgressBarState == "true"
 end
 
-local font = ImGui.CreateFont("sans-serif", fontSize, 0)
-local font2 = ImGui.CreateFont("sans-serif", 15, 0)
-ImGui.Attach(ctx, font2)
-ImGui.Attach(ctx, font)
+--local font = ImGui.CreateFont("sans-serif", fontSize, 0)
+--local font2 = ImGui.CreateFont("sans-serif", 15, 0)
+--ImGui.Attach(ctx, font2)
+--ImGui.Attach(ctx, font)
 local textHeightsCache = {}
 
 f.AddScriptStartup()
@@ -176,7 +176,7 @@ function main_loop()
   end
 
   if reloadFont then
-    if font then safeDetachFont(ctx, font) end
+    --if font then safeDetachFont(ctx, font) end
     font = ImGui.CreateFont("sans-serif", fontSize, 0)
     ImGui.Attach(ctx, font)
     reloadFont = false
