@@ -65,7 +65,6 @@ function cleanText(text)
 end
 
 
-
 -------------------------------------------------------------
 -- Форматирование времени для SRT "HH:MM:SS,mmm"
 local function formatSRTTime(seconds)

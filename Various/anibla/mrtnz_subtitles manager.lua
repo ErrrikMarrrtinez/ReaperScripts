@@ -1,7 +1,7 @@
 --@noindex
 --NoIndex: true
 
-local r = reaper
+local r = reaper;r.defer(function()end)
 local script_path = debug.getinfo(1, "S").source:match("@(.*[\\/])")
 local imgui_path = reaper.ImGui_GetBuiltinPath() .. '/?.lua'
 package.path = imgui_path .. ";" .. script_path .. '?.lua'
@@ -190,14 +190,8 @@ function main_loop()
   ImGui.PopStyleColor(ctx)
 
   if visible then
-    local font2Pushed = false
-    if font2 and r.ImGui_ValidatePtr(font2, "ImGui_Font*") then
-      if not font2_attached then
-        font2_attached = true
-      end
-      ImGui.PushFont(ctx, font2)
-      font2Pushed = true
-    end
+
+    ImGui.PushFont(ctx, font2)
 
     local avail_w, avail_h = ImGui.GetContentRegionAvail(ctx)
     if lastAvailW ~= avail_w then
@@ -236,10 +230,7 @@ function main_loop()
       end
 
       ImGui.Dummy(ctx, 0, avail_h * 0.25)
-      if font2Pushed then
-        ImGui.PopFont(ctx)
-        font2Pushed = false
-      end
+      ImGui.PopFont(ctx)
 
       local fontPushed = false
       if font and r.ImGui_ValidatePtr(font, "ImGui_Font*") then
