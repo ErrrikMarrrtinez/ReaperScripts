@@ -191,7 +191,7 @@ function main_loop()
 
   if visible then
 
-    ImGui.PushFont(ctx, font2)
+    --ImGui.PushFont(ctx, font2)
 
     local avail_w, avail_h = ImGui.GetContentRegionAvail(ctx)
     if lastAvailW ~= avail_w then
@@ -230,7 +230,7 @@ function main_loop()
       end
 
       ImGui.Dummy(ctx, 0, avail_h * 0.25)
-      ImGui.PopFont(ctx)
+      --ImGui.PopFont(ctx)
 
       local fontPushed = false
       if font and r.ImGui_ValidatePtr(font, "ImGui_Font*") then
