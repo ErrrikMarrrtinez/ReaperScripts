@@ -3,12 +3,24 @@
 
 local r = reaper;r.defer(function()end)
 local script_path = debug.getinfo(1, "S").source:match("@(.*[\\/])")
-local imgui_path = reaper.ImGui_GetBuiltinPath() .. '/?.lua'
-package.path = imgui_path .. ";" .. script_path .. '?.lua'
+
+
+
+if not reaper.ImGui_GetBuiltinPath then 
+    package.path =script_path .. '?.lua'
+else
+    imgui_path = reaper.ImGui_GetBuiltinPath() .. '/?.lua'
+    package.path = imgui_path .. ";" .. script_path .. '?.lua'
+    ImGui = require 'imgui' '0.9.2.3'
+end
+
 
 local f = require('mrtnz_utils')
 local srtass = require('mrtnz_srtass-parser')
-local ImGui = require 'imgui' '0.9.2.3'
+
+
+local state = f.checkDependencies()
+if not state then return end
 
 --[[
 f.importSubtitlesAsRegions        = importSubtitlesAsRegions
@@ -17,9 +29,6 @@ f.convertASStoSRT                 = convertASStoSRT
 f.importSubtitlesAsRegionsDialog  = importSubtitlesAsRegionsDialog
 ]]                               -- srtass.importSubtitlesAsRegionsDialog()
 
-if not f.checkDependencies() then
-  return
-end
 
 local ctx = ImGui.CreateContext('Subtitles Window')
 local COLOR_ACTIVE   = 0xFFFFFFFF
@@ -211,7 +220,7 @@ function main_loop()
 
       if ImGui.BeginPopupContextWindow(ctx, "context_menu") then
         if ImGui.MenuItem(ctx, "Import subtitles (.srt or .ass)") then
-          r.Main_OnCommand(r.NamedCommandLookup("_SWSMARKERLIST10"), 0)
+          
           if srtass.importSubtitlesAsRegionsDialog() then
             
           end

@@ -366,6 +366,9 @@ function importSubtitlesAsRegionsDialog()
     else
       fullPath = fileNames
     end
+
+    reaper.Main_OnCommand(r.NamedCommandLookup("_SWSMARKERLIST10"), 0)
+
     importSubtitlesAsRegions(fullPath)
   end
 
