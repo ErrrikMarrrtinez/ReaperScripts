@@ -663,64 +663,30 @@ end
   
 
 function f.checkDependencies()
-  -- Проверка ReaPack
-  if not reaper.ReaPack_BrowsePackages then
-    local msg = "Для работы скрипта требуется ReaPack.\n" ..
-                "Skript ishlashi uchun ReaPack kerak.\n\n" ..
-                "Хотите перейти на страницу загрузки?\n" ..
-                "Yuklab olish sahifasiga o'tishni xohlaysizmi?"
+  local missing = {}
+  if not reaper.APIExists("JS_Window_Find") then
+    table.insert(missing, "js_ReaScriptAPI: API functions for ReaScripts")
+  end
+  if not reaper.APIExists("ImGui_GetBuiltinPath") then
+    table.insert(missing, "ReaImGui: ReaScript binding for Dear ImGui")
+  end
+  
+  if #missing > 0 then
+    local missing_str = table.concat(missing, "\n  - ")
+    reaper.ReaPack_BrowsePackages("reascript api for :")
+    local msg_ru = "Для работы скрипта требуется установить следующие расширения через ReaPack:\n" ..
+                   "  - " .. missing_str .. "\n\n" ..
+                   "Выдели их вместе, нажми правой кнопкой мыши -> Install, затем OK и перезагрузи Reaper."
+    local msg_uz = "Skriptning to'g'ri ishlashi uchun quyidagi kengaytmalarni ReaPack orqali o'rnatishingiz kerak:\n" ..
+                   "  - " .. missing_str .. "\n\n" ..
+                   "Ularni birgalikda tanlang, o'ng tugmani bosib 'Install' ni tanlang, so'ng OK ni bosing va Reaper-ni qayta ishga tushiring."
+    local msg = msg_ru .. "\n\n" .. msg_uz
+    reaper.ShowMessageBox(msg, "Отсутствуют зависимости / Kamomillar yo'q", 0)
     
-    local ret = reaper.ShowMessageBox(msg, "ReaPack не установлен / ReaPack o'rnatilmagan", 4)
-    
-    if ret == 6 then -- Yes
-      reaper.CF_ShellExecute("https://reapack.com/upload/reascript")
-    end
     return false
   end
   
-  -- Проверка ReaImGui
-  if not reaper.APIExists("ImGui_GetBuiltinPath") then
-    local msg = "Для работы скрипта требуется ReaImGui.\n" ..
-                "Skript ishlashi uchun ReaImGui kerak.\n\n" ..
-                "Хотите установить его через ReaPack?\n" ..
-                "Uni ReaPack orqali o'rnatishni xohlaysizmi?"
-                
-    local ret = reaper.ShowMessageBox(
-      msg,
-      "Требуется ReaImGui / ReaImGui kerak",
-      4 -- Yes/No
-    )
-    
-    if ret == 6 then 
-      reaper.ReaPack_BrowsePackages("ReaImGui: ReaScript binding for Dear ImGui")
-      return false
-    else
-      return false
-    end
-  end
-  
-  -- Проверка js_ReaScriptAPI
-  if not reaper.APIExists("JS_Window_Find") then
-    local msg = "Для работы скрипта требуется js_ReaScriptAPI.\n" ..
-                "Skript ishlashi uchun js_ReaScriptAPI kerak.\n\n" ..
-                "Хотите установить его через ReaPack?\n" ..
-                "Uni ReaPack orqali o'rnatishni xohlaysizmi?"
-                
-    local ret = reaper.ShowMessageBox(
-      msg,
-      "Требуется js_ReaScriptAPI / js_ReaScriptAPI kerak",
-      4 -- Yes/No
-    )
-    
-    if ret == 6 then 
-      reaper.ReaPack_BrowsePackages("js_ReaScriptAPI: API functions for ReaScripts")
-      return false
-    else
-      return false
-    end
-  end
-  
-  return true 
+  return true
 end
 
 function f.get_regions()
