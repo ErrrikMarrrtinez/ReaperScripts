@@ -19,7 +19,7 @@
 ]]--
 
 local SubtitleLib = {}
-
+local r = reaper
 -------------------------------------------------------------
 -- Преобразование времени SRT "HH:MM:SS,mmm" в секунды
 local function parseTime(timeStr)
@@ -367,7 +367,7 @@ function importSubtitlesAsRegionsDialog()
       fullPath = fileNames
     end
 
-    reaper.Main_OnCommand(r.NamedCommandLookup("_SWSMARKERLIST10"), 0)
+    reaper.Main_OnCommand(reaper.NamedCommandLookup("_SWSMARKERLIST10"), 0)
 
     importSubtitlesAsRegions(fullPath)
   end
