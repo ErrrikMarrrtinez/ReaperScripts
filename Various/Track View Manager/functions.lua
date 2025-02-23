@@ -180,9 +180,7 @@ function func.setAllVisibleTracks()
     local track_count = r.CountTracks(0)
     for i = 0, track_count - 1 do
       local track = r.GetTrack(0, i)
-      if i == 0 then
-        func.scrollTrackToTop(track)
-      end
+      
       r.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 1)
       
       if track then
@@ -190,6 +188,9 @@ function func.setAllVisibleTracks()
         r.SetMediaTrackInfo_Value(track, "I_HEIGHTOVERRIDE", 50)
       end
 
+      if i == 0 then
+        func.scrollTrackToTop(track)
+      end
     end
 
     
@@ -281,7 +282,7 @@ function func.main_loader(selected_slots)
     r.UpdateArrange()
   end
   if top_track then
-    rtk.callafter(0.01, function()
+    rtk.callafter(0.06, function()
       func.scrollTrackToTop(top_track)
     end)
   end
