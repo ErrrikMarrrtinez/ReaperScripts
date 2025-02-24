@@ -235,7 +235,9 @@ function f.ImportSubproject(subproj_path)
     elseif first_line:find("%[video%]") then
       skipNext = true
     elseif first_line:find("%[subproject%]") then
-      -- пропускаем трек с [subproject]
+
+    elseif first_line:find("%%%#%%#%%# VIDEO MARKERS %%%#%%#%%#") then
+
     else
       -- Вставляем трек без смещения глубины
       local new_tr = f.InsertTrackFromChunk(tr_chunk, insert_idx, 0)
@@ -355,21 +357,41 @@ function f.CreateSubprojectForTrack(sel_track, current_rpp, parent_dir)
   
 
 
-  for i = 0, reaper.CountTracks(0) - 1 do
-    local track = reaper.GetTrack(0, i)
-    local _, track_name = reaper.GetSetMediaTrackInfo_String(track, "P_NAME", "", false)
-    if track_name:lower():find("%[video%]") then
-      local track_chunk = f.GetTrackChunk(track)
-      if track_chunk then
-        local new_track = ReadRPPChunk(track_chunk)
-        if new_track then
-          new_track:StripGUID()
-          newproj:addNode(new_track)
-        end
+-- Флаг, чтобы отслеживать, найден ли видео-трек
+local video_track_found = false
+
+for i = 0, reaper.CountTracks(0) - 1 do
+  local track = reaper.GetTrack(0, i)
+  local _, track_name = reaper.GetSetMediaTrackInfo_String(track, "P_NAME", "", false)
+
+  -- Ищем видео-трек
+  if track_name:lower():find("%[video%]") then
+    local track_chunk = f.GetTrackChunk(track)
+    if track_chunk then
+      local new_track = ReadRPPChunk(track_chunk)
+      if new_track then
+        new_track:StripGUID()
+        newproj:addNode(new_track)
+        video_track_found = true
       end
-      break
     end
   end
+
+  -- Если найден видео-трек, ищем связанный трек с маркерами
+  if video_track_found and track_name == "### VIDEO MARKERS ###" then
+    local marker_chunk = f.GetTrackChunk(track)
+    if marker_chunk then
+      local marker_track = ReadRPPChunk(marker_chunk)
+      if marker_track then
+        marker_track:StripGUID()
+        newproj:addNode(marker_track)
+      end
+    end
+    -- Сброс флага, чтобы не искать дальше
+    video_track_found = false
+  end
+end
+
 
   local selected_track_chunk = f.GetTrackChunk(sel_track)
   if selected_track_chunk then
@@ -745,6 +767,39 @@ local function delete_marker_track()
     end
 end
 
+function find_marker_track()
+    local num_tracks = r.CountTracks(0)
+    for i = 0, num_tracks - 1 do
+        local track = r.GetTrack(0, i)
+        local retval, name = r.GetSetMediaTrackInfo_String(track, "P_NAME", "", false)
+        if name == "### VIDEO MARKERS ###" then
+            return track
+        end
+    end
+    return nil
+end
+
+f.find_marker_track = find_marker_track
+
+function f.ToggleMarkerTrackMute()
+    local marker_track = find_marker_track()
+    if marker_track then
+        local mute = r.GetMediaTrackInfo_Value(marker_track, "B_MUTE")
+        if mute == 1 then
+            r.SetMediaTrackInfo_Value(marker_track, "B_MUTE", 0)
+            
+        else
+            r.SetMediaTrackInfo_Value(marker_track, "B_MUTE", 1)
+            
+        end
+        r.UpdateArrange()
+    else
+        
+    end
+end
+
+
+
 local function create_track()
     delete_marker_track()
     local new_track_index = r.CountTracks(0)
@@ -759,6 +814,7 @@ function f.CreateVideoItemsInRegions()
     r.PreventUIRefresh(1)
     local marker_track = create_track()
     r.SetMediaTrackInfo_Value(marker_track, "D_PLAYOFFTIME", 0.030)
+    r.SetMediaTrackInfo_Value(marker_track, "B_SHOWINTCP", 0)
     local num_markers, num_regions = r.CountProjectMarkers(0)
     local total_regions = num_markers + num_regions
 
@@ -768,6 +824,7 @@ function f.CreateVideoItemsInRegions()
             local item = r.AddMediaItemToTrack(marker_track)
             r.SetMediaItemInfo_Value(item, "D_POSITION", pos)
             r.SetMediaItemInfo_Value(item, "D_LENGTH", rgnend - pos + 0.05)
+
             local take = r.AddTakeToMediaItem(item)
             r.GetSetMediaItemTakeInfo_String(take, "P_NAME", name, true)
             r.ULT_SetMediaItemNote(item, name)
@@ -914,9 +971,13 @@ function f.CalculateUsefulSeconds(items, params)
   local silenceThreshAmp = params.silenceThreshAmp or 10^(silenceThreshDB/20)
   local silenceMinDur    = params.silenceMinDur   or 0.41
 
+    -- Изменённая функция getState
   local function getState(accessor, sr, nCh, t, sampleDur)
     sampleDur = sampleDur or fine_dt
     local numSamples = math.floor(sampleDur * sr)
+    if numSamples <= 0 then 
+      return true  -- если нет сэмплов, считаем, что файл пустой (тишина)
+    end
     local buf = reaper.new_array(numSamples * nCh)
     local samplesRead = reaper.GetAudioAccessorSamples(accessor, sr, nCh, t, numSamples, buf)
     local maxAmp = 0
@@ -926,6 +987,7 @@ function f.CalculateUsefulSeconds(items, params)
     end
     return maxAmp < silenceThreshAmp
   end
+
 
   local function refineTransition(accessor, sr, nCh, tLow, tHigh)
     for i = 1, 10 do
@@ -1006,6 +1068,7 @@ end
 
 function f.ShowSubprojectUsefulSeconds()
   local subprojectItems = f.GetSubprojectItems()
+  
   local results = {}
   for subProjName, items in pairs(subprojectItems) do
     local usefulSeconds = f.CalculateUsefulSeconds(items)
