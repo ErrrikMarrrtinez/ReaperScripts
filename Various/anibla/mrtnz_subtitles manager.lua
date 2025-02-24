@@ -257,10 +257,24 @@ function main_loop()
           if srtass.importSubtitlesAsRegionsDialog() then
             -- обработка импорта
           end
+          f.CreateVideoItemsInRegions()
+          f.ToggleMarkerTrackMute()
         end
         if ImGui.MenuItem(ctx, "Export subtitles (.srt file)") then
           srtass.exportRegionsAsSRTDialog()
         end
+        
+        if ImGui.MenuItem(ctx, "Show/hide subtitles in video player") then
+          if f.find_marker_track() == nil then
+          f.CreateVideoItemsInRegions()
+          
+          else
+          
+          f.ToggleMarkerTrackMute()
+          end
+        end
+        
+        
         ImGui.Separator(ctx)
         if ImGui.MenuItem(ctx, "Show progress bar", nil, showProgressBar) then
           showProgressBar = not showProgressBar
