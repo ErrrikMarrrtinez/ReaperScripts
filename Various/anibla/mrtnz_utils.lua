@@ -1049,9 +1049,17 @@ function f.CalculateUsefulSeconds(items, params)
 end
 
 function f.GetSubprojectItems()
-  local subprojectTracks = f.GetSubprojectTracks()
+  --local subprojectTracks = f.GetSubprojectTracks()
+  local selectedTracks = {} -- Исправлено название переменной здесь
+  local trackCount = reaper.CountSelectedTracks(0)
+  for i = 0, trackCount - 1 do
+    local track = reaper.GetSelectedTrack(0, i)
+    if track then
+      table.insert(selectedTracks, track)
+    end
+  end
   local subprojectItems = {}
-  for i, subProjTrack in ipairs(subprojectTracks) do
+  for i, subProjTrack in ipairs(selectedTracks) do -- И здесь переменная должна соответствовать
     local retval, trackName = reaper.GetTrackName(subProjTrack, "")
     local childTracks = f.selectChildTracks(subProjTrack)
     local items = {}
@@ -1065,13 +1073,13 @@ function f.GetSubprojectItems()
   end
   return subprojectItems
 end
-
 function f.ShowSubprojectUsefulSeconds()
   local subprojectItems = f.GetSubprojectItems()
   
   local results = {}
   for subProjName, items in pairs(subprojectItems) do
-    local usefulSeconds = f.CalculateUsefulSeconds(items)
+    -- local usefulSeconds = f.CalculateUsefulSeconds(items) -- закомментировано
+    local usefulSeconds = f.GetTotalItemsLength(items) -- новая функция
     table.insert(results, {
       name = subProjName,
       usefulSeconds = usefulSeconds
@@ -1079,6 +1087,20 @@ function f.ShowSubprojectUsefulSeconds()
   end
   return results
 end
+
+-- Новая функция для расчета общей длины айтемов
+function f.GetTotalItemsLength(items)
+  local totalLength = 0
+  for _, item in ipairs(items) do
+    local take = reaper.GetActiveTake(item)
+    if take then
+      local itemLength = reaper.GetMediaItemInfo_Value(item, "D_LENGTH")
+      totalLength = totalLength + itemLength
+    end
+  end
+  return math.floor(totalLength + 0.5)
+end
+
 
 
 return f

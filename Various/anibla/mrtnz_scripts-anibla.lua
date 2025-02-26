@@ -1,6 +1,6 @@
 -- @description Anibla scripts
 -- @author mrtnz
--- @version 0.4.1
+-- @version 0.4.2
 -- @provides
 --   [main] .
 --   [main] mrtnz_insert text item by region under mouse.lua
