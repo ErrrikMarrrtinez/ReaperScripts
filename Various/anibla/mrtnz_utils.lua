@@ -1078,8 +1078,8 @@ function f.ShowSubprojectUsefulSeconds()
   
   local results = {}
   for subProjName, items in pairs(subprojectItems) do
-    -- local usefulSeconds = f.CalculateUsefulSeconds(items) -- закомментировано
-    local usefulSeconds = f.GetTotalItemsLength(items) -- новая функция
+    local usefulSeconds = f.CalculateUsefulSeconds(items) -- закомментировано
+    -- local usefulSeconds = f.GetTotalItemsLength(items) -- новая функция
     table.insert(results, {
       name = subProjName,
       usefulSeconds = usefulSeconds
