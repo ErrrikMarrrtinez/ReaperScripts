@@ -1096,6 +1096,24 @@ function f.ShowSubprojectUsefulSeconds()
   return results
 end
 
+function f.RemoveGaps(items)
+  if #items == 0 then return false end
+  
+  table.sort(items, function(a, b)
+    return reaper.GetMediaItemInfo_Value(a, "D_POSITION") < reaper.GetMediaItemInfo_Value(b, "D_POSITION")
+  end)
+  
+  local pos = reaper.GetMediaItemInfo_Value(items[1], "D_POSITION")
+  
+  for i = 1, #items do
+    local item = items[i]
+    reaper.SetMediaItemInfo_Value(item, "D_POSITION", pos)
+    local len = reaper.GetMediaItemInfo_Value(item, "D_LENGTH")
+    pos = pos + len
+  end
+  
+  return true
+end
 -- Новая функция для расчета общей длины айтемов
 function f.GetTotalItemsLength(items)
   local totalLength = 0
