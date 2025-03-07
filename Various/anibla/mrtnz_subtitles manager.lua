@@ -36,7 +36,7 @@ if savedFontSize and savedFontSize ~= "" then fontSize = tonumber(savedFontSize)
 local reloadFont = true
 local cachedRegions = {}
 local cachedRegionsTime = 0
-local CACHE_INTERVAL = 0.55  -- базовый интервал (при воспроизведении)
+local CACHE_INTERVAL = 0.78  -- базовый интервал (при воспроизведении)
 local regionColors = {}
 local scrollY = 0
 
@@ -464,7 +464,7 @@ function main_loop()
     end
     if editorVisible then
         ImGui.Text(ctx, "Edit active subtitle(s):")
-        local flags =  ImGui.InputTextFlags_NoHorizontalScroll 
+        local flags = ImGui.InputTextFlags_NoHorizontalScroll 
                     | ImGui.InputTextFlags_AutoSelectAll 
                     | ImGui.InputTextFlags_CtrlEnterForNewLine
         for i, idx in ipairs(editingIndices) do
@@ -476,17 +476,25 @@ function main_loop()
                     ImGui.SetKeyboardFocusHere(ctx)
                     editorFirstFrame = false
                 end
+                
+                if not editorTexts[idx] then
+                    editorTexts[idx] = ""
+                end
+                
+                if #editorTexts[idx] > 1000 then
+                    editorTexts[idx] = string.sub(editorTexts[idx], 1, 1000)
+                end
+                
                 local changed, newText = ImGui.InputTextMultiline(ctx, "##editor" .. idx, editorTexts[idx], 1024, input_width, 80, flags, nil)
-                if changed then
-                  editorTexts[idx] = newText 
+                if changed and newText then
+                    editorTexts[idx] = newText
                 end
             end
         end
-
         if ImGui.Button(ctx, "Apply") then
             for _, idx in ipairs(editingIndices) do
                 local region = cachedRegions[idx]
-                if region then
+                if region and editorTexts[idx] then
                     update_region_name(region, editorTexts[idx])
                 end
             end
@@ -498,14 +506,13 @@ function main_loop()
             editorOpen = false
             editorFirstFrame = nil
         end
-
         if ImGui.IsKeyPressed(ctx, ImGui.Key_Escape) then
             editorOpen = false
             editorFirstFrame = nil
         elseif ImGui.IsKeyPressed(ctx, ImGui.Key_Enter) then
             for _, idx in ipairs(editingIndices) do
                 local region = cachedRegions[idx]
-                if region then
+                if region and editorTexts[idx] then
                     update_region_name(region, editorTexts[idx])
                 end
             end

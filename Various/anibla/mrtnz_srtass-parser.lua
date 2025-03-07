@@ -375,6 +375,10 @@ function importSubtitlesAsRegionsDialog()
   
 end
 
+
+SubtitleLib.parseASSFile = parseASSFile
+SubtitleLib.parseSRTFile = parseSRTFile
+SubtitleLib.formatSRTTime = formatSRTTime
 -------------------------------------------------------------
 -- Публичные функции библиотеки
 SubtitleLib.importSubtitlesAsRegions        = importSubtitlesAsRegions
