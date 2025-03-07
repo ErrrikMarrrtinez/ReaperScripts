@@ -10,6 +10,7 @@ r.Undo_BeginBlock()
 f.ImportMarkersFromParent()
 f.color_regions()
 f.ImportTrackChunkFromParent()
+f.ImportAllSubprojectTracksFromParent()
 
 r.Undo_EndBlock("Импорт маркеров/регионов из родительского проекта", -1)
 r.UpdateArrange()

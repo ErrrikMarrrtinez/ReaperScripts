@@ -230,16 +230,27 @@ function f.ImportSubproject(subproj_path)
   local skipNext = false
   for i, tr_chunk in ipairs(tracks) do
     local first_line = tr_chunk.children[1] and tr_chunk.children[1].line or ""
+    
+    -- Получаем имя трека из чанка
+    local name_node = tr_chunk:findFirstNodeByName("NAME")
+    local track_name = ""
+    if name_node then
+      local token = name_node:getTokens()[2]
+      if token then
+        track_name = token:getString():gsub('^"(.*)"$', "%1")
+      end
+    end
+    
     if skipNext then
       skipNext = false
     elseif first_line:find("%[video%]") then
       skipNext = true
-    elseif first_line:find("%[subproject%]") then
-
+    elseif track_name:find("%[subproject%]") or track_name:find("<ID:") then
+      -- Пропускаем треки, которые являются подпроектами или уже импортированными подпроектами
     elseif first_line:find("%%%#%%#%%# VIDEO MARKERS %%%#%%#%%#") then
-
+      -- Пропускаем треки с видео-маркерами
     else
-      -- Вставляем трек без смещения глубины
+      -- Вставляем трек
       local new_tr = f.InsertTrackFromChunk(tr_chunk, insert_idx, 0)
       f.RemoveParams(new_tr)
       table.insert(inserted, new_tr)
@@ -247,7 +258,7 @@ function f.ImportSubproject(subproj_path)
     end
   end
   
-  -- Устанавливаем родительскому треку I_FOLDERDEPTH = 1
+  
   reaper.SetMediaTrackInfo_Value(parent_tr, "I_FOLDERDEPTH", 1)
   
   -- Явно переопределяем I_FOLDERDEPTH для вставленных треков:
@@ -602,6 +613,172 @@ function f.ImportTrackChunkFromParent()
   reaper.SetTrackStateChunk(current_track, parent_track_chunk_str, false)
   f.ClearTrackAndItems(current_track)
   reaper.TrackList_AdjustWindows(false)
+end
+
+function f.ImportAllSubprojectTracksFromParent()
+  -- Получаем имя родительского проекта
+  local parent_proj_name = f.get_parent_project()
+  if not parent_proj_name then
+    reaper.ShowMessageBox("Не найден родительский проект в NOTES!", "Ошибка", 0)
+    return
+  end
+
+  -- Получаем путь к текущему проекту
+  local cur_proj, cur_proj_path = reaper.EnumProjects(-1, "")
+  if not cur_proj_path or cur_proj_path == "" then
+    reaper.ShowMessageBox("Сохраните проект перед запуском скрипта!", "Ошибка", 0)
+    return
+  end
+  local cur_proj_dir = cur_proj_path:match("(.*)[/\\]") or ""
+  local parent_path = cur_proj_dir .. "\\" .. parent_proj_name
+
+  local parent_root = ReadRPP(parent_path)
+  if not parent_root then
+    reaper.ShowMessageBox("Ошибка парсинга родительского проекта:\n" .. parent_path, "Ошибка", 0)
+    return
+  end
+
+  local current_proj_filename = reaper.GetProjectName(0, "")
+  local current_proj_name = current_proj_filename:match("(.+)%.rpp$")
+  if not current_proj_name then
+    reaper.ShowMessageBox("Не удалось определить имя текущего проекта!", "Ошибка", 0)
+    return
+  end
+
+  -- Строим иерархию треков (как в UI-скрипте)
+  local parent_tracks = parent_root:findAllChunksByName("TRACK")
+  local trackHierarchy = {}
+  local trackStack = {}
+  for i, tr_chunk in ipairs(parent_tracks) do
+    local name_node = tr_chunk:findFirstNodeByName("NAME")
+    local isbus_node = tr_chunk:findFirstNodeByName("ISBUS")
+    local isbus = isbus_node and isbus_node:getTokensAsLine() or ""
+    local trackItem = { track = tr_chunk, children = {} }
+    if name_node then
+      if #trackStack > 0 then
+        table.insert(trackStack[#trackStack].children, trackItem)
+      else
+        table.insert(trackHierarchy, trackItem)
+      end
+      if isbus == "ISBUS 1 1" then
+        table.insert(trackStack, trackItem)
+      end
+    end
+    -- Универсальное условие: если ISBUS начинается с "ISBUS 2" и второй токен отрицательный – закрываем папку
+    if isbus:match("^ISBUS 2 %-") then
+      table.remove(trackStack)
+    end
+  end
+
+  -- Рекурсивно находим подпроекты (узлы, имя которых оканчивается на " [subproject]")
+  local subprojects = {}
+  local function findSubprojects(nodes)
+    for _, node in ipairs(nodes) do
+      local name_node = node.track:findFirstNodeByName("NAME")
+      local track_name = ""
+      if name_node then
+        local token = name_node:getTokens()[2]
+        if token then
+          track_name = token:getString():gsub('^"(.*)"$', "%1")
+        end
+      end
+      if track_name:match(" %[subproject%]$") then
+        local subproj_name = track_name:gsub(" %[subproject%]$", "")
+        if subproj_name ~= current_proj_name then
+          table.insert(subprojects, node)
+        end
+      end
+      if #node.children > 0 then
+        findSubprojects(node.children)
+      end
+    end
+  end
+  findSubprojects(trackHierarchy)
+
+  if #subprojects == 0 then
+    reaper.ShowMessageBox("В родительском проекте не найдены треки подпроектов!", "Информация", 0)
+    return
+  end
+
+  -- Функция для получения короткого GUID (6 символов)
+  local function getShortID(chunk)
+    local trackid_node = chunk:findFirstNodeByName("TRACKID")
+    if trackid_node then
+      local guid = trackid_node.line:match("{(.-)}")
+      if guid then
+        return guid:sub(1,6)
+      end
+    end
+    return ""
+  end
+
+  reaper.PreventUIRefresh(1)
+  reaper.Undo_BeginBlock()
+
+  local imported_count = 0
+  for idx, subproj in ipairs(subprojects) do
+    local name_node = subproj.track:findFirstNodeByName("NAME")
+    local name_line = name_node and name_node.line or ""
+    reaper.ShowConsoleMsg("Найден подпроект: " .. name_line .. "\n")
+    if #subproj.children > 0 then
+      local short_id = getShortID(subproj.track)
+      -- Если короткий ID пуст или равен "2AAC69", добавляем индекс для уникальности
+      if short_id == "" or short_id == "2AAC69" then
+        short_id = string.format("%06X", idx)
+      end
+      local tag = " <ID:" .. short_id .. ">"
+      
+      -- Удаляем ранее импортированные треки с этим тегом
+      if tag ~= "" then
+        local num_tracks = reaper.CountTracks(0)
+        for i = num_tracks - 1, 0, -1 do
+          local tr = reaper.GetTrack(0, i)
+          local retval, tr_name = reaper.GetSetMediaTrackInfo_String(tr, "P_NAME", "", false)
+          if tr_name:sub(-#tag) == tag then
+            reaper.DeleteTrack(tr)
+          end
+        end
+      end
+
+      local insert_idx = 1
+      if reaper.CountTracks(0) == 0 then
+        reaper.InsertTrackAtIndex(0, true)
+      end
+      
+      -- При импорте фильтруем дочерние узлы: пропускаем те, у которых имя оканчивается на " [subproject]"
+      for _, child in ipairs(subproj.children) do
+        local child_name_node = child.track:findFirstNodeByName("NAME")
+        local child_name = ""
+        if child_name_node then
+          local token = child_name_node:getTokens()[2]
+          if token then
+            child_name = token:getString():gsub('^"(.*)"$', "%1")
+          end
+        end
+        if not child_name:match(" %[subproject%]$") then
+          local new_tr = f.InsertTrackFromChunk(child.track, insert_idx, 0)
+          reaper.SetMediaTrackInfo_Value(new_tr, "B_UNLOCKED", 0)
+          f.RemoveParams(new_tr)
+          local retval, cur_name = reaper.GetSetMediaTrackInfo_String(new_tr, "P_NAME", "", false)
+          reaper.GetSetMediaTrackInfo_String(new_tr, "P_NAME", cur_name .. tag, true)
+          insert_idx = insert_idx + 1
+          imported_count = imported_count + 1
+        end
+      end
+      reaper.ShowConsoleMsg("Импортировано " .. (insert_idx - 1) .. " треков из подпроекта " .. name_line .. "\n")
+    else
+      reaper.ShowConsoleMsg("Подпроект " .. name_line .. " не содержит дочерних треков\n")
+    end
+  end
+
+  if imported_count == 0 then
+    reaper.ShowConsoleMsg("Не было импортировано ни одного трека\n")
+  end
+
+  reaper.Undo_EndBlock("Import All Subproject Children Tracks", -1)
+  reaper.PreventUIRefresh(-1)
+  reaper.UpdateArrange()
+  reaper.ShowConsoleMsg("\nИмпорт завершен.\n")
 end
 
 -------------------------------------------------------
