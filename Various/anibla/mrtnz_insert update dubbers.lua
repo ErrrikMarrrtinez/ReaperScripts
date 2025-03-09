@@ -7,7 +7,7 @@ local r = reaper
 r.PreventUIRefresh(0)
 r.Undo_BeginBlock()
 
--- f.ImportAllSubprojectTracksFromParent()
+f.ImportAllSubprojectTracksFromParent()
 
 r.Undo_EndBlock("Импорт дабберов из родительского проекта", -1)
 r.UpdateArrange()
