@@ -478,19 +478,18 @@ function f.RemoveAllMarkersAndRegions(proj)
   end
 end
 
+
 function f.ImportMarkersFromParent()
   local parent_proj_name = f.get_parent_project()
   if not parent_proj_name then
     reaper.ShowMessageBox("Не найден родительский проект в NOTES!", "Ошибка", 0)
     return
   end
-  
   local cur_proj, cur_proj_path = reaper.EnumProjects(-1, "")
   if not cur_proj_path or cur_proj_path == "" then
     reaper.ShowMessageBox("Сохраните проект перед запуском скрипта!", "Ошибка", 0)
     return
   end
-  
   local cur_proj_dir = cur_proj_path:match("(.*)[/\\]") or ""
   local parent_path = cur_proj_dir .. "\\" .. parent_proj_name
   local parent_root = ReadRPP(parent_path)
@@ -498,96 +497,48 @@ function f.ImportMarkersFromParent()
     reaper.ShowMessageBox("Ошибка парсинга родительского проекта:\n" .. parent_path, "Ошибка", 0)
     return
   end
-  
   f.RemoveAllMarkersAndRegions(0)
   local custom_color = reaper.ColorToNative(255, 165, 0)
-  
-  -- Соберем все маркеры и регионы в упорядоченную структуру
-  local marker_pairs = {}
-  local seen_ids = {}
-  
-  -- Обработка маркеров и сбор информации о регионах
   local children = parent_root.children or {}
-  for i = 1, #children do
+  local i = 1
+  while i <= #children do
     local node = children[i]
-    if node:getName() == "MARKER" then
+    if node:getName() == "MARKER" or node:getName() == "REGION" then
       local tokens = node:getTokens()
       if #tokens >= 4 then
-        local marker_id = tokens[2]:getString()
         local pos = tonumber(tokens[3]:getString()) or 0
         local name = tokens[4]:getString() or ""
-        local is_region_marker = false
-        local is_region_end = false
-        
-        -- Проверка, является ли маркер частью региона
+        local marker_index = tonumber(tokens[2]:getString()) or -1
+        if marker_index > 1000 then marker_index = -1 end
         if #tokens >= 8 and tokens[8]:getString() == "R" then
-          is_region_marker = true
+          local region_start = pos
+          local region_end = nil
+          local j = i + 1
+          while j <= #children do
+            if children[j]:getName() == "MARKER" then
+              local next_tokens = children[j]:getTokens()
+              if next_tokens[2] and next_tokens[2]:getString() == tokens[2]:getString() then
+                region_end = tonumber(next_tokens[3]:getString()) or 0
+                break
+              end
+            end
+            j = j + 1
+          end
+          if region_end and region_end > region_start then
+            reaper.AddProjectMarker2(0, true, region_start, region_end, name, custom_color, marker_index)
+            i = j  -- пропускаем до найденного парного маркера
+          else
+            reaper.AddProjectMarker2(0, false, region_start, 0, name, custom_color, marker_index)
+          end
+        else
+          reaper.AddProjectMarker2(0, false, pos, 0, name, custom_color, marker_index)
         end
-        
-        -- Проверка, это конечный маркер региона?
-        if #tokens == 5 and name == "" then
-          is_region_end = true
-        end
-        
-        -- Ограничение ID маркера (проверка на большие числа, которые могут быть внутренними ID)
-        local marker_index = tonumber(marker_id)
-        if marker_index and marker_index > 1000 then
-          marker_index = -1
-        end
-        
-        -- Сохраняем информацию о маркере
-        if not marker_pairs[marker_id] then
-          marker_pairs[marker_id] = {}
-        end
-        
-        table.insert(marker_pairs[marker_id], {
-          pos = pos,
-          name = name,
-          is_region_marker = is_region_marker,
-          is_region_end = is_region_end,
-          marker_index = marker_index,
-          guid = tokens[9] and tokens[9]:getString() or nil
-        })
-        
-        seen_ids[marker_id] = true
       end
     end
-  end
-  
-  -- Создаем маркеры и регионы
-  for id, markers in pairs(marker_pairs) do
-    if #markers == 2 and markers[1].is_region_marker and markers[2].is_region_end then
-      -- Это регион (пара маркеров начала и конца)
-      local start_pos = markers[1].pos
-      local end_pos = markers[2].pos
-      local name = markers[1].name
-      local marker_idx = markers[1].marker_index
-      
-      -- Проверяем, что конечная позиция больше начальной
-      if end_pos > start_pos then
-        reaper.AddProjectMarker2(0, true, start_pos, end_pos, name, custom_color, marker_idx)
-      else
-        -- Если что-то пошло не так, создаем простой маркер
-        reaper.AddProjectMarker2(0, false, start_pos, 0, name, custom_color, marker_idx)
-      end
-    elseif #markers == 1 and not markers[1].is_region_marker then
-      -- Это обычный маркер
-      reaper.AddProjectMarker2(0, false, markers[1].pos, 0, markers[1].name, custom_color, markers[1].marker_index)
-    elseif #markers == 1 and markers[1].is_region_marker then
-      -- Это маркер региона, но без пары - создаем как обычный маркер
-      reaper.AddProjectMarker2(0, false, markers[1].pos, 0, markers[1].name, custom_color, markers[1].marker_index)
-    end
-  end
-  
-  -- Добавляем поддержку тегов REGIONRENDER, если они есть
-  for i = 1, #children do
-    local node = children[i]
-    if node:getName() == "REGIONRENDER" then
-      -- Здесь можно добавить код для обработки REGIONRENDER, если нужно
-      -- В текущей реализации мы просто импортируем маркеры/регионы
-    end
+    i = i + 1
   end
 end
+
 
 function f.ClearTrackAndItems(track)
   if not track then return end
