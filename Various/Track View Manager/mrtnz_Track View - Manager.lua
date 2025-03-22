@@ -1,6 +1,6 @@
 -- @description Track View Manager
 -- @author mrtnz
--- @version 1.7
+-- @version 1.8
 -- @about
 --  Track View Manager
 -- @provides
@@ -20,6 +20,8 @@ r.gmem_attach('Viewer')
 package.path = package.path .. ";" .. string.match(({r.get_action_context()})[2], "(.-)([^\\/]-%.?([^%.\\/]*))$") .. "?.lua"
 local json = require "json"
 require 'rtk'
+
+local a =  string.match(({r.get_action_context()})[2], "(.-)([^\\/]-%.?([^%.\\/]*))$")
 
 local functions = require 'functions' for name, func in pairs(functions) do _G[name] = func end
 
