@@ -60,28 +60,89 @@ function func.scrollTrackToTop(track)
   local track_tcpy = r.GetMediaTrackInfo_Value(track, "I_TCPY")
   local mainHWND = r.GetMainHwnd()
   local windowHWND = r.JS_Window_FindChildByID(mainHWND, 1000)
-  local _, scroll_position = r.JS_Window_GetScrollInfo(windowHWND, "v")
-  r.JS_Window_SetScrollPos(windowHWND, "v", track_tcpy + scroll_position)
+  r.JS_Window_SetScrollPos(windowHWND, "v", track_tcpy)
   r.TrackList_AdjustWindows(true)
   r.TrackList_AdjustWindows(false)
 end
 
 function func.restoreVisibleTracksSnapshot(index)
   local retval, encoded_data = r.GetProjExtState(0, "VisibleTracksSnapshot", "data_" .. index)
-  if retval == 1 then
-    r.Undo_BeginBlock()
-    r.UpdateArrange()
-    local first_track = func.restoreVisibleTracks(encoded_data)
-    r.Undo_EndBlock("Restore visible tracks snapshot " .. index, -1)
-
-    if first_track then
-      func.scrollTrackToTop(first_track)
-    end
-    r.UpdateArrange()
-    return nil
-  else
+  if retval ~= 1 then
     return "No data found for slot " .. index
   end
+
+  r.Undo_BeginBlock()
+  r.PreventUIRefresh(1)
+  r.UpdateArrange()
+  
+  -- Декодируем данные
+  local data = json.decode(encoded_data)
+  local all_tracks = {}
+  local first_track = nil
+  
+  -- Собираем информацию о треках, как в main_loader
+  if data and data.tracks then
+    for guid, track_info in pairs(data.tracks) do
+      all_tracks[guid] = track_info
+    end
+  end
+  
+  -- Найдем первый видимый трек
+  if data and data.first_visible then
+    first_track = r.BR_GetMediaTrackByGUID(0, data.first_visible.guid)
+  end
+  
+  -- Применяем изменения ко всем трекам
+  local track_count = r.CountTracks(0)
+  local hideAllTracks = data and data.hideAllTracks
+  
+  if hideAllTracks then
+    -- Сначала скрываем все треки, если нужно
+    for i = 0, track_count - 1 do
+      local track = r.GetTrack(0, i)
+      r.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 0)
+    end
+  end
+  
+  -- Затем показываем нужные треки
+  for guid, track_info in pairs(all_tracks) do
+    local track = r.BR_GetMediaTrackByGUID(0, guid)
+    if track then
+      r.SetMediaTrackInfo_Value(track, "B_SHOWINTCP", 1)
+      r.SetMediaTrackInfo_Value(track, "I_HEIGHTOVERRIDE", track_info.height)
+    end
+  end
+  
+  -- Обновляем интерфейс и завершаем операцию
+  r.TrackList_AdjustWindows(false)
+  r.TrackList_UpdateAllExternalSurfaces()
+  r.PreventUIRefresh(-1)
+  r.UpdateArrange()
+  r.Undo_EndBlock("Restore visible tracks snapshot " .. index, -1)
+  
+  if first_track then
+    rtk.callafter(0.3, function()
+      r.PreventUIRefresh(1)
+      -- Гарантируем, что трек виден
+      r.SetMediaTrackInfo_Value(first_track, "B_SHOWINTCP", 1)
+      
+      -- Скроллинг с дополнительными обновлениями
+      func.scrollTrackToTop(first_track)
+      r.UpdateArrange()
+      r.TrackList_AdjustWindows(false)
+      r.TrackList_AdjustWindows(true)
+      r.PreventUIRefresh(-1)
+      
+      -- Повторный скроллинг для надежности
+      rtk.callafter(0.1, function()
+        func.scrollTrackToTop(first_track)
+      end)
+    end)
+  else
+    r.TrackList_AdjustWindows(true)
+  end
+  
+  return nil
 end
 
 function func.createHeader(container)
@@ -228,9 +289,13 @@ end
 
 function func.main_loader(selected_slots)
   r.Undo_BeginBlock()
+  r.PreventUIRefresh(1)
   r.UpdateArrange()
+  
   local first_tracks = {}
   local all_tracks = {}
+  local lowest_track_number = 999999 -- Большое число для начального сравнения
+  local top_track = nil
 
   -- Сначала собираем данные со всех слотов
   for index in pairs(selected_slots) do
@@ -243,7 +308,17 @@ function func.main_loader(selected_slots)
         end
       end
       if data.first_visible then
-        table.insert(first_tracks, r.BR_GetMediaTrackByGUID(0, data.first_visible.guid))
+        local first_track = r.BR_GetMediaTrackByGUID(0, data.first_visible.guid)
+        if first_track then
+          table.insert(first_tracks, first_track)
+          
+          -- Сразу находим трек с наименьшим номером
+          local track_number = r.GetMediaTrackInfo_Value(first_track, "IP_TRACKNUMBER")
+          if track_number < lowest_track_number then
+            lowest_track_number = track_number
+            top_track = first_track
+          end
+        end
       end
     end
   end
@@ -261,32 +336,48 @@ function func.main_loader(selected_slots)
     end
   end
 
+  -- Принудительно обновляем интерфейс
   r.TrackList_AdjustWindows(false)
   r.TrackList_UpdateAllExternalSurfaces()
-
-  r.Undo_EndBlock("Restore visible tracks snapshot", -1)
   r.UpdateArrange()
+  r.PreventUIRefresh(-1)
+  r.Undo_EndBlock("Restore visible tracks snapshot", -1)
 
-  local top_track
-  if #first_tracks > 0 then
-    top_track = first_tracks[1]
-    local top_track_index = r.GetMediaTrackInfo_Value(top_track, "IP_TRACKNUMBER")
-    for i = 2, #first_tracks do
-      local track_index = r.GetMediaTrackInfo_Value(first_tracks[i], "IP_TRACKNUMBER")
-      if track_index < top_track_index then
-        top_track = first_tracks[i]
-        top_track_index = track_index
-      end
-    end
-    
-    r.UpdateArrange()
-  end
+  -- Улучшенный скроллинг: сначала скроллим с большой задержкой
   if top_track then
-    rtk.callafter(0.06, function()
+    -- Первый скроллинг с большой задержкой
+    rtk.callafter(0.3, function()
+      r.PreventUIRefresh(1)
+      
+      -- Дополнительная проверка, чтобы top_track был виден
+      r.SetMediaTrackInfo_Value(top_track, "B_SHOWINTCP", 1)
+      
+      -- Принудительное обновление перед скроллингом
+      r.UpdateArrange()
+      r.TrackList_AdjustWindows(false)
+      
+      -- Скролл к самому верхнему треку
       func.scrollTrackToTop(top_track)
+      
+      -- Повторное обновление после скроллинга
+      r.UpdateArrange()
+      r.TrackList_AdjustWindows(false)
+      r.TrackList_AdjustWindows(true)
+      r.PreventUIRefresh(-1)
+      
+      -- Второй скроллинг для надежности после небольшой задержки
+      rtk.callafter(0.1, function()
+        r.PreventUIRefresh(1)
+        func.scrollTrackToTop(top_track)
+        r.UpdateArrange()
+        r.TrackList_AdjustWindows(false)
+        r.TrackList_AdjustWindows(true)
+        r.PreventUIRefresh(-1)
+      end)
     end)
+  else
+    r.TrackList_AdjustWindows(true)
   end
-  r.TrackList_AdjustWindows(true)
 end
 
 function func.saveSlotData(index, name, checkboxState)

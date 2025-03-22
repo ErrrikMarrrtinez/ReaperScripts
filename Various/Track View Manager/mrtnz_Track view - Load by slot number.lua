@@ -76,8 +76,12 @@ inputContainer.onkeypress = function(self, event)
         if input:find("[,%.%-]") then
             local selected_slots = processInput(input)
             if next(selected_slots) then
+                header:attr('fontsize', 35)
+                header:attr('valign', 'center')
+                header:attr('text', "Loading...")
+                
                 f.main_loader(selected_slots)
-                q()
+                rtk.callafter(0.5, q) -- Даем время на выполнение скроллинга
             else
                 header:attr('fontsize', 35)
                 header:attr('valign', 'center')
@@ -87,6 +91,10 @@ inputContainer.onkeypress = function(self, event)
         else
             local value = tonumber(input)
             if value then
+                header:attr('fontsize', 35)
+                header:attr('valign', 'center')
+                header:attr('text', "Loading...")
+                
                 local er = f.restoreVisibleTracksSnapshot(value)
                 if er ~= nil then
                     header:attr('fontsize', 35)
@@ -99,7 +107,7 @@ inputContainer.onkeypress = function(self, event)
                     end
                     rtk.callafter(0.9, q)
                 else
-                    q()
+                    rtk.callafter(0.5, q) -- Даем время на выполнение скроллинга
                 end
             end
         end
