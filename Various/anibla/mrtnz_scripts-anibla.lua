@@ -1,6 +1,6 @@
 -- @description Anibla scripts
 -- @author mrtnz
--- @version 0.5.0
+-- @version 0.5.1
 -- @provides
 --   [main] .
 --   [main] mrtnz_insert text item by region under mouse.lua
@@ -12,8 +12,11 @@
 --   [main] mrtnz_toggle show grid line.lua
 --   [main] mrtnz_calculate recorded.lua
 --   [main] mrtnz_calculate long media.lua
+--   [main] mrtnz_calculate excel.lua
 --   [main] mrtnz_glue regions in time selection.lua
 --   [main] mrtnz_insert update dubbers.lua
+--   ivory-mountain-387219-e4bc2546492f.json
+--   create_exc.py
 --   Reateam_RPP-Parser.lua
 --   mrtnz_srtass-parser.lua
 --   mrtnz_utils.lua
