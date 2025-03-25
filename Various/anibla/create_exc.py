@@ -1,3 +1,6 @@
+# @version 0.1
+# @noindex
+
 
 import os, sys, csv
 import webbrowser
