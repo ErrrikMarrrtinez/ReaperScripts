@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="5f1e432b71c37a1cd311f53bf80c058607e2f45d">
+<index version="1" name="ReaperScripts" commit="de1ecec0904ea2240cc9a8c8e171a9078a7e8dd4">
   <category name="Item Editing">
     <reapack name="mrtnz_change fade in and fade out(gui).lua" type="script" desc="Change fade in and fade out or crop(gui)">
       <metadata>
