@@ -650,6 +650,36 @@ function f.ImportTrackChunkFromParent()
   reaper.TrackList_AdjustWindows(false)
 end
 
+function lock_track_completely(new_tr)
+  if not new_tr then return end
+
+  -- Устанавливаем минимальную высоту
+  reaper.SetMediaTrackInfo_Value(new_tr, "I_HEIGHTOVERRIDE", 20)
+  reaper.SetMediaTrackInfo_Value(new_tr, "B_HEIGHTLOCK", 1)
+
+  -- Блокируем айтемы на треке
+  local item_count = reaper.CountTrackMediaItems(new_tr)
+  for i = 0, item_count - 1 do
+    local item = reaper.GetTrackMediaItem(new_tr, i)
+    reaper.SetMediaItemInfo_Value(item, "C_LOCK", 1)
+  end
+
+  -- Можно отключить рек/мониторинг
+  reaper.SetMediaTrackInfo_Value(new_tr, "I_RECARM", 0)
+  reaper.SetMediaTrackInfo_Value(new_tr, "I_RECMON", 0)
+
+  -- Выключить FX
+  reaper.SetMediaTrackInfo_Value(new_tr, "I_FXEN", 0)
+
+  -- Спрятать из TCP и/или Mixer если хочешь
+  -- reaper.SetMediaTrackInfo_Value(new_tr, "B_SHOWINTCP", 0)
+  -- reaper.SetMediaTrackInfo_Value(new_tr, "B_SHOWINMIXER", 0)
+
+  reaper.TrackList_AdjustWindows(false)
+  reaper.UpdateArrange()
+end
+
+
 function f.ImportAllSubprojectTracksFromParent()
   -- Получаем имя родительского проекта
   local parent_proj_name = f.get_parent_project()
@@ -791,6 +821,14 @@ function f.ImportAllSubprojectTracksFromParent()
         if not child_name:match(" %[subproject%]$") then
           local new_tr = f.InsertTrackFromChunk(child.track, insert_idx, 0)
           reaper.SetMediaTrackInfo_Value(new_tr, "B_UNLOCKED", 0)
+          reaper.SetMediaTrackInfo_Value(new_tr, "I_RECARM", 0)     -- Отключить запись (разармить)
+          reaper.SetMediaTrackInfo_Value(new_tr, "I_RECMODE", 0)    -- Режим записи: Off
+          reaper.SetMediaTrackInfo_Value(new_tr, "I_RECMON", 0)     -- Мониторинг: Off
+          reaper.SetMediaTrackInfo_Value(new_tr, "I_CHANMODE", 0)   -- Channel Mode: Normal (без моно/стерео)
+          reaper.SetMediaTrackInfo_Value(new_tr, "I_SOLO", 0)       -- Снять solo
+          reaper.SetMediaTrackInfo_Value(new_tr, "B_MUTE", 0)       -- Убедиться, что не заглушен
+          lock_track_completely(new_tr)
+
           f.RemoveParams(new_tr)
           local retval, cur_name = reaper.GetSetMediaTrackInfo_String(new_tr, "P_NAME", "", false)
           reaper.GetSetMediaTrackInfo_String(new_tr, "P_NAME", cur_name .. tag, true)
