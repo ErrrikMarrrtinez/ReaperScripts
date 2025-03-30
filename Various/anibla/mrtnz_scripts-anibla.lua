@@ -1,10 +1,11 @@
 -- @description Anibla scripts
 -- @author mrtnz
--- @version 0.5.45
+-- @version 0.5.46
 -- @provides
 --   [main] .
 --   [main] mrtnz_insert text item by region under mouse.lua
 --   [main] mrtnz_Create subproject for selected tracks.lua
+--   [main] mrtnz_Create Timer Subproject.lua
 --   [main] mrtnz_Load subprojects in current project.lua
 --   [main] mrtnz_insert update regions.lua
 --   [main] mrtnz_subtitles manager.lua

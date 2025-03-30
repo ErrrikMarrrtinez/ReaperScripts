@@ -249,9 +249,18 @@ function f.ImportSubproject(subproj_path)
       -- Пропускаем треки, которые являются подпроектами или уже импортированными подпроектами
     elseif first_line:find("%%%#%%#%%# VIDEO MARKERS %%%#%%#%%#") then
       -- Пропускаем треки с видео-маркерами
+    elseif first_line:find("%[TIMER%]") then
+      skipNext = true
     else
       -- Вставляем трек
       local new_tr = f.InsertTrackFromChunk(tr_chunk, insert_idx, 0)
+      reaper.SetMediaTrackInfo_Value(new_tr, "I_RECARM", 0)     -- Отключить запись (разармить)
+      reaper.SetMediaTrackInfo_Value(new_tr, "I_RECMODE", 0)    -- Режим записи: Off
+      reaper.SetMediaTrackInfo_Value(new_tr, "I_RECMON", 0)     -- Мониторинг: Off
+      reaper.SetMediaTrackInfo_Value(new_tr, "I_CHANMODE", 0)   -- Channel Mode: Normal (без моно/стерео)
+      reaper.SetMediaTrackInfo_Value(new_tr, "I_SOLO", 0)       -- Снять solo
+      reaper.SetMediaTrackInfo_Value(new_tr, "B_MUTE", 0)       -- Убедиться, что не заглушен
+      
       f.RemoveParams(new_tr)
       table.insert(inserted, new_tr)
       insert_idx = insert_idx + 1
@@ -282,7 +291,29 @@ function f.AutoImportAllSubprojects()
     return
   end
   
-  local rpp_files = f.ScanForRPPFiles(proj_dir)
+  -- Модифицированная версия ScanForRPPFiles, которая не сканирует поддиректории
+  local rpp_files = {}
+  local _, current_proj_name = reaper.GetProjectName(0, "")
+  if current_proj_name then
+    current_proj_name = current_proj_name:match("(.+)%.rpp$")
+  end
+  
+  local idx = 0
+  while true do
+    local file = reaper.EnumerateFiles(proj_dir, idx)
+    if not file then break end
+    if file:match("%.rpp$") or file:match("%.RPP$") then
+      local name_without_ext = file:match("(.+)%.rpp$") or file:match("(.+)%.RPP$")
+      if name_without_ext ~= current_proj_name then
+        table.insert(rpp_files, {
+          name = name_without_ext,
+          path = proj_dir .. file
+        })
+      end
+    end
+    idx = idx + 1
+  end
+  
   if #rpp_files == 0 then
     reaper.ShowMessageBox("Подпроекты (.rpp) не найдены!", "Информация", 0)
     return
@@ -1306,6 +1337,30 @@ function f.GetTotalItemsLength(items)
   return math.floor(totalLength + 0.5)
 end
 
+function f.FindSubprojectTracksByNotes()
+  local notes = reaper.GetSetProjectNotes(0, false, "")
+  local subprojects = {}
+  for subproj in notes:gmatch("subprojects=([^\n]+)") do
+    for name in subproj:gmatch("([^;]+)") do
+      local search_name = name:gsub("%.rpp$", "") .. " [subproject]"
+      local tr_idx = f.FindTrackIndexByName(search_name)
+      if tr_idx >= 0 then
+        table.insert(subprojects, reaper.GetTrack(0, tr_idx))
+      end
+    end
+  end
+  return subprojects
+end
 
+function utf8.fix(s)
+  local cs = {}
+  for c in ("АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ" ..
+            "абвгдежзийклмнопрстуфхцчшщъыьэюя"):gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+    cs[#cs+1] = c
+  end
+  return s:gsub("\195([\128-\191])", function(c)
+    return cs[c:byte()-127]
+  end)
+end
 
 return f

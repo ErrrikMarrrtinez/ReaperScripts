@@ -102,7 +102,7 @@ local ret = reaper.ExecProcess(python_cmd, 0)
 if DEBUG_MODE then
   if ret ~= "" then
    -- Tooltip("Python result: " .. ret)
-    reaper.ShowConsoleMsg("Python result: " .. ret .. "\n")
+    reaper.ShowConsoleMsg("Python result: " .. utf8.fix(ret) .. "\n")
   else
    -- Tooltip("Python script executed with no output")
     reaper.ShowConsoleMsg("Python script executed with no output\n")
