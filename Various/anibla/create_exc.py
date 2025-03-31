@@ -7,13 +7,20 @@ import webbrowser
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 import difflib
-
+import builtins
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, "ivory-mountain-387219-e4bc2546492f.json")
 USERS = ['nedprite4@gmail.com', 'aniblauz@gmail.com', 'sarumen166@gmail.com']
 LEVELS_SPREADSHEET_ID = "1OFJ2n1LUODGrKzj6pswutX_7ooMv2oF33RaS9evZSpk"
 LEVELS_RANGE = "A2:C100"  # Name, Level, Value
+
+
+
+def print(*args, **kwargs):
+    kwargs.setdefault("flush", True)
+    return builtins.print(*args, **kwargs)
+
 
 def find_closest_name(name, reference_names, threshold=65.5):
     best_match = None

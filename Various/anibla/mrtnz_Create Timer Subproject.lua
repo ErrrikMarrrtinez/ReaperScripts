@@ -234,7 +234,7 @@ function FileCopier:process_queue()
 end
 
 
-dofile(reaper.GetResourcePath() .. [[\Scripts\ReaTeam Scripts\Development\RPP-Parser\Reateam_RPP-Parser.lua]])
+dofile(debug.getinfo(1, "S").source:match([[^@?(.*[\/])[^\/]-$]]) .. 'Reateam_RPP-Parser.lua')
 if not RChunk then return end
 
 local sep = package.config:sub(1,1)
