@@ -315,7 +315,19 @@ def main():
                 valueInputOption='USER_ENTERED', body={'values': totals_formula}).execute()
         
         # Добавляем текущую дату
-        today = datetime.datetime.now().strftime("%d %b %Y")
+        if len(sys.argv) > 4:
+            try:
+                dt = datetime.datetime.strptime(sys.argv[4], "%Y.%m.%d %H:%M:%S")
+                today = dt.strftime("%d %b %Y %H:%M")
+            except Exception as e:
+                print(f"Неверный формат даты, используем текущую. Ошибка: {e}")
+                dt = datetime.datetime.now()
+                today = dt.strftime("%d %b %Y %H:%M")
+        else:
+            dt = datetime.datetime.now()
+            today = dt.strftime("%d %b %Y %H:%M")
+
+        
         date_cell = f"{sheet_name}!E2"
         date_body = {'values': [[f"{today}"]]}
         date_result = sheets_service.spreadsheets().values().update(

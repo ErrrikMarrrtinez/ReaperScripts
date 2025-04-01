@@ -3,138 +3,119 @@
 
 local l = {}
 function l.da()
-local r = reaper
-local f = dofile(debug.getinfo(1, "S").source:match([[^@?(.*[\/])[^\/]-$]]) .. 'mrtnz_utils.lua')
-math.randomseed(os.time())
-
--- Получаем путь и имя текущего проекта
-local _, current_rpp = r.EnumProjects(-1, "")
-if not current_rpp or current_rpp == "" then
-  r.ShowMessageBox("\n\nСохрани проект перед запуском скрипта!\n\n", "Ошибка", 0)
-  return
-end
-local parent_dir = current_rpp:match("(.*)[/\\].-$") or ""
-local current_proj_name = current_rpp:match("([^/\\]+)%.rpp$")
-if not current_proj_name then
-  r.ShowMessageBox("\n\nНе удалось определить имя проекта!\n\n", "Ошибка", 0)
-  return
-end
-
--- Собираем треки: первый трек и все дочерние треки подпроектов (по NOTES)
-local tracks_to_move = {}
---local first_track = r.GetTrack(0, 0)
---if first_track then table.insert(tracks_to_move, first_track) end
-
-local subproj_tracks = f.FindSubprojectTracksByNotes()
-for _, track in ipairs(subproj_tracks) do
-  local childs = f.selectChildTracks(track)
-  for _, child in ipairs(childs) do
-    table.insert(tracks_to_move, child)
-  end
-end
-
--- Создаём новый подпроект с именем "current_proj_name TIMER"
-local new_subproj_name = current_proj_name .. " [TIMER]"
-
-local new_proj_dir = parent_dir .. "\\" .. new_subproj_name
-
-reaper.RecursiveCreateDirectory(new_proj_dir, 0)
-
-local new_project_path = new_proj_dir .. "\\" .. new_subproj_name .. ".rpp"
-
-local newproj = CreateRPP()
-
--- Копируем MARKER и REGION из текущего проекта
-local current_root = ReadRPP(current_rpp)
-if current_root then
-  for _, node in ipairs(current_root.children or {}) do
-    local nm = node:getName()
-    if nm == "MARKER" or nm == "REGION" then
-      newproj:addNode(RNode:new({ line = node.line }))
+    local r = reaper
+    local f = dofile(debug.getinfo(1, "S").source:match([[^@?(.*[\/])[^\/]-$]]) .. 'mrtnz_utils.lua')
+    math.randomseed(os.time())
+    
+    -- Получаем путь и имя текущего проекта
+    local _, current_rpp = r.EnumProjects(-1, "")
+    if not current_rpp or current_rpp == "" then
+      r.ShowMessageBox("\n\nСохрани проект перед запуском скрипта!\n\n", "Ошибка", 0)
+      return
     end
-  end
-end
-
--- Добавляем NOTES с информацией о главном проекте
-local notes_str = string.format("<NOTES 0 0\n  |main_project=%s\n>", current_rpp:match("([^/\\]+%.rpp)$") or "unknown.rpp")
-newproj:addNode(RNode:new({ line = notes_str }))
-
--- Добавляем видео-трек и связанный с ним трек маркеров (если есть)
-local video_track_found = false
-for i = 0, r.CountTracks(0) - 1 do
-  local tr = r.GetTrack(0, i)
-  local retval, tr_name = r.GetSetMediaTrackInfo_String(tr, "P_NAME", "", false)
-  if tr_name:lower():find("%[video%]") then
-    local chunk = f.GetTrackChunk(tr)
-    if chunk then
-      local new_tr = ReadRPPChunk(chunk)
-      if new_tr then
-        new_tr:StripGUID()
-        newproj:addNode(new_tr)
-        video_track_found = true
+    local parent_dir = current_rpp:match("(.*)[/\\].-$") or ""
+    local current_proj_name = current_rpp:match("([^/\\]+)%.rpp$")
+    if not current_proj_name then
+      r.ShowMessageBox("\n\nНе удалось определить имя проекта!\n\n", "Ошибка", 0)
+      return
+    end
+    
+    -- Собираем треки: первый трек и все дочерние треки подпроектов (по NOTES)
+    local tracks_to_move = {}
+    --local first_track = r.GetTrack(0, 0)
+    --if first_track then table.insert(tracks_to_move, first_track) end
+    
+    local subproj_tracks = f.FindSubprojectTracksByNotes()
+    for _, track in ipairs(subproj_tracks) do
+      local childs = f.selectChildTracks(track)
+      for _, child in ipairs(childs) do
+        table.insert(tracks_to_move, child)
       end
     end
-  end
-  if video_track_found and tr_name == "### VIDEO MARKERS ###" then
-  end
-end
-
-
-for _, tr in ipairs(tracks_to_move) do
-  local chunk = f.GetTrackChunk(tr)
-  if chunk then
-    local new_tr = ReadRPPChunk(chunk)
-    if new_tr then
-      new_tr:StripGUID()
-      newproj:addNode(new_tr)
+    
+    -- Создаём новый подпроект с именем "current_proj_name TIMER"
+    local new_subproj_name = current_proj_name .. " [TIMER]"
+    
+    local new_proj_dir = parent_dir .. "\\" .. new_subproj_name
+    
+    reaper.RecursiveCreateDirectory(new_proj_dir, 0)
+    
+    local new_project_path = new_proj_dir .. "\\" .. new_subproj_name .. ".rpp"
+    
+    local newproj = CreateRPP()
+    
+    -- Копируем MARKER и REGION из текущего проекта
+    local current_root = ReadRPP(current_rpp)
+    if current_root then
+      for _, node in ipairs(current_root.children or {}) do
+        local nm = node:getName()
+        if nm == "MARKER" or nm == "REGION" then
+          newproj:addNode(RNode:new({ line = node.line }))
+        end
+      end
     end
-  end
-end
-
--- Добавляем пустой трек в конец
-local EMPTY_TRACK_CHUNK = [[<TRACK
-NAME ""
-PEAKCOL 16576
-BEAT -1
-AUTOMODE 0
-PANLAWFLAGS 3
-VOLPAN 1 0 -1 -1 1
-MUTESOLO 0 0 0
-IPHASE 0
-PLAYOFFS 0 1
-ISBUS 0 0
-BUSCOMP 0 0 0 0 0
-SHOWINMIX 1 0.6667 0.5 1 0.5 0 0 0
-FIXEDLANES 9 0 0 0 0
-REC 1 0 0 0 0 0 0 0
-VU 2
-TRACKHEIGHT 0 0 0 0 0 0 0 0
-INQ 0 0 0 0.5 100 0 0 100
-NCHAN 2
-FX 1
-TRACKID {4D70B74F-BC1F-4748-B517-526849967BA4}
-PERF 0
-MIDIOUT -1
-MAINSEND 1 0
->]]
-local new_track_name = new_subproj_name .. " " .. string.format("%04d", math.random(1000, 9999))
-local modified_empty_chunk = EMPTY_TRACK_CHUNK:gsub('NAME ""', 'NAME "' .. new_track_name .. '"')
-local empty_track = ReadRPPChunk(modified_empty_chunk)
-if empty_track then
-  empty_track:StripGUID()
-  newproj:addNode(empty_track)
-end
-
--- Записываем новый подпроект и отмечаем его в NOTES главного проекта
-local ok, err = WriteRPP(new_project_path, newproj)
-if not ok then
-  r.ShowMessageBox("\n\nОшибка записи подпроекта:\n" .. tostring(err) .. "\n\n", "Ошибка", 0)
-else
-  f.MarkAsParentProject(new_subproj_name .. ".rpp")
-  r.ShowMessageBox("\n\nПодпроект '" .. new_subproj_name .. "' успешно создан.\n\n", "Успех", 0)
-end
-
-r.UpdateArrange()
+    
+    -- Добавляем NOTES с информацией о главном проекте
+    local notes_str = string.format("<NOTES 0 0\n  |main_project=%s\n>", current_rpp:match("([^/\\]+%.rpp)$") or "unknown.rpp")
+    newproj:addNode(RNode:new({ line = notes_str }))
+    
+    -- Добавляем пустой трек в конец
+    local EMPTY_TRACK_CHUNK = [[<TRACK
+    NAME ""
+    PEAKCOL 16576
+    BEAT -1
+    AUTOMODE 0
+    PANLAWFLAGS 3
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    IPHASE 0
+    PLAYOFFS 0 1
+    ISBUS 0 0
+    BUSCOMP 0 0 0 0 0
+    SHOWINMIX 1 0.6667 0.5 1 0.5 0 0 0
+    FIXEDLANES 9 0 0 0 0
+    REC 0 0 0 0 0 0 0 0
+    VU 2
+    TRACKHEIGHT 0 0 0 0 0 0 0 0
+    INQ 0 0 0 0.5 100 0 0 100
+    NCHAN 2
+    FX 1
+    TRACKID {4D70B74F-BC1F-4748-B517-526849967BA4}
+    PERF 0
+    MIDIOUT -1
+    MAINSEND 1 0
+    >]]
+    local new_track_name = 'video'
+    local modified_empty_chunk = EMPTY_TRACK_CHUNK:gsub('NAME ""', 'NAME "' .. new_track_name .. '"')
+    local empty_track = ReadRPPChunk(modified_empty_chunk)
+    if empty_track then
+      empty_track:StripGUID()
+      newproj:addNode(empty_track)
+    end
+    
+    for _, tr in ipairs(tracks_to_move) do
+      local chunk = f.GetTrackChunk(tr)
+      if chunk then
+        local new_tr = ReadRPPChunk(chunk)
+        if new_tr then
+          new_tr:StripGUID()
+          newproj:addNode(new_tr)
+        end
+      end
+    end
+    
+    
+    
+    -- Записываем новый подпроект и отмечаем его в NOTES главного проекта
+    local ok, err = WriteRPP(new_project_path, newproj)
+    if not ok then
+      r.ShowMessageBox("\n\nОшибка записи подпроекта:\n" .. tostring(err) .. "\n\n", "Ошибка", 0)
+    else
+      f.MarkAsParentProject(new_subproj_name .. ".rpp")
+      r.ShowMessageBox("\n\nПодпроект '" .. new_subproj_name .. "' успешно создан.\n\n", "Успех", 0)
+    end
+    
+    r.UpdateArrange()
 end
 
 function l.net()
@@ -234,7 +215,7 @@ function FileCopier:process_queue()
 end
 
 
-dofile(debug.getinfo(1, "S").source:match([[^@?(.*[\/])[^\/]-$]]) .. 'Reateam_RPP-Parser.lua')
+dofile(reaper.GetResourcePath() .. [[\Scripts\ReaTeam Scripts\Development\RPP-Parser\Reateam_RPP-Parser.lua]])
 if not RChunk then return end
 
 local sep = package.config:sub(1,1)
@@ -357,4 +338,4 @@ reaper.defer(function() end)
 
 end
 
-da()net()
+l.da()l.net()
