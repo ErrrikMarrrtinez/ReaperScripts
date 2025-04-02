@@ -20,6 +20,11 @@ local function removeEmptyLines(str)
   return table.concat(res, "\n")
 end
 
+local function get_date_created(filePath)
+  local _, _, _, _, cdate = reaper.JS_File_Stat( filePath )
+  return cdate
+end
+
 -- Основная функция, выполняющая всю логику после инициализации
 local function goReal()
   local os_sep = package.config:sub(1,1)
@@ -90,11 +95,16 @@ local function goReal()
   f:close()
 
   local python_script_path = script_path .. "create_exc.py"
-  local python_cmd = string.format('python "%s" "%s" "%s" "%s"', 
+  local creation_ts = get_date_created(proj_file)
+
+  local python_cmd = string.format('python "%s" "%s" "%s" "%s" "%s"', 
                                    python_script_path, 
                                    directory_name, 
                                    csv_file,
-                                   project_clean_name)
+                                   project_clean_name,
+                                   creation_ts)
+
+                                   
   if DEBUG_MODE then
     reaper.ShowConsoleMsg("Executing: " .. python_cmd .. "\n")
   end
