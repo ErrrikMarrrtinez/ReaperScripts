@@ -1,6 +1,6 @@
 -- @description Anibla scripts
 -- @author mrtnz
--- @version 0.5.50
+-- @version 0.5.51
 -- @provides
 --   [main] .
 --   [main] mrtnz_insert text item by region under mouse.lua
@@ -20,9 +20,6 @@
 --   Reateam_RPP-Parser.lua
 --   mrtnz_srtass-parser.lua
 --   mrtnz_utils.lua
-
-
-
 
 
 

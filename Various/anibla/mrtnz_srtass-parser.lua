@@ -30,8 +30,7 @@ local function parseTime(timeStr)
   return tonumber(h) * 3600 + tonumber(m) * 60 + tonumber(s) + tonumber(ms) / 1000
 end
 
--------------------------------------------------------------
--- Преобразование времени ASS "H:MM:SS.CS" в секунды
+
 local function parseASSTime(timeStr)
   local h, m, s, cs = timeStr:match("(%d+):(%d+):(%d+)[.,](%d+)")
   if not (h and m and s and cs) then
@@ -48,21 +47,24 @@ local function parseASSTime(timeStr)
   return tonumber(h) * 3600 + tonumber(m) * 60 + tonumber(s) + csValue
 end
 
--------------------------------------------------------------
--- Очистка текста: замена “кривых” кавычек (‘, ’, `) на стандартный апостроф (')
+
 function cleanText(text)
   if not text then return text end
-  -- Удаляем последовательности вида "Рђ'¦"
+
   text = text:gsub("Рђ'%¦", "j")
-  text = text:gsub("[‘’`]+", "'")
   text = text:gsub("\\[Nn]", "  ")
+  text = text:gsub("‘", "'")
+  text = text:gsub("’", "'")
+  text = text:gsub("`", "'")
   text = text:gsub("[''`]+", "'")
   text = text:gsub("…", "...")
   text = text:gsub("ʻ", "'")
   text = text:gsub("¦", ":")
   text = text:gsub("ђ", "j")
+  -- text = decode_mojibake(text)
   return text
 end
+
 
 
 -------------------------------------------------------------

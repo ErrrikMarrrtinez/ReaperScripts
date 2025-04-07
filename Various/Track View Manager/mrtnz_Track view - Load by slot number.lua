@@ -81,12 +81,12 @@ inputContainer.onkeypress = function(self, event)
                 header:attr('text', "Loading...")
                 
                 f.main_loader(selected_slots)
-                rtk.callafter(0.5, q) -- Даем время на выполнение скроллинга
+                rtk.callafter(0.19, q) -- Даем время на выполнение скроллинга
             else
                 header:attr('fontsize', 35)
                 header:attr('valign', 'center')
                 header:attr('text', "Invalid input")
-                rtk.callafter(0.9, q)
+                rtk.callafter(0.22, q)
             end
         else
             local value = tonumber(input)
@@ -105,9 +105,9 @@ inputContainer.onkeypress = function(self, event)
                             q()
                         end
                     end
-                    rtk.callafter(0.9, q)
+                    rtk.callafter(0.15, q)
                 else
-                    rtk.callafter(0.5, q) -- Даем время на выполнение скроллинга
+                    rtk.callafter(0.19, q) -- Даем время на выполнение скроллинга
                 end
             end
         end

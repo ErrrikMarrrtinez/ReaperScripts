@@ -654,14 +654,14 @@ function lock_track_completely(new_tr)
   if not new_tr then return end
 
   -- Устанавливаем минимальную высоту
-  reaper.SetMediaTrackInfo_Value(new_tr, "I_HEIGHTOVERRIDE", 20)
-  reaper.SetMediaTrackInfo_Value(new_tr, "B_HEIGHTLOCK", 1)
+  --reaper.SetMediaTrackInfo_Value(new_tr, "I_HEIGHTOVERRIDE", 20)
+  --reaper.SetMediaTrackInfo_Value(new_tr, "B_HEIGHTLOCK", 1)
 
   -- Блокируем айтемы на треке
   local item_count = reaper.CountTrackMediaItems(new_tr)
   for i = 0, item_count - 1 do
     local item = reaper.GetTrackMediaItem(new_tr, i)
-    reaper.SetMediaItemInfo_Value(item, "C_LOCK", 1)
+    --reaper.SetMediaItemInfo_Value(item, "C_LOCK", 1)
   end
 
   -- Можно отключить рек/мониторинг

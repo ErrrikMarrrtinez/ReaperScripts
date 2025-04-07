@@ -302,7 +302,11 @@ end
 
 local used_media_files = {}
 for _, path in pairs(used_media_set) do
-  table.insert(used_media_files, path)
+  -- table.insert(used_media_files, path)
+
+  if not path:lower():match("%.(m4a|mp4|mov|avi|mkv|flv|wmv|webm)$") then
+    table.insert(used_media_files, path)
+  end
 end
 
 -- Имя проекта без расширения

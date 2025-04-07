@@ -11,7 +11,7 @@ import builtins
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, "ivory-mountain-387219-e4bc2546492f.json")
-USERS = ['nedprite4@gmail.com', 'aniblauz@gmail.com', 'sarumen166@gmail.com']
+USERS = ['nedprite4@gmail.com', 'aniblauz@gmail.com', 'sarumen166@gmail.com',"asrbekxolmirzayev1212@gmail.com","getlucky0271@gmail.com"]
 LEVELS_SPREADSHEET_ID = "1OFJ2n1LUODGrKzj6pswutX_7ooMv2oF33RaS9evZSpk"
 LEVELS_RANGE = "A2:C100"  # Name, Level, Value
 
