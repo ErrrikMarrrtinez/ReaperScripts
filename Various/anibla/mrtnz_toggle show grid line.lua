@@ -1,4 +1,4 @@
 --@noindex
 --NoIndex: true
 
-reaper.Main_OnCommand(0, 42328)
+reaper.Main_OnCommand(42328, 0)
