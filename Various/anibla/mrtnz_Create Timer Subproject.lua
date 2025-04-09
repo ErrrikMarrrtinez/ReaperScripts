@@ -214,8 +214,8 @@ function FileCopier:process_queue()
   reaper.defer(function() self:process_queue() end)
 end
 
+dofile(debug.getinfo(1, "S").source:match([[^@?(.*[\/])[^\/]-$]]) .. 'Reateam_RPP-Parser.lua')
 
-dofile(reaper.GetResourcePath() .. [[\Scripts\ReaTeam Scripts\Development\RPP-Parser\Reateam_RPP-Parser.lua]])
 if not RChunk then return end
 
 local sep = package.config:sub(1,1)
@@ -301,10 +301,11 @@ for i, proj in ipairs(projects) do
 end
 
 local used_media_files = {}
-for _, path in pairs(used_media_set) do
-  -- table.insert(used_media_files, path)
+local skip_exts = { m4a=1, mp4=1, mov=1, avi=1, mkv=1, flv=1, wmv=1, webm=1 }
 
-  if not path:lower():match("%.(m4a|mp4|mov|avi|mkv|flv|wmv|webm)$") then
+for _, path in pairs(used_media_set) do
+  local ext = path:match("%.([^%.\\/:]+)$")
+  if not (ext and skip_exts[ext:lower()]) then
     table.insert(used_media_files, path)
   end
 end

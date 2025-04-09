@@ -1391,6 +1391,7 @@ function f.FindSubprojectTracksByNotes()
 end
 
 function utf8.fix(s)
+  if not s then return "" end
   local cs = {}
   for c in ("АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ" ..
             "абвгдежзийклмнопрстуфхцчшщъыьэюя"):gmatch("[%z\1-\127\194-\244][\128-\191]*") do
