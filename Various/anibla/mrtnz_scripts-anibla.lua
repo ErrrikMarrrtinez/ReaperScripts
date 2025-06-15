@@ -1,6 +1,6 @@
 -- @description Anibla scripts
 -- @author mrtnz
--- @version 0.5.59
+-- @version 0.5.60
 -- @provides 
 --   [main] .
 --   [main] mrtnz_insert text item by region under mouse.lua
@@ -26,10 +26,5 @@
 --   mrtnz_srtass-parser.lua
 --   mrtnz_utils.lua
 --   clnew.ttc
---   mrtnz_subtitle_hotkeys.lua
---   mrtnz_subtitle_session.lua
---   mrtnz_subtitle_sync.lua
---   mrtnz_subtitle_ui.lua
---   mrtnz_subtitle_editor_main.lua
 
 local nothing
