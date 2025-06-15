@@ -8,10 +8,10 @@ r.PreventUIRefresh(0)
 r.Undo_BeginBlock()
 
 f.ImportMarkersFromParent()
-f.color_regions()
 f.ImportTrackChunkFromParent()
 -- f.ImportAllSubprojectTracksFromParent()
-
+f.ImportNotesFromParent()
+f.color_regions()
 r.Undo_EndBlock("Импорт маркеров/регионов из родительского проекта", -1)
 r.UpdateArrange()
 r.PreventUIRefresh(-1)

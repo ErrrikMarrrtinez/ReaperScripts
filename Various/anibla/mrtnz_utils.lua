@@ -396,44 +396,41 @@ function f.CreateSubprojectForTrack(sel_track, current_rpp, parent_dir)
   local notes_str = string.format("<NOTES 0 0\n  |main_project=%s\n>", main_proj_filename)
   local notes_node = RNode:new({ line = notes_str })
   newproj:addNode(notes_node)
-  
 
+  -- Флаг, чтобы отслеживать, найден ли видео-трек
+  local video_track_found = false
 
--- Флаг, чтобы отслеживать, найден ли видео-трек
-local video_track_found = false
+  for i = 0, reaper.CountTracks(0) - 1 do
+    local track = reaper.GetTrack(0, i)
+    local _, track_name = reaper.GetSetMediaTrackInfo_String(track, "P_NAME", "", false)
 
-for i = 0, reaper.CountTracks(0) - 1 do
-  local track = reaper.GetTrack(0, i)
-  local _, track_name = reaper.GetSetMediaTrackInfo_String(track, "P_NAME", "", false)
-
-  -- Ищем видео-трек
-  if track_name:lower():find("%[video%]") then
-    local track_chunk = f.GetTrackChunk(track)
-    if track_chunk then
-      local new_track = ReadRPPChunk(track_chunk)
-      if new_track then
-        new_track:StripGUID()
-        newproj:addNode(new_track)
-        video_track_found = true
+    -- Ищем видео-трек
+    if track_name:lower():find("%[video%]") then
+      local track_chunk = f.GetTrackChunk(track)
+      if track_chunk then
+        local new_track = ReadRPPChunk(track_chunk)
+        if new_track then
+          new_track:StripGUID()
+          newproj:addNode(new_track)
+          video_track_found = true
+        end
       end
     end
-  end
 
-  -- Если найден видео-трек, ищем связанный трек с маркерами
-  if video_track_found and track_name == "### VIDEO MARKERS ###" then
-    local marker_chunk = f.GetTrackChunk(track)
-    if marker_chunk then
-      local marker_track = ReadRPPChunk(marker_chunk)
-      if marker_track then
-        marker_track:StripGUID()
-        newproj:addNode(marker_track)
+    -- Если найден видео-трек, ищем связанный трек с маркерами
+    if video_track_found and track_name == "### VIDEO MARKERS ###" then
+      local marker_chunk = f.GetTrackChunk(track)
+      if marker_chunk then
+        local marker_track = ReadRPPChunk(marker_chunk)
+        if marker_track then
+          marker_track:StripGUID()
+          newproj:addNode(marker_track)
+        end
       end
+      -- Сброс флага, чтобы не искать дальше
+      video_track_found = false
     end
-    -- Сброс флага, чтобы не искать дальше
-    video_track_found = false
   end
-end
-
 
   local selected_track_chunk = f.GetTrackChunk(sel_track)
   if selected_track_chunk then
@@ -477,7 +474,38 @@ MAINSEND 1 0
     newproj:addNode(empty_track)
   end
 
-
+  -- Добавляем EXTSTATE с NOTES из текущего проекта
+  local current_proj = reaper.EnumProjects(-1)
+  local extstate_content = {}
+  
+  -- Собираем все NOTES из текущего проекта
+  local notes_lines = {}
+  local i = 0
+  while true do
+    local ok, key, value = reaper.EnumProjExtState(current_proj, 'Notes', i)
+    if not ok then break end
+    if value and value ~= "" then
+      table.insert(notes_lines, '  ' .. key .. ' "' .. value .. '"')
+    end
+    i = i + 1
+  end
+  
+  -- Если есть NOTES для добавления
+  if #notes_lines > 0 then
+    -- Создаем структуру EXTSTATE
+    local extstate_str = "<EXTSTATE\n"
+    extstate_str = extstate_str .. "  <NOTES\n"
+    for _, line in ipairs(notes_lines) do
+      extstate_str = extstate_str .. line .. "\n"
+    end
+    extstate_str = extstate_str .. "  >\n"
+    extstate_str = extstate_str .. ">"
+    
+    local extstate_node = ReadRPPChunk(extstate_str)
+    if extstate_node then
+      newproj:addNode(extstate_node)
+    end
+  end
 
   local ok, err = WriteRPP(new_project_path, newproj)
   if not ok then
@@ -488,7 +516,6 @@ MAINSEND 1 0
   local new_project_name = name_no_sub .. ".rpp"
   
   f.MarkAsParentProject(new_project_name)
-  
 
   return true
 end
@@ -509,6 +536,80 @@ function f.RemoveAllMarkersAndRegions(proj)
   end
 end
 
+function f.ImportNotesFromParent()
+  local parent_proj_name = f.get_parent_project()
+  if not parent_proj_name then
+    reaper.ShowMessageBox("Не найден родительский проект в NOTES!", "Ошибка", 0)
+    return
+  end
+  
+  local cur_proj, cur_proj_path = reaper.EnumProjects(-1, "")
+  if not cur_proj_path or cur_proj_path == "" then
+    reaper.ShowMessageBox("Сохраните проект перед запуском скрипта!", "Ошибка", 0)
+    return
+  end
+  
+  local cur_proj_dir = cur_proj_path:match("(.*)[/\\]") or ""
+  local parent_path = cur_proj_dir .. "\\" .. parent_proj_name
+  
+  local parent_root = ReadRPP(parent_path)
+  if not parent_root then
+    reaper.ShowMessageBox("Ошибка парсинга родительского проекта:\n" .. parent_path, "Ошибка", 0)
+    return
+  end
+  
+  -- Ищем секцию EXTSTATE
+  local extstate_node = parent_root:findFirstNodeByName("EXTSTATE")
+  if not extstate_node then
+    reaper.ShowMessageBox("Не найдена секция EXTSTATE в родительском проекте", "Информация", 0)
+    return
+  end
+  
+  -- Ищем секцию NOTES внутри EXTSTATE
+  local notes_node = extstate_node:findFirstNodeByName("NOTES")
+  if not notes_node then
+    reaper.ShowMessageBox("Не найдена секция NOTES в родительском проекте", "Информация", 0)
+    return
+  end
+  
+  -- Очищаем текущие NOTES в проекте (опционально)
+  -- Можно закомментировать эту часть, если нужно добавлять к существующим
+  local current_proj = reaper.EnumProjects(-1)
+  local i = 0
+  while true do
+    local ok, key, value = reaper.EnumProjExtState(current_proj, 'Notes', i)
+    if not ok then break end
+    reaper.SetProjExtState(current_proj, 'Notes', key, '')
+    i = i + 1
+  end
+  
+  -- Импортируем все записи из NOTES секции родительского проекта
+  local imported_count = 0
+  if notes_node.children then
+    for i, child in ipairs(notes_node.children) do
+      local tokens = child:getTokens()
+      if #tokens >= 2 then
+        local key = tokens[1]:getString()
+        local value = tokens[2]:getString()
+        
+        -- Удаляем кавычки из значения, если они есть
+        if value:sub(1,1) == '"' and value:sub(-1) == '"' then
+          value = value:sub(2, -2)
+        end
+        
+        -- Сохраняем в текущий проект
+        reaper.SetProjExtState(current_proj, 'Notes', key, value)
+        imported_count = imported_count + 1
+      end
+    end
+  end
+  
+  if imported_count > 0 then
+    reaper.ShowMessageBox("Импортировано записей NOTES: " .. imported_count, "Успех", 0)
+  else
+    reaper.ShowMessageBox("Не найдено записей для импорта в секции NOTES", "Информация", 0)
+  end
+end
 
 function f.ImportMarkersFromParent()
   local parent_proj_name = f.get_parent_project()
@@ -516,20 +617,27 @@ function f.ImportMarkersFromParent()
     reaper.ShowMessageBox("Не найден родительский проект в NOTES!", "Ошибка", 0)
     return
   end
+  
   local cur_proj, cur_proj_path = reaper.EnumProjects(-1, "")
   if not cur_proj_path or cur_proj_path == "" then
     reaper.ShowMessageBox("Сохраните проект перед запуском скрипта!", "Ошибка", 0)
     return
   end
+  
   local cur_proj_dir = cur_proj_path:match("(.*)[/\\]") or ""
   local parent_path = cur_proj_dir .. "\\" .. parent_proj_name
+  
   local parent_root = ReadRPP(parent_path)
   if not parent_root then
     reaper.ShowMessageBox("Ошибка парсинга родительского проекта:\n" .. parent_path, "Ошибка", 0)
     return
   end
+  
   f.RemoveAllMarkersAndRegions(0)
-  local custom_color = reaper.ColorToNative(255, 165, 0)
+  
+  -- Цвет по умолчанию (оранжевый)
+  local default_color = reaper.ColorToNative(255, 165, 0)
+  
   local children = parent_root.children or {}
   local i = 1
   while i <= #children do
@@ -539,9 +647,17 @@ function f.ImportMarkersFromParent()
       if #tokens >= 4 then
         local pos = tonumber(tokens[3]:getString()) or 0
         local name = tokens[4]:getString() or ""
-        local marker_index = tonumber(tokens[2]:getString()) or -1
-        if marker_index > 1000 then marker_index = -1 end
+        
+        -- Удаляем кавычки из имени, если они есть
+        if name:sub(1,1) == '"' and name:sub(-1) == '"' then
+          name = name:sub(2, -2)
+        end
+        
+        -- Используем -1 для автоматического назначения ID
+        local marker_index = -1
+        
         if #tokens >= 8 and tokens[8]:getString() == "R" then
+          -- Это регион
           local region_start = pos
           local region_end = nil
           local j = i + 1
@@ -556,21 +672,83 @@ function f.ImportMarkersFromParent()
             j = j + 1
           end
           if region_end and region_end > region_start then
-            reaper.AddProjectMarker2(0, true, region_start, region_end, name, custom_color, marker_index)
+            reaper.AddProjectMarker2(0, true, region_start, region_end, name, marker_index, default_color)
             i = j  -- пропускаем до найденного парного маркера
           else
-            reaper.AddProjectMarker2(0, false, region_start, 0, name, custom_color, marker_index)
+            reaper.AddProjectMarker2(0, false, region_start, 0, name, marker_index, default_color)
           end
         else
-          reaper.AddProjectMarker2(0, false, pos, 0, name, custom_color, marker_index)
+          -- Это маркер
+          reaper.AddProjectMarker2(0, false, pos, 0, name, marker_index, default_color)
         end
       end
     end
     i = i + 1
   end
 end
+-- Функция конвертации RGB в формат REAPER (с альфа-каналом)
+function f.RGBToReaperColor(r, g, b)
+  r = math.floor(math.max(0, math.min(255, r)))
+  g = math.floor(math.max(0, math.min(255, g)))
+  b = math.floor(math.max(0, math.min(255, b)))
+  
+  local red = string.format("%02x", r)
+  local green = string.format("%02x", g)
+  local blue = string.format("%02x", b)
+  local color_hex = "01" .. blue .. green .. red
+  return tonumber(color_hex, 16)
+end
 
-
+-- Улучшенная функция покраски маркеров и регионов
+function f.color_regions()
+  reaper.Undo_BeginBlock()
+  
+  local marker_ok, num_markers, num_regions = reaper.CountProjectMarkers(0)
+  
+  if not marker_ok or (num_markers + num_regions == 0) then
+    reaper.Undo_EndBlock("No markers or regions to color", -1)
+    return
+  end
+  
+  -- Определяем цвета в правильном формате REAPER
+  local default_region_color = f.RGBToReaperColor(135, 206, 235)  -- голубой для регионов
+  local default_marker_color = f.RGBToReaperColor(255, 165, 0)    -- оранжевый для маркеров
+  local zametka_color = f.RGBToReaperColor(0, 255, 0)             -- ярко-зелёный для #ZAMETKA
+  local oshibka_color = f.RGBToReaperColor(255, 0, 0)             -- красный для #OSHIBKA
+  
+  for i = 0, num_markers + num_regions - 1 do
+    local retval, isrgn, pos, rgnend, name, markrgnindexnumber, current_color = reaper.EnumProjectMarkers3(0, i)
+    
+    if retval then
+      local color_to_use
+      
+      if isrgn then
+        -- Это регион - красим только если есть специальные теги
+        if name and name:find("#ZAMETKA") then
+          color_to_use = zametka_color
+        elseif name and name:find("#OSHIBKA") then
+          color_to_use = oshibka_color
+        else
+          color_to_use = f.rgb2uint(135, 206, 235)  -- используем старую функцию для обычных регионов
+        end
+      else
+        -- Это маркер
+        if name and name:find("#ZAMETKA") then
+          color_to_use = zametka_color
+        elseif name and name:find("#OSHIBKA") then
+          color_to_use = oshibka_color
+        else
+          color_to_use = default_marker_color
+        end
+      end
+      
+      reaper.SetProjectMarker3(0, markrgnindexnumber, isrgn, pos, rgnend, name, color_to_use)
+    end
+  end
+  
+  reaper.Undo_EndBlock("Color markers and regions by type", -1)
+  reaper.UpdateArrange()
+end
 function f.ClearTrackAndItems(track)
   if not track then return end
   reaper.SetMediaTrackInfo_Value(track, "I_RECARM", 0)
@@ -862,19 +1040,19 @@ function f.rgb2uint(r, g, b)
   return (r << 16) | (g << 8) | b
 end
 
-function f.color_regions()
-  reaper.Undo_BeginBlock()
-  local _, num_markers, num_regions = reaper.CountProjectMarkers(0)
-  local default_color = f.rgb2uint(135, 206, 235)
-  local i = 0
-  while i < (num_markers + num_regions) do
-    local _, isrgn, pos, rgnend, name, markrgnindexnumber = reaper.EnumProjectMarkers3(0, i)
-    if isrgn then reaper.SetProjectMarker3(0, markrgnindexnumber, isrgn, pos, rgnend, name, default_color) end
-    i = i + 1
-  end
-  reaper.Undo_EndBlock("Set all regions to default color", -1)
-  reaper.UpdateArrange()
-end
+-- function f.color_regions()
+--   reaper.Undo_BeginBlock()
+--   local _, num_markers, num_regions = reaper.CountProjectMarkers(0)
+--   local default_color = f.rgb2uint(135, 206, 235)
+--   local i = 0
+--   while i < (num_markers + num_regions) do
+--     local _, isrgn, pos, rgnend, name, markrgnindexnumber = reaper.EnumProjectMarkers3(0, i)
+--     if isrgn then reaper.SetProjectMarker3(0, markrgnindexnumber, isrgn, pos, rgnend, name, default_color) end
+--     i = i + 1
+--   end
+--   reaper.Undo_EndBlock("Set all regions to default color", -1)
+--   reaper.UpdateArrange()
+-- end
 
 -------------------------------------------------------
 -- Дополнительные функции (если понадобятся)
@@ -965,7 +1143,7 @@ function f.get_regions()
   for i = 0, count - 1 do
     local retval, isrgn, pos, rgnend, name = reaper.EnumProjectMarkers3(0, i)
     if isrgn then 
-      regions[#regions+1] = {start = pos, endPos = rgnend, name = name} 
+      regions[#regions+1] = {start = pos, endPos = rgnend, name = name:gsub("%-", " ")} 
     end
   end
   return regions
@@ -1391,7 +1569,6 @@ function f.FindSubprojectTracksByNotes()
 end
 
 function utf8.fix(s)
-  if not s then return "" end
   local cs = {}
   for c in ("АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ" ..
             "абвгдежзийклмнопрстуфхцчшщъыьэюя"):gmatch("[%z\1-\127\194-\244][\128-\191]*") do

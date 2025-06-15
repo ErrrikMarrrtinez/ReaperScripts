@@ -3,13 +3,11 @@
 
 --[[
   Библиотека для работы с субтитрами в REAPER.
-  
   Функционал:
     - Импорт регионов из файлов субтитров (SRT или ASS) в проект.
     - Экспорт регионов проекта в SRT-файл с выбором места сохранения через диалог.
     - Конвертация ASS-файла в SRT.
     - Диалоговый импорт файла субтитров (SRT или ASS).
-  
   Использование:
     local SubtitlesLib = require("SubtitlesLib")
     SubtitlesLib.importSubtitlesAsRegions("C:\\Users\\Эрик\\Downloads\\6 (1).srt")
@@ -18,8 +16,10 @@
     SubtitlesLib.convertASStoSRT("C:\\Users\\Эрик\\Downloads\\Dr. Stoun 06qism.ass")
 ]]--
 
+
 local SubtitleLib = {}
 local r = reaper
+SubtitleLib.simpleCleanMode = false
 -------------------------------------------------------------
 -- Преобразование времени SRT "HH:MM:SS,mmm" в секунды
 local function parseTime(timeStr)
@@ -46,27 +46,118 @@ local function parseASSTime(timeStr)
   end
   return tonumber(h) * 3600 + tonumber(m) * 60 + tonumber(s) + csValue
 end
+-- Добавить в начало файла после local SubtitleLib = {}
+SubtitleLib.simpleCleanMode = false  -- Флаг для простой очистки
 
-
+-- Заменить функцию cleanText на эту версию:
 function cleanText(text)
   if not text then return text end
 
+  -- Если включен простой режим - используем упрощенную очистку
+  if SubtitleLib.simpleCleanMode then
+    -- Сначала обрабатываем специфичные паттерны
+    text = text:gsub("Рђ'%¦", "j")
+    text = text:gsub("\\[Nn]", "  ")
+    text = text:gsub("¦", ":")
+    text = text:gsub("ђ", "j")
+    text = text:gsub("…", "...")
+
+    -- Заменяем все виды кавычек на обычную одинарную кавычку
+    -- Обрабатываем все возможные варианты кавычек за один проход
+    text = text:gsub("['']", "'")  -- левая и правая одинарные кавычки
+    text = text:gsub("`", "'")     -- обратная кавычка
+    text = text:gsub("ʻ", "'")     -- модификатор буквы повернутая запятая
+
+    -- Заменяем множественные кавычки на одну
+    text = text:gsub("'+", "'")
+
+    -- Убираем символы-заменители
+    text = text:gsub("�", "")
+
+    return text
+  end
+
+  -- Оригинальная сложная очистка
+  text = text:gsub("{\\[^}]+}", "")
   text = text:gsub("Рђ'%¦", "j")
   text = text:gsub("\\[Nn]", "  ")
-  text = text:gsub("‘", "'")
-  text = text:gsub("’", "'")
+  text = text:gsub("'", "'")
+  text = text:gsub("'", "'")
   text = text:gsub("`", "'")
   text = text:gsub("[''`]+", "'")
   text = text:gsub("…", "...")
   text = text:gsub("ʻ", "'")
   text = text:gsub("¦", ":")
   text = text:gsub("ђ", "j")
-  -- text = decode_mojibake(text)
-  return text
+  
+  -- Удаляем символ замещения � (U+FFFD)
+  text = text:gsub("�", "'")
+  text = text:gsub("�", "")
+  
+  -- Более агрессивная очистка: оставляем только безопасные символы
+  local cleaned = ""
+  local i = 1
+  while i <= #text do
+    local byte = string.byte(text, i)
+    
+    if byte then
+      -- ASCII printable characters (32-126)
+      if byte >= 32 and byte <= 126 then
+        cleaned = cleaned .. string.char(byte)
+        i = i + 1
+      -- Основные пробельные символы
+      elseif byte == 9 or byte == 10 or byte == 13 then -- tab, LF, CR
+        cleaned = cleaned .. string.char(byte)
+        i = i + 1
+      -- Latin-1 Supplement (160-255) - но осторожно
+      elseif byte >= 160 and byte <= 255 then
+        cleaned = cleaned .. string.char(byte)
+        i = i + 1
+      -- UTF-8 многобайтовые последовательности - пропускаем
+      elseif byte >= 194 and byte <= 244 then
+        -- Определяем длину UTF-8 последовательности
+        local seqLen = 1
+        if byte >= 194 and byte <= 223 then seqLen = 2
+        elseif byte >= 224 and byte <= 239 then seqLen = 3
+        elseif byte >= 240 and byte <= 244 then seqLen = 4
+        end
+        
+        -- Проверяем, что у нас есть полная последовательность
+        local validUTF8 = true
+        if i + seqLen - 1 <= #text then
+          for j = 1, seqLen - 1 do
+            local nextByte = string.byte(text, i + j)
+            if not nextByte or nextByte < 128 or nextByte > 191 then
+              validUTF8 = false
+              break
+            end
+          end
+        else
+          validUTF8 = false
+        end
+        
+        if validUTF8 then
+          local utf8char = text:sub(i, i + seqLen - 1)
+          cleaned = cleaned .. " "
+        end
+        
+        i = i + seqLen
+      else
+        -- Все остальные байты пропускаем
+        i = i + 1
+      end
+    else
+      break
+    end
+  end
+  
+  -- Очищаем множественные пробелы и пробелы в начале/конце
+  cleaned = cleaned:gsub("%s+", " ")
+  cleaned = cleaned:gsub("^%s+", "")
+  cleaned = cleaned:gsub("%s+$", "")
+  
+  return cleaned
 end
-
-
-
 -------------------------------------------------------------
 -- Форматирование времени для SRT "HH:MM:SS,mmm"
 local function formatSRTTime(seconds)
@@ -76,7 +167,6 @@ local function formatSRTTime(seconds)
   local msecs = math.floor((seconds - math.floor(seconds)) * 1000)
   return string.format("%02d:%02d:%02d,%03d", hours, minutes, secs, msecs)
 end
-
 -------------------------------------------------------------
 -- Парсинг SRT-файла.
 local function parseSRTFile(filePath)
@@ -86,9 +176,7 @@ local function parseSRTFile(filePath)
   end
   local content = file:read("*a")
   file:close()
-  
   content = content:gsub("\r\n", "\n")
-  
   local regions = {}
   local pattern = "(%d+)%s*\n([0-9:,]+)%s*%-%->%s*([0-9:,]+)%s*\n(.-)\n%s*\n"
   for id, startTime, endTime, text in content:gmatch(pattern) do
@@ -102,7 +190,7 @@ local function parseSRTFile(filePath)
       reaper.ShowConsoleMsg("Ошибка парсинга времени в блоке " .. id .. "\n")
     end
   end
-  
+
   if #regions == 0 then
     local id, startTime, endTime, text = content:match("(%d+)%s*\n([0-9:,]+)%s*%-%->%s*([0-9:,]+)%s*\n(.*)$")
     if id then
@@ -128,9 +216,7 @@ local function parseASSFile(filePath)
   end
   local content = file:read("*a")
   file:close()
-  
   content = content:gsub("\r\n", "\n")
-  
   local eventsSection = false
   local formatFields = nil
   local regions = {}
@@ -203,7 +289,6 @@ local function parseASSFile(filePath)
   
   return regions
 end
-
 -------------------------------------------------------------
 -- Добавление регионов в проект REAPER.
 local function addRegionsToProject(regions)
@@ -211,7 +296,6 @@ local function addRegionsToProject(regions)
     reaper.ShowMessageBox("Нет регионов для добавления.", "Ошибка", 0)
     return false
   end
-  
   reaper.Undo_BeginBlock()
   for _, region in ipairs(regions) do
     reaper.AddProjectMarker(0, true, region.start, region._end, region.text, -1)
@@ -220,7 +304,6 @@ local function addRegionsToProject(regions)
   reaper.Undo_EndBlock("Добавлены регионы из субтитров", -1)
   return true
 end
-
 -------------------------------------------------------------
 -- Импорт субтитров (SRT или ASS) как регионов в проект.
 function importSubtitlesAsRegions(filePath)
