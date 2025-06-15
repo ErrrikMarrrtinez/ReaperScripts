@@ -1568,6 +1568,14 @@ function f.FindSubprojectTracksByNotes()
   return subprojects
 end
 
+function f.IsCurrentProjectSubproject()
+  local notes = reaper.GetSetProjectNotes(0, false, "")
+  if notes:match("main_project=") then
+    return true
+  end
+  return false
+end
+
 function utf8.fix(s)
   local cs = {}
   for c in ("АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ" ..

@@ -706,7 +706,6 @@ function draw_delete_confirmation()
     im.EndPopup(ctx04)
   end
 end
--- Замененная функция отображения списка заметок
 function draw_notes_list()
   if im.BeginChild(ctx04, "notes_list", 200, -1, 1) then
     local w = im.GetContentRegionAvail(ctx04)
@@ -714,10 +713,12 @@ function draw_notes_list()
     
     if im.Button(ctx04, "New Note", new_note_width, 0) then
       local track_name = get_selected_track_name()
-      if track_name then
-        pending_track_name = track_name
-        show_note_type_popup = true
+      if not track_name or track_name == "" then
+        -- Используем имя по умолчанию если нет выбранного трека
+        track_name = "Note_" .. tostring(math.floor(r.time_precise() * 1000) % 10000)
       end
+      pending_track_name = track_name
+      show_note_type_popup = true
     end
     
     im.SameLine(ctx04)

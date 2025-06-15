@@ -1328,7 +1328,7 @@ function main_loop()
     editorFirstFrame = updatedData.editorFirstFrame
     editorTexts = updatedData.editorTexts
     cachedItems = updatedData.cachedRegions
-    
+    checkNotesAndShowManager()
     -- Очистка памяти
     cleanupMemory()
     
@@ -1337,5 +1337,95 @@ function main_loop()
     end
 end
 
+
+local notesManagerShown = false
+local lastNotesCheck = 0
+local lastProject = nil
+
+function checkNotesAndShowManager()
+    local now = r.time_precise()
+    local currentProject = r.EnumProjects(-1, "")
+    if currentProject ~= lastProject then
+        notesManagerShown = false
+        lastNotesCheck = 0
+        lastProject = currentProject
+        itemsCacheData.items = {}
+        itemsCacheData.lastUpdate = 0
+        sharedData.subtitles = {}
+        sharedData.lastUpdate = 0
+        textHeightsCache = {}
+        textHeightsCacheCount = 0
+        transform_measure_cache = {}
+        transform_cache_count = 0
+        lastCursorPos = nil
+        return
+    end
+    
+    if notesManagerShown or (now - lastNotesCheck) < 5 or not f.IsCurrentProjectSubproject() then
+        return
+    end
+    
+    lastNotesCheck = now
+    local freshItems = f.get_markers_and_regions()
+    local filteredItems = filter_markers(freshItems)
+    
+    if not filteredItems or #filteredItems == 0 then 
+        notesManagerShown = true
+        return 
+    end
+    
+    local errorCount, noteCount = 0, 0
+    for _, item in ipairs(filteredItems) do
+        if item and item.name then
+            local upperText = item.name:upper()
+            if upperText:find("#OSHIBKA") then
+                errorCount = errorCount + 1
+            elseif upperText:find("#ZAMETKA") then
+                noteCount = noteCount + 1
+            end
+        end
+    end
+    
+    if errorCount == 0 and noteCount == 0 then
+        notesManagerShown = true
+        return
+    end
+    
+    local russianText = ""
+    local uzbekText = ""
+    
+    if errorCount > 0 and noteCount > 0 then
+        russianText = string.format("У вас %d ошибок и %d заметок.", errorCount, noteCount)
+        uzbekText = string.format("Sizda %d xato va %d izoh bor.", errorCount, noteCount)
+    elseif errorCount > 0 then
+        russianText = string.format("У вас %d ошибок.", errorCount)
+        uzbekText = string.format("Sizda %d xato bor.", errorCount)
+    else
+        russianText = string.format("У вас %d заметок.", noteCount)
+        uzbekText = string.format("Sizda %d izoh bor.", noteCount)
+    end
+    
+    local dialogText = russianText .. "\n" .. uzbekText .. "\n\nОткрыть менеджер заметок?\nIzohlar menejerini ochishni xohlaysizmi?"
+    local result = r.ShowMessageBox(dialogText, "Менеджер заметок / Izohlar menejeri", 3)
+    
+    if result == 6 then
+        local notesManagerPath = script_path .. 'mrtnz_Note manager.lua'
+        local file = io.open(notesManagerPath, "r")
+        if file then
+            file:close()
+            local command_id = reaper.AddRemoveReaScript(true, 0, notesManagerPath, true)
+            if command_id ~= 0 then
+                reaper.Main_OnCommand(command_id, 0)
+            else
+                reaper.ShowMessageBox("Не удалось зарегистрировать скрипт:\n" .. notesManagerPath, "Ошибка", 0)
+            end
+        else
+            reaper.ShowMessageBox("Файл не найден:\n" .. notesManagerPath, "Ошибка", 0)
+        end
+    end
+    
+    notesManagerShown = true
+end
 r.atexit()
 r.defer(main_loop)
+
