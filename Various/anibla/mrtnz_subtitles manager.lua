@@ -14,6 +14,7 @@ end
 
 local f = require('mrtnz_utils')
 local srtass = require('mrtnz_srtass-parser')
+srtass.simpleCleanMode = true
 
 local state = f.checkDependencies()
 if not state then return end
@@ -1213,7 +1214,13 @@ end
             if showProgressBar and isMainWindow then
                 draw_progress_subtitles(activeIndices, subtitles, cursor_pos)
             end
-
+            local function cleanQuotes(text)
+                if not text then return "" end
+                text = text:gsub("`", "'")   
+                text = text:gsub("ʻ", "'")  
+                text = text:gsub("'", "'")
+                return text
+            end
             if ImGui.IsMouseDoubleClicked(ctx, 0) and isMainWindow then
                 local regions_at_cursor = get_original_region_text_at_cursor()
                 
@@ -1227,8 +1234,9 @@ end
                     
                     for _, region_data in ipairs(regions_at_cursor) do
                         table.insert(editingIndices, region_data.index)
-                        -- Используем оригинальный текст напрямую из REAPER API
-                        editorTexts[region_data.index] = region_data.original_name
+                        
+                       -- editorTexts[region_data.index] = region_data.original_name
+                        editorTexts[region_data.index] = cleanQuotes(region_data.original_name)
                     end
                 end
             end

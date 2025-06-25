@@ -52,7 +52,9 @@ SubtitleLib.simpleCleanMode = false  -- Флаг для простой очис�
 -- Заменить функцию cleanText на эту версию:
 function cleanText(text)
   if not text then return text end
-
+  text = text:gsub("`", "'")   
+  text = text:gsub("ʻ", "'")  
+  text = text:gsub("'", "'")
   -- Если включен простой режим - используем упрощенную очистку
   if SubtitleLib.simpleCleanMode then
     -- Сначала обрабатываем специфичные паттерны
