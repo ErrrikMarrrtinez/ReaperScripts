@@ -12,6 +12,7 @@ else
     ImGui = require 'imgui' '0.9.2.3'
 end
 
+
 local f = require('mrtnz_utils')
 local srtass = require('mrtnz_srtass-parser')
 srtass.simpleCleanMode = true
@@ -242,29 +243,93 @@ ImGui.Attach(ctx, editorFont)
 -- Store wrapped text for real-time updates
 local editorWrappedTexts = {}
 
--- Auto-wrap function for text input (outside the main function)
 local function wrapTextForInput(ctx, text, maxWidth)
     if not text or text == "" then return text end
-    if text:find("\n") then return text end
     
-    local wrappedText, currentLine = "", ""
-    for word in text:gmatch("%S+") do
-        if currentLine == "" then 
-            currentLine = word 
+    -- Если уже есть ручные переносы - не трогаем их, только добавляем автопереносы
+    local lines = {}
+    for line in text:gmatch("[^\n]+") do
+        if line == "" then 
+            table.insert(lines, "")
         else
-            local potentialLineWidth = ImGui.CalcTextSize(ctx, currentLine.." "..word)
-            if potentialLineWidth > maxWidth then 
-                wrappedText = wrappedText..currentLine.."\n"
-                currentLine = word 
-            else 
-                currentLine = currentLine.." "..word 
+            -- Проверяем нужен ли автоперенос для этой строки
+            local lineWidth = ImGui.CalcTextSize(ctx, line)
+            if lineWidth <= maxWidth then
+                table.insert(lines, line)
+            else
+                -- Добавляем автопереносы с специальным маркером
+                local words = {}
+                for word in line:gmatch("%S+") do
+                    table.insert(words, word)
+                end
+                
+                local currentLine = ""
+                for _, word in ipairs(words) do
+                    local testLine = (currentLine == "") and word or (currentLine .. " " .. word)
+                    local testWidth = ImGui.CalcTextSize(ctx, testLine)
+                    
+                    if testWidth > maxWidth and currentLine ~= "" then
+                        table.insert(lines, currentLine)
+                        currentLine = word
+                    else
+                        currentLine = testLine
+                    end
+                end
+                
+                if currentLine ~= "" then
+                    table.insert(lines, currentLine)
+                end
             end
         end
     end
-    if currentLine ~= "" then 
-        wrappedText = wrappedText..currentLine 
+    
+    return table.concat(lines, "\n")
+end
+-- Новая функция для умного удаления только автопереносов
+local function removeAutoWrapping(originalText, editedText, maxWidth, ctx)
+    if not editedText or editedText == "" then return "" end
+    
+    -- Разбиваем текст на строки
+    local editedLines = {}
+    for line in editedText:gmatch("[^\n]*") do
+        table.insert(editedLines, line)
     end
-    return wrappedText
+    
+    -- Восстанавливаем исходные параграфы, убирая только автопереносы
+    local result = {}
+    local i = 1
+    
+    while i <= #editedLines do
+        local paragraph = editedLines[i]
+        i = i + 1
+        
+        -- Собираем строки в параграф пока не встретим пустую строку или конец
+        while i <= #editedLines and editedLines[i] ~= "" do
+            local nextLine = editedLines[i]
+            local testCombined = paragraph .. " " .. nextLine
+            local combinedWidth = ImGui.CalcTextSize(ctx, testCombined)
+            
+            -- Если объединенная строка помещается в ширину - это был автоперенос
+            if combinedWidth <= maxWidth * 1.1 then -- небольшой запас
+                paragraph = testCombined
+            else
+                -- Это скорее всего ручной перенос, начинаем новый параграф
+                table.insert(result, paragraph)
+                paragraph = nextLine
+            end
+            i = i + 1
+        end
+        
+        table.insert(result, paragraph)
+        
+        -- Если была пустая строка - добавляем её (ручной перенос абзаца)
+        if i <= #editedLines and editedLines[i] == "" then
+            table.insert(result, "")
+            i = i + 1
+        end
+    end
+    
+    return table.concat(result, "\n")
 end
 
 function processSubtitleEditor(ctx, editorOpen, editorFirstFrame, editingIndices, editorTexts, cachedRegions, f, r, update_region_name)
@@ -1214,13 +1279,17 @@ end
             if showProgressBar and isMainWindow then
                 draw_progress_subtitles(activeIndices, subtitles, cursor_pos)
             end
+            
             local function cleanQuotes(text)
                 if not text then return "" end
                 text = text:gsub("`", "'")   
                 text = text:gsub("ʻ", "'")  
                 text = text:gsub("'", "'")
+                text = text:gsub("’", "'")
+                
                 return text
             end
+            
             if ImGui.IsMouseDoubleClicked(ctx, 0) and isMainWindow then
                 local regions_at_cursor = get_original_region_text_at_cursor()
                 

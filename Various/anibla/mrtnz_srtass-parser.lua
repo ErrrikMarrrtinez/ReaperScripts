@@ -52,9 +52,22 @@ SubtitleLib.simpleCleanMode = false  -- Флаг для простой очис�
 -- Заменить функцию cleanText на эту версию:
 function cleanText(text)
   if not text then return text end
-  text = text:gsub("`", "'")   
-  text = text:gsub("ʻ", "'")  
+  text = text:gsub("’", "'")
+  text = text:gsub("`", "'")     -- обратная кавычка
+  text = text:gsub("ʻ", "'")     -- модификатор буквы повернутая запятая
+  text = text:gsub("‘", "'")
+
+
+      text = text:gsub("'", "'")
   text = text:gsub("'", "'")
+  text = text:gsub("`", "'")
+  text = text:gsub("’", "'")
+
+  text = text:gsub("[''`]+", "'")
+  text = text:gsub("…", "...")
+  text = text:gsub("ʻ", "'")
+
+
   -- Если включен простой режим - используем упрощенную очистку
   if SubtitleLib.simpleCleanMode then
     -- Сначала обрабатываем специфичные паттерны
@@ -63,13 +76,21 @@ function cleanText(text)
     text = text:gsub("¦", ":")
     text = text:gsub("ђ", "j")
     text = text:gsub("…", "...")
+    
+      text = text:gsub("'", "'")
+  text = text:gsub("'", "'")
+  text = text:gsub("`", "'")
+  text = text:gsub("’", "'")
 
-    -- Заменяем все виды кавычек на обычную одинарную кавычку
-    -- Обрабатываем все возможные варианты кавычек за один проход
+  text = text:gsub("[''`]+", "'")
+  text = text:gsub("…", "...")
+  text = text:gsub("ʻ", "'")
+
+
     text = text:gsub("['']", "'")  -- левая и правая одинарные кавычки
     text = text:gsub("`", "'")     -- обратная кавычка
     text = text:gsub("ʻ", "'")     -- модификатор буквы повернутая запятая
-
+    text = text:gsub("‘", "'")
     -- Заменяем множественные кавычки на одну
     text = text:gsub("'+", "'")
 
@@ -86,6 +107,8 @@ function cleanText(text)
   text = text:gsub("'", "'")
   text = text:gsub("'", "'")
   text = text:gsub("`", "'")
+  text = text:gsub("’", "'")
+
   text = text:gsub("[''`]+", "'")
   text = text:gsub("…", "...")
   text = text:gsub("ʻ", "'")
