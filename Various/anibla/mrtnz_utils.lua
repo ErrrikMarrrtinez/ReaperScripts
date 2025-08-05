@@ -549,6 +549,9 @@ function f.ImportNotesFromParent()
     return
   end
   
+  -- Получаем имя текущего проекта без расширения
+  local cur_proj_name = (reaper.GetProjectName(-1):gsub("%.[^.]+$", ""))
+  
   local cur_proj_dir = cur_proj_path:match("(.*)[/\\]") or ""
   local parent_path = cur_proj_dir .. "\\" .. parent_proj_name
   
@@ -567,13 +570,13 @@ function f.ImportNotesFromParent()
   
   -- Ищем секцию NOTES внутри EXTSTATE
   local notes_node = extstate_node:findFirstNodeByName("NOTES")
+  
   if not notes_node then
     reaper.ShowMessageBox("Не найдена секция NOTES в родительском проекте", "Информация", 0)
     return
   end
   
-  -- Очищаем текущие NOTES в проекте (опционально)
-  -- Можно закомментировать эту часть, если нужно добавлять к существующим
+  -- Очищаем текущие NOTES в проекте (extstateproj)
   local current_proj = reaper.EnumProjects(-1)
   local i = 0
   while true do
@@ -583,7 +586,7 @@ function f.ImportNotesFromParent()
     i = i + 1
   end
   
-  -- Импортируем все записи из NOTES секции родительского проекта
+  -- Импортируем все записи из NOTES секции родительского проекта с фильтрацией
   local imported_count = 0
   if notes_node.children then
     for i, child in ipairs(notes_node.children) do
@@ -597,17 +600,53 @@ function f.ImportNotesFromParent()
           value = value:sub(2, -2)
         end
         
-        -- Сохраняем в текущий проект
-        reaper.SetProjExtState(current_proj, 'Notes', key, value)
-        imported_count = imported_count + 1
+        -- Получаем первую часть value до первого разделителя |
+        local first_part = value:match("([^|]*)")
+        
+        -- Если первая часть совпадает с именем текущего проекта - импортируем
+        if first_part and first_part == cur_proj_name then
+          -- reaper.ShowConsoleMsg(tostring(i)..'\n')
+          -- reaper.ShowConsoleMsg("Key: " .. key .. ", Value: " .. value .. "\n") 
+          
+          -- Сохраняем в текущий проект
+          reaper.SetProjExtState(current_proj, 'Notes', key, value)
+          imported_count = imported_count + 1
+        end
       end
     end
   end
   
-  if imported_count > 0 then
-    reaper.ShowMessageBox("Импортировано записей NOTES: " .. imported_count, "Успех", 0)
+  -- Очищаем маркеры #ZAMETKA и #OSHIBKA с чужими именами проектов
+  local num = reaper.CountProjectMarkers(0)
+  local deleted_markers = 0
+  for i = num-1, 0, -1 do
+    local retval, isrgn, pos, rgnend, name, markrgnindexnumber = reaper.EnumProjectMarkers(i)
+    if retval and not isrgn then
+      -- Пытаемся вытащить имя после #ZAMETKA или #OSHIBKA (например, #ZAMETKA pamjol 2)
+      local tag_name = name:match("^#ZAMETKA%s+(%S+)")
+                  or name:match("^#OSHIBKA%s+(%S+)")
+      if tag_name and tag_name ~= cur_proj_name then
+        -- Удаляем маркер, если имя после тега не совпадает с именем проекта
+        reaper.DeleteProjectMarker(0, markrgnindexnumber, false)
+        deleted_markers = deleted_markers + 1
+      end
+    end
+  end
+  
+  reaper.UpdateArrange()
+  
+  if imported_count > 0 or deleted_markers > 0 then
+    local message = ""
+    if imported_count > 0 then
+      message = message .. "Импортировано записей NOTES: " .. imported_count
+    end
+    if deleted_markers > 0 then
+      if message ~= "" then message = message .. "\n" end
+      message = message .. "Удалено маркеров с чужими именами: " .. deleted_markers
+    end
+    -- reaper.ShowMessageBox(message, "Успех", 0)
   else
-    reaper.ShowMessageBox("Не найдено записей для импорта в секции NOTES", "Информация", 0)
+    reaper.ShowMessageBox("Не найдено записей для импорта и маркеров для удаления", "Информация", 0)
   end
 end
 

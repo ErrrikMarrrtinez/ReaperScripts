@@ -4,8 +4,13 @@
 
 local r = reaper
 local script_path = debug.getinfo(1, "S").source:match("@(.*[\\/])")
+
 local imgui_path = r.ImGui_GetBuiltinPath()..'/?.lua'
 package.path = imgui_path..";"..script_path..'?.lua'
+local f = require('mrtnz_utils')
+
+
+
 local im = require 'imgui' '0.9.3.3'
 local ctx04 = im.CreateContext('Enhanced Notes Manager')
 local FLT_MIN, FLT_MAX = im.NumericLimits_Float()
@@ -22,12 +27,17 @@ local show_delete_confirm = false
 local delete_target_id = nil
 local speed_options = {1.0, 1.25, 1.5, 1.75, 2.0}
 local current_speed_index = 1
-local font = im.CreateFont('sans-serif', 16)
+local font = im.CreateFont('sans-serif', 14)
 local styles
 local center_x, center_y, width, height
 local recording_track_guid = nil
 local waveform_cache = {}
 im.Attach(ctx04, font)
+
+
+IS_CHILDREN = f.get_parent_project()
+
+
 function string.trim(s)
   return s:match("^%s*(.-)%s*$")
 end
@@ -109,6 +119,7 @@ end
 local show_note_type_popup = false
 local pending_track_name = nil
 
+
 function create_marker_for_note(note_name, note_type)
   local marker_pos = get_marker_position()
   local marker_name
@@ -121,7 +132,14 @@ function create_marker_for_note(note_name, note_type)
     marker_name = prefix .. " " .. note_name .. " " .. number
   end
   
-  local marker_color = note_type == "error" and 0xFF0000FF or 0x00FF00FF
+  -- ИСПРАВЛЕНО: используем правильные цвета через f.RGBToReaperColor
+  local marker_color
+  if note_type == "error" then
+    marker_color = f.RGBToReaperColor(255, 0, 0)     -- красный для ошибок
+  else
+    marker_color = f.RGBToReaperColor(0, 255, 0)     -- зеленый для заметок
+  end
+  
   local marker_id = r.AddProjectMarker2(0, false, marker_pos, 0, marker_name, -1, marker_color)
   return marker_id, marker_pos, number
 end
@@ -167,7 +185,8 @@ function create_note_of_type(track_name, note_type)
   stop_preview()
   
   local marker_id, marker_pos, number = create_marker_for_note(track_name, note_type)
-  current_id = tostring(r.time_precise())
+  -- ВАЖНО: используем строковый ID с префиксом для избежания конфликтов
+  current_id = "note_" .. tostring(r.time_precise()):gsub("%.", "_")
   
   local prefix = note_type == "error" and "#OSHIBKA" or "#ZAMETKA"
   local marker_name = prefix .. " " .. track_name
@@ -182,7 +201,8 @@ function create_note_of_type(track_name, note_type)
     timestamp = current_id,
     region = "",
     marker_name = marker_name,
-    marker_pos = marker_pos
+    marker_pos = marker_pos,
+    completed = 0  -- Всегда создаем как невыполненную
   }
   save_note(current_id)
 end
@@ -395,7 +415,8 @@ function load_notes()
     for part in v:gmatch("([^|]*)") do
       table.insert(parts, part)
     end
-    if #parts >= 7 then
+    -- Минимум должно быть 6 частей (без marker_pos и completed)
+    if #parts >= 6 then
       notes[k] = {
         recipient = parts[1] or "",
         content = parts[2] or "",
@@ -403,7 +424,8 @@ function load_notes()
         timestamp = parts[4] or tostring(r.time_precise()),
         region = parts[5] or "",
         marker_name = parts[6] or "",
-        marker_pos = tonumber(parts[7]) or 0
+        marker_pos = tonumber(parts[7]) or 0,
+        completed = tonumber(parts[8]) or 0  -- Безопасно получаем completed
       }
       if notes[k].content ~= "" then
         notes[k].content = notes[k].content:gsub('\\n', '\n')
@@ -423,7 +445,8 @@ function save_note(id)
     note.timestamp or tostring(r.time_precise()),
     note.region or "",
     note.marker_name or "",
-    tostring(note.marker_pos or 0)
+    tostring(note.marker_pos or 0),
+    tostring(note.completed or 0)
   }, '|')
   r.SetProjExtState(prj, 'Notes', id, data)
 end
@@ -637,16 +660,12 @@ function draw_audio_player()
       end
       im.ProgressBar(ctx04, valid and peak or 0, -1, 6, "")
     end
-    if im.Button(ctx04, is_playing and "Stop" or "Play", 60, 0) then
+    if im.Button(ctx04, is_playing and "| |" or ">", 60, 0) then
       if not is_playing and audio_path ~= "" then
         start_preview(audio_path)
       else
         stop_preview()
       end
-    end
-    im.SameLine(ctx04)
-    if im.Button(ctx04, paused_position and "Res" or "Pause", 60, 0) then
-      pause_preview()
     end
     im.SameLine(ctx04)
     im.PushStyleColor(ctx04, im.Col_Button, styles.speed_button)
@@ -711,112 +730,238 @@ function draw_notes_list()
     local w = im.GetContentRegionAvail(ctx04)
     local new_note_width = w * 0.75
     
-    if im.Button(ctx04, "New Note", new_note_width, 0) then
-      local track_name = get_selected_track_name()
-      if not track_name or track_name == "" then
-        -- Используем имя по умолчанию если нет выбранного трека
-        track_name = "Note_" .. tostring(math.floor(r.time_precise() * 1000) % 10000)
+    -- Кнопки создания и удаления (только если не в дочернем проекте)
+    if not IS_CHILDREN then
+      if im.Button(ctx04, "New Note", new_note_width, 0) then
+        local track_name = get_selected_track_name()
+        if not track_name or track_name == "" then
+          track_name = "Note_" .. tostring(math.floor(r.time_precise() * 1000) % 10000)
+        end
+        pending_track_name = track_name
+        show_note_type_popup = true
       end
-      pending_track_name = track_name
-      show_note_type_popup = true
+    
+      im.SameLine(ctx04)
+      im.PushStyleColor(ctx04, im.Col_Button, styles.delete_button)
+      im.PushStyleColor(ctx04, im.Col_ButtonHovered, 0xE06E6EFF)
+      im.PushStyleColor(ctx04, im.Col_ButtonActive, 0xFF8080FF)
+      local del_button_width = w - new_note_width - 8
+      if im.Button(ctx04, "Del", del_button_width, 0) and current_id then
+        show_delete_confirm = true
+        delete_target_id = current_id
+      end
+      im.PopStyleColor(ctx04, 3)
     end
     
-    im.SameLine(ctx04)
-    im.PushStyleColor(ctx04, im.Col_Button, styles.delete_button)
-    im.PushStyleColor(ctx04, im.Col_ButtonHovered, 0xE06E6EFF)
-    im.PushStyleColor(ctx04, im.Col_ButtonActive, 0xFF8080FF)
-    local del_button_width = w - new_note_width - 8
-    if im.Button(ctx04, "Del", del_button_width, 0) and current_id then
-      show_delete_confirm = true
-      delete_target_id = current_id
-    end
-    im.PopStyleColor(ctx04, 3)
-    
+    -- Создаем массив заметок для сортировки
+    local sorted_notes = {}
     for id, note in pairs(notes) do
+      table.insert(sorted_notes, {id = id, note = note})
+    end
+    
+    -- Сортируем по номеру в marker_name
+    table.sort(sorted_notes, function(a, b)
+      local num_a = 1
+      local num_b = 1
+      
+      if a.note.marker_name then
+        local extracted_num = a.note.marker_name:match("%s+(%d+)$")
+        if extracted_num then
+          num_a = tonumber(extracted_num) or 1
+        end
+      end
+      
+      if b.note.marker_name then
+        local extracted_num = b.note.marker_name:match("%s+(%d+)$")
+        if extracted_num then
+          num_b = tonumber(extracted_num) or 1
+        end
+      end
+      
+      -- Сначала сортируем по типу (заметки первыми, потом ошибки), затем по номеру
+      local type_a = get_note_type(a.note)
+      local type_b = get_note_type(b.note)
+      
+      if type_a ~= type_b then
+        return type_a == "note" -- заметки идут первыми
+      end
+      
+      return num_a < num_b
+    end)
+    
+    -- Отрисовываем отсортированные заметки
+    for _, item in ipairs(sorted_notes) do
+      local id = item.id
+      local note = item.note
       local label = get_note_display_name(note)
       local note_type = get_note_type(note)
       
-      -- Определяем цвет в зависимости от типа и наличия аудио
+      -- ИСПРАВЛЕННЫЕ цвета: в родительском проекте заметки всегда зеленые, ошибки красные
       local text_color
       if note_type == "error" then
-        text_color = has_audio_file(note) and 0xFF6B6BFF or 0xF44336FF  -- светло-красный или красный
+        if IS_CHILDREN then
+          -- В родительском проекте цвет зависит от наличия аудио
+          text_color = has_audio_file(note) and 0xFF6B6BFF or 0xF44336FF
+        else
+          -- В дочернем проекте цвет зависит от наличия аудио
+          text_color = has_audio_file(note) and 0xFF6B6BFF or 0xF44336FF
+        end
       else
-        text_color = has_audio_file(note) and 0x4CAF50FF or 0x66BB6AFF  -- зеленый или светло-зеленый
+        if IS_CHILDREN then
+          -- В родительском проекте заметки всегда зеленые (есть аудио или нет)
+          text_color = 0x4CAF50FF
+        else
+          -- В дочернем проекте цвет зависит от наличия аудио
+          text_color = has_audio_file(note) and 0x4CAF50FF or 0x66BB6AFF
+        end
+      end
+      
+      -- Инициализируем completed если его нет
+      if note.completed == nil then
+        note.completed = 0
+      end
+      
+      -- Отрисовываем чекбокс только в родительском проекте (когда IS_CHILDREN != nil)
+      if IS_CHILDREN then
+        local checkbox_changed, checkbox_value = im.Checkbox(ctx04, "##completed_" .. tostring(id), note.completed == 1)
+        if checkbox_changed then
+          note.completed = checkbox_value and 1 or 0
+          save_note(id)  -- Используем единую функцию сохранения
+        end
+        
+        -- Ставим Selectable на той же строке
+        im.SameLine(ctx04)
       end
       
       im.PushStyleColor(ctx04, im.Col_Text, text_color)
-      if im.Selectable(ctx04, label, current_id == id) then
+      
+      -- ИСПРАВЛЕНИЕ: используем прямое сравнение с проверкой типов
+      local is_selected = (tostring(current_id) == tostring(id))
+      
+      -- ВАЖНО: добавляем уникальный ID к каждому Selectable элементу
+      local unique_label = label .. "##note_" .. tostring(id)
+      
+      if im.Selectable(ctx04, unique_label, is_selected) then
         stop_preview()
-        current_id = id
+        current_id = id  -- Присваиваем id напрямую
         if note.marker_name and note.marker_name ~= "" then
           move_cursor_to_marker(note.marker_name)
         end
       end
+      
       im.PopStyleColor(ctx04)
     end
     
     im.EndChild(ctx04)
   end
 end
+
+-- Исправленная функция редактора заметок
 function draw_note_editor()
-  if not current_id or not notes[current_id] then return end
+  if not current_id or not notes[current_id] then 
+    return 
+  end
+  
   local note = notes[current_id]
-  im.SetNextItemWidth(ctx04, -1)
-  local rv_recipient, new_recipient = im.InputText(ctx04, "##To", note.recipient or "", 128)
-  if rv_recipient then 
-    note.recipient = new_recipient
+  
+  -- Логика для отображения имени в зависимости от типа проекта
+  if not IS_CHILDREN then
+    -- В родительском проекте - редактируемое поле
+    im.SetNextItemWidth(ctx04, -1)
+    local current_name = note.recipient or ""
+    local rv_recipient, new_recipient = im.InputText(ctx04, "##-31231", current_name)
+    if rv_recipient then 
+      -- Защищаем номер в конце имени при редактировании
+      local base_name = new_recipient:gsub("%s+%d+$", "")  -- Убираем цифру если есть
+      local original_number = current_name:match("%s+(%d+)$") or "1"  -- Сохраняем оригинальную цифру
+      note.recipient = base_name .. " " .. original_number
+      save_note(current_id)  -- Автосохранение
+    end
+  else
+    -- В дочернем проекте - только текст
+    im.Text(ctx04, 'KOMY: ' .. (note.recipient or ""))
   end
-  im.PushItemWidth(ctx04, -1)
-  local rv_content, new_content = im.InputTextMultiline(ctx04, "##content", note.content or "", -1, 50)
-  im.PopItemWidth(ctx04)
-  if rv_content then 
-    note.content = new_content
-  end
-  local button_width = (im.GetContentRegionAvail(ctx04) - 16) / 3
-  if im.Button(ctx04, "From Item", button_width, 0) then
-    local audio_path = get_audio_from_item()
-    if audio_path then
-      note.audio_path = audio_path
-      stop_preview()
+  
+  -- Логика для контента в зависимости от типа проекта
+  if not IS_CHILDREN then
+    -- В родительском проекте - редактируемое поле
+    im.PushItemWidth(ctx04, -1)
+    local rv_content, new_content = im.InputTextMultiline(ctx04, "##content", note.content or "", -1, 50)
+    im.PopItemWidth(ctx04)
+    if rv_content then 
+      note.content = new_content
+      save_note(current_id)  -- Автосохранение при изменении контента
+    end
+  else
+    -- В дочернем проекте - только текст с переносом (и только если не пустой)
+    if note.content and note.content ~= "" then
+      im.PushTextWrapPos(ctx04, 0.0)  -- Включаем перенос до конца окна
+      im.TextWrapped(ctx04, note.content)
+      im.PopTextWrapPos(ctx04)
     end
   end
-  im.SameLine(ctx04)
-  local create_text = recording_track_guid and "Recreate Track" or "Create Track"
-  if im.Button(ctx04, create_text, button_width, 0) then
-    if recording_track_guid then
-      delete_recording_track(recording_track_guid)
+  
+  -- Кнопки записи (только если не в дочернем проекте)
+  if not IS_CHILDREN then 
+    local button_width = im.GetContentRegionAvail(ctx04)
+    
+    -- Показываем "Create Track" только если трека нет
+    if not recording_track_guid then
+      if im.Button(ctx04, "Create Track", button_width, 0) then
+        recording_track_guid = create_recording_track(note.recipient or "Note")
+      end
+    else
+      -- Показываем "OK" только если трек создан
+      if im.Button(ctx04, "OK", button_width, 0) then
+        -- Проверяем, идет ли запись, и останавливаем её
+        local recording_state = r.GetPlayState()
+        if recording_state & 4 == 4 then  -- Если идет запись (бит 4)
+          r.Main_OnCommand(1016, 0)  -- Останавливаем запись
+        end
+        
+        -- Применяем записанное аудио
+        local audio_path = get_audio_from_recording_track(recording_track_guid)
+        if audio_path then
+          note.audio_path = audio_path
+          stop_preview()
+        end
+        
+        -- Удаляем трек записи и сбрасываем состояние
+        delete_recording_track(recording_track_guid)
+        recording_track_guid = nil
+        
+        note.timestamp = tostring(r.time_precise())
+        save_note(current_id)  -- Автосохранение после применения записи
+      end
     end
-    recording_track_guid = create_recording_track(note.recipient or "Note")
   end
-  im.SameLine(ctx04)
-  local apply_enabled = recording_track_guid ~= nil
-  if not apply_enabled then
-    im.PushStyleVar(ctx04, im.StyleVar_Alpha, 0.5)
-  end
-  if im.Button(ctx04, "Apply Rec", button_width, 0) and apply_enabled then
-    local audio_path = get_audio_from_recording_track(recording_track_guid)
-    if audio_path then
-      note.audio_path = audio_path
-      delete_recording_track(recording_track_guid)
-      recording_track_guid = nil
-      stop_preview()
-    end
-  end
-  if not apply_enabled then
-    im.PopStyleVar(ctx04)
-  end
+  
   draw_audio_player()
-  local save_button_width = 80
-  local cursor_x = im.GetContentRegionAvail(ctx04) - save_button_width
-  im.SetCursorPosX(ctx04, im.GetCursorPosX(ctx04) + cursor_x)
-  im.PushStyleColor(ctx04, im.Col_Button, styles.save_button)
-  im.PushStyleColor(ctx04, im.Col_ButtonHovered, 0x66BB6AFF)
-  im.PushStyleColor(ctx04, im.Col_ButtonActive, 0x388E3CFF)
-  if im.Button(ctx04, "SAVE", save_button_width, 0) then
-    note.timestamp = tostring(r.time_precise())
-    save_note(current_id)
+  
+  -- Убираем статус автосохранения (как просили)
+end
+
+-- Исправленная функция поиска соответствующей заметки (без отладки)
+function find_matching_note()
+  local _, project_name = r.EnumProjects(-1, "")
+  if not project_name or project_name == "" then
+    for id, _ in pairs(notes) do
+      return id
+    end
+    return nil
   end
-  im.PopStyleColor(ctx04, 3)
+  project_name = project_name:lower()
+  for id, note in pairs(notes) do
+    if note.recipient and note.recipient ~= "" then
+      if project_name:find(note.recipient:lower()) then
+        return id
+      end
+    end
+  end
+  for id, _ in pairs(notes) do
+    return id
+  end
+  return nil
 end
 function handle_keyboard_input()
   local space_pressed = im.IsKeyPressed(ctx04, im.Key_Space)

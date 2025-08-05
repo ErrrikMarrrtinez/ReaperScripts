@@ -33,12 +33,8 @@ local cachedRegions = {}
 local cachedRegionsTime = 0
 local regionColors = {}
 local scrollY = 0
+local needScrollToActive = false
 
-local showProgressBar = true
-local savedProgressBarState = r.GetExtState("SubtitlesWindow", "showProgressBar")
-if savedProgressBarState and savedProgressBarState ~= "" then 
-    showProgressBar = savedProgressBarState == "true"
-end
 
 -- ИСПРАВЛЕНИЕ УТЕЧКИ ПАМЯТИ: Ограниченные кеши
 local MAX_CACHE_SIZE = 500
@@ -113,12 +109,11 @@ local function drawTextWithFrame(ctx, text, wrap_width, cachedData, frameColor)
     
     -- Рисуем текст как обычно
     for i, line in ipairs(cachedData.lines) do
-        local _, textWidth = transformAndMeasure(line)
+        local textWidth = ImGui.CalcTextSize(ctx, line)
         local offset = (wrap_width - textWidth) * 0.5
         offset = math.max(offset, 0)
         ImGui.SetCursorPos(ctx, startX + offset - 4, startY + (i - 1) * (cachedData.lineHeight + cachedData.extraSpacing))
-        local trans_line, _ = transformAndMeasure(line)
-        ImGui.Text(ctx, trans_line)
+        ImGui.Text(ctx, line)
     end
     
     return cachedData.height
@@ -542,36 +537,6 @@ function processSubtitleEditor(ctx, editorOpen, editorFirstFrame, editingIndices
     }
 end
 
-function draw_progress_subtitles(activeIndices, regions, cursor_pos)
-    if #activeIndices > 0 then
-        local draw_list = reaper.ImGui_GetForegroundDrawList(ctx)
-        local win_pos_x, win_pos_y = ImGui.GetWindowPos(ctx)
-        local win_size_x, win_size_y = ImGui.GetWindowSize(ctx)
-        local margin = 10
-        local bar_height = 15
-        for j, index in ipairs(activeIndices) do
-            local activeRegion = regions[index]
-            if activeRegion then
-                local regionLength = activeRegion.endPos - activeRegion.start
-                local progress = (cursor_pos - activeRegion.start) / regionLength
-                progress = math.min(math.max(progress, 0), 1)
-                
-                local offset_y = win_size_y - margin - bar_height - (j-1) * (bar_height + 5)
-                local bar_x1 = win_pos_x + margin
-                local bar_y1 = win_pos_y + offset_y
-                local bar_x2 = win_pos_x + win_size_x - margin
-                local bar_y2 = bar_y1 + bar_height
-                
-                local bar_color = 0xFF8B0000
-                local progress_color = 0xcd583320
-                
-                ImGui.DrawList_AddRectFilled(draw_list, bar_x1, bar_y1, bar_x2, bar_y2, bar_color, 0, 0)
-                local progress_x = bar_x1 + (bar_x2 - bar_x1) * progress
-                ImGui.DrawList_AddRectFilled(draw_list, bar_x1, bar_y1, progress_x, bar_y2, progress_color, 0, 0)
-            end
-        end
-    end
-end
 
 local theme = r.GetExtState("SubtitlesWindow", "theme")
 if theme == "" then theme = "default" end
@@ -601,8 +566,6 @@ local function apply_theme()
 end
 
 apply_theme()
-if showProgressBar == nil then showProgressBar = false end
-if font2_attached == nil then font2_attached = false end
 
 local function isActive(i, indices)
     for _, idx in ipairs(indices) do
@@ -649,96 +612,8 @@ local function update_region_name(region, newName)
     return false
 end
 
-local custom_alphabet = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя"
-local lookup = {}
-local index = 1
-for _, code in utf8.codes(custom_alphabet) do
-    local ch = utf8.char(code)
-    lookup[ch] = utf8.char(160 + index)
-    index = index + 1
-end
 
-local function safe_utf8_text(text)
-    local len = #text
-    local i = 1
-    local clean = {}
-    while i <= len do
-        local byte1 = text:byte(i)
-        local cp, valid = nil, false
-        if byte1 < 0x80 then
-            cp = text:sub(i, i)
-            valid = true
-            i = i + 1
-        elseif byte1 >= 0xC2 and byte1 <= 0xDF and i + 1 <= len then
-            local byte2 = text:byte(i + 1)
-            if byte2 >= 0x80 and byte2 <= 0xBF then
-                cp = text:sub(i, i + 1)
-                valid = true
-                i = i + 2
-            else
-                i = i + 1
-            end
-        elseif byte1 >= 0xE0 and byte1 <= 0xEF and i + 2 <= len then
-            local byte2 = text:byte(i + 1)
-            local byte3 = text:byte(i + 2)
-            if byte2 >= 0x80 and byte2 <= 0xBF and byte3 >= 0x80 and byte3 <= 0xBF then
-                cp = text:sub(i, i + 2)
-                valid = true
-                i = i + 3
-            else
-                i = i + 1
-            end
-        elseif byte1 >= 0xF0 and byte1 <= 0xF4 and i + 3 <= len then
-            local byte2 = text:byte(i + 1)
-            local byte3 = text:byte(i + 2)
-            local byte4 = text:byte(i + 3)
-            if byte2 >= 0x80 and byte2 <= 0xBF and byte3 >= 0x80 and byte3 <= 0xBF and byte4 >= 0x80 and byte4 <= 0xBF then
-                cp = text:sub(i, i + 3)
-                valid = true
-                i = i + 4
-            else
-                i = i + 1
-            end
-        else
-            i = i + 1
-        end
-        if valid then
-            clean[#clean + 1] = cp
-        end
-    end
-    return table.concat(clean)
-end
 
--- ИСПРАВЛЕНИЕ УТЕЧКИ: Ограниченный кеш трансформации
-local transform_measure_cache = {}
-local transform_cache_count = 0
-local function transformAndMeasure(text)
-    if not text then return "", 0 end
-    
-    if transform_measure_cache[text] then
-        return transform_measure_cache[text].trans, transform_measure_cache[text].width
-    end
-    
-    -- Очищаем кеш при достижении лимита
-    if transform_cache_count > MAX_CACHE_SIZE then
-        transform_measure_cache = {}
-        transform_cache_count = 0
-    end
-    
-    local parts = {}
-    text = safe_utf8_text(text)
-    
-    for _, code in utf8.codes(text) do
-        local ch = utf8.char(code)
-        table.insert(parts, lookup[ch] or ch)
-    end
-    
-    local trans = table.concat(parts)
-    local width = select(1, ImGui.CalcTextSize(ctx, trans))
-    transform_measure_cache[text] = { trans = trans, width = width }
-    transform_cache_count = transform_cache_count + 1
-    return trans, width
-end
 
 function f.get_markers_and_regions()
     local items = {}
@@ -805,14 +680,15 @@ function get_cached_items(dynamicInterval)
     return itemsCacheData.items
 end
 
-duplicateWindowActive = duplicateWindowActive or false
-mainScrollY = mainScrollY or 0
-dupScrollY   = dupScrollY or 0
+local scrollY = 0
 
 function showContextMenu(ctx)
     if ImGui.BeginPopupContextWindow(ctx, "context_menu") then
         if ImGui.MenuItem(ctx, "Import subtitles (.srt or .ass)") then
             if srtass.importSubtitlesAsRegionsDialog() then
+                needScrollToActive = true
+                itemsCacheData.items = {}
+                itemsCacheData.lastUpdate = 0
             end
             f.ToggleMarkerTrackMute()
         end
@@ -821,18 +697,11 @@ function showContextMenu(ctx)
         end
 
         ImGui.Separator(ctx)
-        if ImGui.MenuItem(ctx, "Show progress bar", nil, showProgressBar) then
-            showProgressBar = not showProgressBar
-            r.SetExtState("SubtitlesWindow", "showProgressBar", tostring(showProgressBar), true)
-        end
 
-        if ImGui.MenuItem(ctx, "Duplicate Window") then
-            duplicateWindowActive = not duplicateWindowActive
-        end
 
         ImGui.EndPopup(ctx)
     end
-    return showProgressBar
+    return
 end
 
 -- ИСПРАВЛЕНИЕ УТЕЧКИ: Ограниченный кеш высот
@@ -841,7 +710,7 @@ function calculateWrappedTextHeight(ctx, text, wrap_width)
     
     wrap_width = wrap_width or ImGui.GetContentRegionAvail(ctx)
     local lineHeight = select(2, ImGui.CalcTextSize(ctx, "Ag"))
-    local extraSpacing = lineHeight * 0.3
+    local extraSpacing = 0
     local lines = {}
 
     for originalLine in text:gmatch("[^\r\n]+") do
@@ -852,7 +721,7 @@ function calculateWrappedTextHeight(ctx, text, wrap_width)
         local currentLine = ""
         for _, word in ipairs(words) do
             local candidate = (currentLine == "") and word or (currentLine .. " " .. word)
-            local _, candidateWidth = transformAndMeasure(candidate)
+            local candidateWidth = ImGui.CalcTextSize(ctx, candidate)
             if candidateWidth > wrap_width and currentLine ~= "" then
                 table.insert(lines, currentLine)
                 currentLine = word
@@ -878,12 +747,11 @@ local function draw_centered_wrapped_text(ctx, text, wrap_width, cachedData)
     local startX = ImGui.GetCursorPosX(ctx)
     local startY = ImGui.GetCursorPosY(ctx)
     for i, line in ipairs(cachedData.lines) do
-        local _, textWidth = transformAndMeasure(line)
+        local textWidth = ImGui.CalcTextSize(ctx, line)
         local offset = (wrap_width - textWidth) * 0.5
         offset = math.max(offset, 0)
         ImGui.SetCursorPos(ctx, startX + offset - 4, startY + (i - 1) * (cachedData.lineHeight + cachedData.extraSpacing))
-        local trans_line, _ = transformAndMeasure(line)
-        ImGui.Text(ctx, trans_line)
+        ImGui.Text(ctx, line)
     end
     return cachedData.height
 end
@@ -939,10 +807,10 @@ local function getVisibleSubtitleIndices(subtitles, currentScrollY, windowHeight
             local heightData = textHeightsCache[cacheKey]
             if heightData and heightData.height then
                 positions[i] = totalHeight
-                totalHeight = totalHeight + heightData.height + 5
+                totalHeight = totalHeight + heightData.height + 2
             else
                 positions[i] = totalHeight
-                totalHeight = totalHeight + 40 + 5  -- фолбэк высота
+                totalHeight = totalHeight + 40 + 2  -- фолбэк высота
             end
         end
     end
@@ -1097,7 +965,7 @@ function updateSharedData(avail_w, avail_h, cursor_pos)
                     heightData = textHeightsCache[cacheKey]
                 end
                 if heightData and heightData.height then
-                    sharedData.totalHeight = sharedData.totalHeight + heightData.height + 5
+                    sharedData.totalHeight = sharedData.totalHeight + heightData.height + 2
                 end
             end
         end
@@ -1114,7 +982,7 @@ function updateSharedData(avail_w, avail_h, cursor_pos)
                 local heightData = textHeightsCache[cacheKey]
                 if heightData and heightData.height then
                     sharedData.regionCenters[i] = currentY + heightData.height * 0.5
-                    currentY = currentY + heightData.height + 5
+                    currentY = currentY + heightData.height + 2
                 end
             end
         end
@@ -1130,15 +998,11 @@ function updateSharedData(avail_w, avail_h, cursor_pos)
     end
 end
 
-function drawSubtitlesWindow(windowTitle, scrollY, isMainWindow)
+function drawSubtitlesWindow(windowTitle, scrollY)
     ImGui.SetNextWindowSize(ctx, 640, 640, ImGui.Cond_FirstUseEver)
     ImGui.PushStyleColor(ctx, ImGui.Col_WindowBg, WINDOW_BG)
     
-    -- Для дублирующего окна другой флаг
     local windowFlags = 0
-    if not isMainWindow then
-        windowFlags = ImGui.WindowFlags_NoCollapse
-    end
     
     visible, open = ImGui.Begin(ctx, windowTitle, true, windowFlags)
     ImGui.PopStyleColor(ctx)
@@ -1147,27 +1011,33 @@ function drawSubtitlesWindow(windowTitle, scrollY, isMainWindow)
         local avail_w, avail_h = ImGui.GetContentRegionAvail(ctx)
         
         if lastAvailW ~= avail_w then
+            -- очищаем кеш высот
             textHeightsCache = {}
             textHeightsCacheCount = 0
+        
+            -- сбросить sharedData, чтобы пересчитать regionCenters
+            sharedData.lastUpdate = 0
+            lastCursorPos = nil
+        
             lastAvailW = avail_w
+            needScrollToActive = true
         end
+        
 
         if ImGui.BeginChild(ctx, windowTitle.."ScrollingChild", avail_w, avail_h, 1,
              ImGui.WindowFlags_NoScrollWithMouse | ImGui.WindowFlags_NoScrollbar) then
             
-            -- Кнопки только в главном окне
-            if isMainWindow then
-                local win_x, win_y = ImGui.GetWindowPos(ctx)
-                local win_w, _ = ImGui.GetWindowSize(ctx)
-                ImGui.SetCursorScreenPos(ctx, win_x + win_w - 40, win_y + 10)
-                if ImGui.Button(ctx, "Col") then
-                    theme = (theme == "default") and "alternative" or "default"
-                    r.SetExtState("SubtitlesWindow", "theme", theme, true)
-                    apply_theme()
-                end
-
-                showContextMenu(ctx)
+            -- Кнопки
+            local win_x, win_y = ImGui.GetWindowPos(ctx)
+            local win_w, _ = ImGui.GetWindowSize(ctx)
+            ImGui.SetCursorScreenPos(ctx, win_x + win_w - 40, win_y + 10)
+            if ImGui.Button(ctx, "Col") then
+                theme = (theme == "default") and "alternative" or "default"
+                r.SetExtState("SubtitlesWindow", "theme", theme, true)
+                apply_theme()
             end
+
+            showContextMenu(ctx)
             
             ImGui.Dummy(ctx, 0, avail_h * 0.25)
 
@@ -1180,10 +1050,10 @@ function drawSubtitlesWindow(windowTitle, scrollY, isMainWindow)
             local play_state = r.GetPlayState()
             local cursor_pos = ((play_state & 1) == 1) and r.GetPlayPosition() or r.GetCursorPosition()
             
-            -- Обновляем общие данные только в главном окне
-            if isMainWindow then
-                updateSharedData(avail_w, avail_h, cursor_pos)
-            end
+            -- Обновляем общие данные
+            updateSharedData(avail_w, avail_h, cursor_pos)
+            
+            
             
             local subtitles = sharedData.subtitles
             local activeIndices = sharedData.activeIndices
@@ -1237,6 +1107,26 @@ elseif #subtitles > 0 then
     end
 end
 
+--[[ Принудительный скролл после импорта
+if needScrollToActive and #activeIndices > 0 then
+    local sum = 0
+    reaper.ShowConsoleMsg('net')
+    local count = 0
+    for _, idx in ipairs(activeIndices) do
+        if regionCenters[idx] then
+            sum = sum + regionCenters[idx]
+            count = count + 1
+        end
+    end
+    if count > 0 then
+        local desiredCenter = sum / count
+        local desiredScroll = desiredCenter - avail_h * 0.5
+        scrollY = desiredScroll
+        ImGui.SetScrollY(ctx, desiredScroll)
+        needScrollToActive = false
+    end
+end]]
+
             -- Видимые субтитры
             local currentScrollY = ImGui.GetScrollY(ctx)
             local visibleIndices = getVisibleSubtitleIndices(subtitles, currentScrollY, avail_h, textHeightsCache, avail_w)
@@ -1264,21 +1154,32 @@ end
                             ImGui.SetCursorPosY(ctx, currentY)
                             ImGui.Dummy(ctx, avail_w, heightData.height)
                         end
-                        currentY = currentY + heightData.height + 5
+                        currentY = currentY + heightData.height + 2
                     else
                         -- Фолбэк для случаев без данных о высоте
                         currentY = currentY + 45
                     end
                 end
             end
+            
+            if needScrollToActive then
+                -- если курсор на каком-то субтитре
+                if #sharedData.activeIndices > 0 then
+                    -- берем первый активный
+                    local idx = sharedData.activeIndices[1]
+                    local centerY = sharedData.regionCenters[idx] or 0
+                    -- желаемая позиция scrollY, чтобы центр субтитра был по середине окна
+                    scrollY = centerY - avail_h * 0.5
+                    ImGui.SetScrollY(ctx, scrollY)
+                end
+                
+                needScrollToActive = false
+            end
 
             ImGui.Dummy(ctx, 0, avail_h * 0.25)
             if fontPushed then ImGui.PopFont(ctx) end
             ImGui.EndChild(ctx)
 
-            if showProgressBar and isMainWindow then
-                draw_progress_subtitles(activeIndices, subtitles, cursor_pos)
-            end
             
             local function cleanQuotes(text)
                 if not text then return "" end
@@ -1290,7 +1191,7 @@ end
                 return text
             end
             
-            if ImGui.IsMouseDoubleClicked(ctx, 0) and isMainWindow then
+            if ImGui.IsMouseDoubleClicked(ctx, 0) then
                 local regions_at_cursor = get_original_region_text_at_cursor()
                 
                 if #regions_at_cursor > 0 then
@@ -1313,10 +1214,6 @@ end
         ImGui.End(ctx)
     end
     
-    -- Закрытие дублирующего окна не влияет на основное
-    if not isMainWindow and not visible then
-        duplicateWindowActive = false
-    end
     
     return scrollY
 end
@@ -1334,10 +1231,6 @@ function cleanupMemory()
             cacheKeyCount = 0
         end
         
-        if transform_cache_count > MAX_CACHE_SIZE * 0.8 then
-            transform_measure_cache = {}
-            transform_cache_count = 0
-        end
         
         if textHeightsCacheCount > MAX_CACHE_SIZE * 0.8 then
             textHeightsCache = {}
@@ -1359,11 +1252,10 @@ function main_loop()
     if not r.ImGui_ValidatePtr(ctx, "ImGui_Context*") then
         ctx = r.ImGui_CreateContext("Subtitles Window")
         reloadFont = true
-        font2_attached = false
     end
 
     if reloadFont then
-        font = ImGui.CreateFont(script_path..[[clnew.ttc]], fontSize)
+        font = ImGui.CreateFont('Arial', fontSize)
         ImGui.Attach(ctx, font)
         reloadFont = false
         r.SetExtState("SubtitlesWindow", "fontSize", tostring(fontSize), true)
@@ -1372,12 +1264,7 @@ function main_loop()
     end
 
     -- Главное окно
-    mainScrollY = drawSubtitlesWindow("Subtitles", mainScrollY, true)
-
-    -- Дублирующее окно (использует те же данные)
-    if duplicateWindowActive then
-        dupScrollY = drawSubtitlesWindow("Subtitles (View Only)", dupScrollY, false)
-    end
+    scrollY = drawSubtitlesWindow("Subtitles", scrollY)
 
     if ImGui.IsKeyDown(ctx, ImGui.Key_LeftCtrl) then
         local wheel = ImGui.GetMouseWheel(ctx)
@@ -1389,8 +1276,6 @@ function main_loop()
                 textHeightsCache = {}
                 textHeightsCacheCount = 0
                 lastCursorPos = nil
-                transform_measure_cache = {}
-                transform_cache_count = 0
             end
         end
     end
@@ -1414,10 +1299,42 @@ function main_loop()
     end
 end
 
-
 local notesManagerShown = false
 local lastNotesCheck = 0
 local lastProject = nil
+
+-- Функция для получения заметок из проекта
+function getProjectNotes()
+    local notes = {}
+    local prj = r.EnumProjects(-1)
+    
+    for i = 0, math.huge do
+        local ok, k, v = r.EnumProjExtState(prj, 'Notes', i)
+        if not ok then break end
+        if v == "" then goto continue end
+        
+        local parts = {}
+        for part in v:gmatch("([^|]*)") do
+            table.insert(parts, part)
+        end
+        
+        if #parts >= 7 then
+            notes[k] = {
+                recipient = parts[1] or "",
+                content = parts[2] or "",
+                audio_path = parts[3] or "",
+                timestamp = parts[4] or tostring(r.time_precise()),
+                region = parts[5] or "",
+                marker_name = parts[6] or "",
+                marker_pos = tonumber(parts[7]) or 0,
+                completed = tonumber(parts[8]) or 0  -- Параметр completed
+            }
+        end
+        ::continue::
+    end
+    
+    return notes
+end
 
 function checkNotesAndShowManager()
     local now = r.time_precise()
@@ -1432,8 +1349,6 @@ function checkNotesAndShowManager()
         sharedData.lastUpdate = 0
         textHeightsCache = {}
         textHeightsCacheCount = 0
-        transform_measure_cache = {}
-        transform_cache_count = 0
         lastCursorPos = nil
         return
     end
@@ -1442,7 +1357,54 @@ function checkNotesAndShowManager()
         return
     end
     
+    -- СОХРАНЯЕМ локальные состояния completed ПЕРЕД импортом
+    local localCompletedStates = {}
+    local existingNotes = getProjectNotes()
+    for noteId, note in pairs(existingNotes) do
+        if note.marker_name and note.marker_name ~= "" then
+            localCompletedStates[note.marker_name] = note.completed
+        end
+    end
+    
+    -- связка двух функций 
+    f.ImportMarkersFromParent(pname)
+    f.ImportNotesFromParent()
+    f.color_regions()
+    -----
+    
+    -- ВОССТАНАВЛИВАЕМ локальные состояния completed ПОСЛЕ импорта
+    local prj = r.EnumProjects(-1)
+    for i = 0, math.huge do
+        local ok, k, v = r.EnumProjExtState(prj, 'Notes', i)
+        if not ok then break end
+        if v == "" then goto continue end
+        
+        local parts = {}
+        for part in v:gmatch("([^|]*)") do
+            table.insert(parts, part)
+        end
+        
+        if #parts >= 7 then
+            local marker_name = parts[6] or ""
+            -- Если у нас есть сохраненное локальное состояние для этой заметки
+            if marker_name ~= "" and localCompletedStates[marker_name] ~= nil then
+                -- Восстанавливаем локальное состояние completed
+                parts[8] = tostring(localCompletedStates[marker_name])
+                
+                -- Пересохраняем заметку с восстановленным состоянием
+                local updated_data = table.concat(parts, '|')
+                r.SetProjExtState(prj, 'Notes', k, updated_data)
+            end
+        end
+        ::continue::
+    end
+    
     lastNotesCheck = now
+    
+    -- Получаем заметки из проекта (уже с восстановленными состояниями)
+    local projectNotes = getProjectNotes()
+    
+    -- Получаем маркеры и регионы
     local freshItems = f.get_markers_and_regions()
     local filteredItems = filter_markers(freshItems)
     
@@ -1452,17 +1414,39 @@ function checkNotesAndShowManager()
     end
     
     local errorCount, noteCount = 0, 0
+    
     for _, item in ipairs(filteredItems) do
         if item and item.name then
             local upperText = item.name:upper()
-            if upperText:find("#OSHIBKA") then
-                errorCount = errorCount + 1
-            elseif upperText:find("#ZAMETKA") then
-                noteCount = noteCount + 1
+            local isError = upperText:find("#OSHIBKA")
+            local isNote = upperText:find("#ZAMETKA")
+            
+            if isError or isNote then
+                -- Ищем соответствующую заметку в projectNotes
+                local noteFound = false
+                local noteCompleted = false
+                
+                for noteId, note in pairs(projectNotes) do
+                    if note.marker_name == item.name then
+                        noteFound = true
+                        noteCompleted = (note.completed == 1)
+                        break
+                    end
+                end
+                
+                -- Считаем только если заметка не найдена или не выполнена
+                if not noteFound or not noteCompleted then
+                    if isError then
+                        errorCount = errorCount + 1
+                    elseif isNote then
+                        noteCount = noteCount + 1
+                    end
+                end
             end
         end
     end
     
+    -- Если все заметки выполнены, не показываем уведомление
     if errorCount == 0 and noteCount == 0 then
         notesManagerShown = true
         return
@@ -1487,6 +1471,7 @@ function checkNotesAndShowManager()
     
     if result == 6 then
         local notesManagerPath = script_path .. 'mrtnz_Note manager.lua'
+        
         local file = io.open(notesManagerPath, "r")
         if file then
             file:close()
@@ -1503,6 +1488,8 @@ function checkNotesAndShowManager()
     
     notesManagerShown = true
 end
+
+
 r.atexit()
 r.defer(main_loop)
 
