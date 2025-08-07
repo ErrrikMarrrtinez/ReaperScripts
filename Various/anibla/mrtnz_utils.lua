@@ -156,6 +156,86 @@ function f.RemoveParams(tr)
   reaper.SetTrackSelected(tr, false)
 end
 
+function f.UpdateNotesFromSubproject(subproj_path)
+  
+  local subproj_name = subproj_path:match("([^/\\]+)%.rpp$")
+  if not subproj_name then return end
+  
+  -- Читаем подпроект
+  local subproj_root = ReadRPP(subproj_path)
+  if not subproj_root then
+    return
+  end
+  
+  -- Ищем секцию EXTSTATE в подпроекте
+  local extstate_node = subproj_root:findFirstNodeByName("EXTSTATE")
+  if not extstate_node then
+    return
+  end
+  
+  -- Ищем секцию NOTES внутри EXTSTATE
+  local notes_node = extstate_node:findFirstNodeByName("NOTES")
+  if not notes_node then
+    return
+  end
+  
+  -- Получаем имя подпроекта без расширения для фильтрации
+  local subproj_name_filter = subproj_name:upper()
+  
+  local current_proj = reaper.EnumProjects(-1)
+  local updated_count = 0
+  
+  -- Обрабатываем все записи из NOTES секции подпроекта
+  if notes_node.children then
+    for i, child in ipairs(notes_node.children) do
+      local tokens = child:getTokens()
+      if #tokens >= 2 then
+        local key = tokens[1]:getString()
+        local value = tokens[2]:getString()
+        
+        -- Удаляем кавычки из значения, если они есть
+        if value:sub(1,1) == '"' and value:sub(-1) == '"' then
+          value = value:sub(2, -2)
+        end
+        
+        -- Парсим значение по разделителям |
+        local parts = {}
+        for part in value:gmatch("([^|]*)") do
+          table.insert(parts, part)
+        end
+        
+        -- Проверяем что у нас есть нужное количество частей и первая часть соответствует имени подпроекта
+        if #parts >= 8 and parts[1] and parts[1]:upper() == subproj_name_filter then
+          -- Получаем существующую запись из родительского проекта
+          local ok, existing_value = reaper.GetProjExtState(current_proj, 'Notes', key)
+          if ok and existing_value ~= "" then
+            -- Парсим существующую запись
+            local existing_parts = {}
+            for part in existing_value:gmatch("([^|]*)") do
+              table.insert(existing_parts, part)
+            end
+            
+            -- Если у нас есть достаточно частей в существующей записи
+            if #existing_parts >= 8 then
+              -- Обновляем только последний параметр (completed status)
+              existing_parts[8] = parts[8] or "0"
+              
+              -- Собираем обновленное значение
+              local updated_value = table.concat(existing_parts, "|")
+              
+              -- Сохраняем в родительский проект
+              reaper.SetProjExtState(current_proj, 'Notes', key, updated_value)
+              updated_count = updated_count + 1
+            end
+          end
+        end
+      end
+    end
+  end
+  
+  return updated_count
+end
+
 -------------------------------------------------------
 -- Импорт подпроекта (из существующего .rpp)
 -------------------------------------------------------
@@ -278,26 +358,20 @@ function f.ImportSubproject(subproj_path)
       reaper.SetMediaTrackInfo_Value(tr, "I_FOLDERDEPTH", 0)
     end
   end
+
+  f.UpdateNotesFromSubproject(subproj_path)
+  
 end
 
 
-function f.AutoImportAllSubprojects()
-  reaper.PreventUIRefresh(1)
-  reaper.Undo_BeginBlock()
-  
+function f.ScanForRPPFiles()
   local proj_dir = f.GetCurrentProjectPath()
-  if not proj_dir then
-    reaper.ShowMessageBox("Не удалось получить путь текущего проекта!", "Ошибка", 0)
-    return
-  end
-  
-  -- Модифицированная версия ScanForRPPFiles, которая не сканирует поддиректории
   local rpp_files = {}
   local _, current_proj_name = reaper.GetProjectName(0, "")
   if current_proj_name then
     current_proj_name = current_proj_name:match("(.+)%.rpp$")
   end
-  
+
   local idx = 0
   while true do
     local file = reaper.EnumerateFiles(proj_dir, idx)
@@ -313,7 +387,21 @@ function f.AutoImportAllSubprojects()
     end
     idx = idx + 1
   end
-  
+
+  return rpp_files
+end
+
+function f.AutoImportAllSubprojects()
+  reaper.PreventUIRefresh(1)
+  reaper.Undo_BeginBlock()
+
+  local proj_dir = f.GetCurrentProjectPath()
+  if not proj_dir then
+    reaper.ShowMessageBox("Не удалось получить путь текущего проекта!", "Ошибка", 0)
+    return
+  end
+
+  local rpp_files = f.ScanForRPPFiles(proj_dir)
   if #rpp_files == 0 then
     reaper.ShowMessageBox("Подпроекты (.rpp) не найдены!", "Информация", 0)
     return
@@ -322,21 +410,22 @@ function f.AutoImportAllSubprojects()
   for _, file in ipairs(rpp_files) do
     f.ImportSubproject(file.path)
   end
-  
-                                                        for i = 1, reaper.CountTracks() do
-                                                        tr = reaper.GetTrack(0, i-1)
-                                                        depth = reaper.GetTrackDepth(tr)
-                                                        if depth == 0 then 
-                                                        col = reaper.GetTrackColor( tr )
-                                                                    else
-                                                        reaper.SetMediaTrackInfo_Value( tr, 'I_CUSTOMCOLOR', col )
-                                                        end
-                                                        end
+
+  for i = 1, reaper.CountTracks() do
+    local tr = reaper.GetTrack(0, i-1)
+    local depth = reaper.GetTrackDepth(tr)
+    if depth == 0 then
+      col = reaper.GetTrackColor(tr)
+    else
+      reaper.SetMediaTrackInfo_Value(tr, 'I_CUSTOMCOLOR', col)
+    end
+  end
 
   reaper.Undo_EndBlock("Auto-import all subprojects", -1)
   reaper.PreventUIRefresh(-1)
   reaper.UpdateArrange()
 end
+
 
 -------------------------------------------------------
 -- Создание подпроекта для выделенного трека
@@ -679,11 +768,16 @@ function f.ImportMarkersFromParent()
   
   local children = parent_root.children or {}
   local i = 1
+  
   while i <= #children do
     local node = children[i]
-    if node:getName() == "MARKER" or node:getName() == "REGION" then
+    
+    if node:getName() == "MARKER" then
       local tokens = node:getTokens()
+      
+      -- Проверяем минимальное количество токенов
       if #tokens >= 4 then
+        local marker_id = tonumber(tokens[2]:getString()) or 0
         local pos = tonumber(tokens[3]:getString()) or 0
         local name = tokens[4]:getString() or ""
         
@@ -692,39 +786,81 @@ function f.ImportMarkersFromParent()
           name = name:sub(2, -2)
         end
         
-        -- Используем -1 для автоматического назначения ID
-        local marker_index = -1
+        -- Проверяем, является ли это регионом
+        -- Формат MARKER: ID pos name isrgn color [flags] [R] [guid] [wndpos]
+        local is_region = false
+        local region_end = nil
+        local color = default_color
         
-        if #tokens >= 8 and tokens[8]:getString() == "R" then
-          -- Это регион
-          local region_start = pos
-          local region_end = nil
-          local j = i + 1
-          while j <= #children do
-            if children[j]:getName() == "MARKER" then
-              local next_tokens = children[j]:getTokens()
-              if next_tokens[2] and next_tokens[2]:getString() == tokens[2]:getString() then
-                region_end = tonumber(next_tokens[3]:getString()) or 0
-                break
+        -- Определяем тип маркера по токенам
+        if #tokens >= 5 then
+          local fourth_token = tokens[5]:getString()
+          -- Если 5-й токен это число (isrgn флаг), то проверяем его значение
+          local isrgn = tonumber(fourth_token)
+          if isrgn == 1 then
+            is_region = true
+            -- Ищем конечную позицию региона - следующий маркер с тем же ID
+            for j = i + 1, #children do
+              if children[j]:getName() == "MARKER" then
+                local next_tokens = children[j]:getTokens()
+                if #next_tokens >= 3 then
+                  local next_id = tonumber(next_tokens[2]:getString())
+                  local next_name = next_tokens[4] and next_tokens[4]:getString() or ""
+                  
+                  -- Удаляем кавычки
+                  if next_name:sub(1,1) == '"' and next_name:sub(-1) == '"' then
+                    next_name = next_name:sub(2, -2)
+                  end
+                  
+                  -- Проверяем, является ли это концом региона (тот же ID и пустое имя)
+                  if next_id == marker_id and next_name == "" then
+                    region_end = tonumber(next_tokens[3]:getString()) or pos
+                    break
+                  end
+                end
               end
             end
-            j = j + 1
           end
-          if region_end and region_end > region_start then
-            reaper.AddProjectMarker2(0, true, region_start, region_end, name, marker_index, default_color)
-            i = j  -- пропускаем до найденного парного маркера
-          else
-            reaper.AddProjectMarker2(0, false, region_start, 0, name, marker_index, default_color)
+          
+          -- Извлекаем цвет, если есть (обычно в 6-м токене)
+          if #tokens >= 6 then
+            local color_token = tonumber(tokens[6]:getString())
+            if color_token and color_token ~= 0 then
+              color = color_token
+            end
           end
-        else
-          -- Это маркер
-          reaper.AddProjectMarker2(0, false, pos, 0, name, marker_index, default_color)
         end
+        
+        -- Пропускаем пустые маркеры без имени (концы регионов)
+        if name == "" and not is_region then
+          i = i + 1
+          goto continue
+        end
+        
+        -- Добавляем маркер или регион
+        if is_region and region_end and region_end > pos then
+          -- Это регион с валидным концом
+          reaper.AddProjectMarker2(0, true, pos, region_end, name, -1, color)
+        elseif not is_region and name ~= "" then
+          -- Это обычный маркер с именем
+          reaper.AddProjectMarker2(0, false, pos, 0, name, -1, color)
+        end
+        
       end
     end
+    
     i = i + 1
+    ::continue::
   end
+  
+  -- Обновляем отображение
+  reaper.UpdateTimeline()
+  reaper.UpdateArrange()
+  
+ -- reaper.ShowMessageBox("Маркеры успешно импортированы из родительского проекта!", "Успех", 0)
 end
+
+
 -- Функция конвертации RGB в формат REAPER (с альфа-каналом)
 function f.RGBToReaperColor(r, g, b)
   r = math.floor(math.max(0, math.min(255, r)))

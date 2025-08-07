@@ -5,6 +5,7 @@ local script_path = debug.getinfo(1, "S").source:match("@(.*[\\/])")
 local imgui_path = r.ImGui_GetBuiltinPath()..'/?.lua'
 package.path = imgui_path..";"..script_path..'?.lua'
 
+
 local im = require 'imgui' '0.9.2.3'
 local SubtitleLib = require('mrtnz_srtass-parser')
 local SessionManager = require('mrtnz_subtitle_session')
@@ -62,6 +63,27 @@ local lastFrameWidths = {}
 local pendingChanges = {}
 local lastFocusedInput = nil
 local focusChangeTime = 0
+
+-- Защита от race conditions
+local operationInProgress = false
+local operationQueue = {}
+
+function SafeOperation(func, ...)
+  if operationInProgress then
+    table.insert(operationQueue, {func = func, args = {...}})
+    return
+  end
+  
+  operationInProgress = true
+  func(...)
+  operationInProgress = false
+  
+  -- Обработать очередь
+  if #operationQueue > 0 then
+    local op = table.remove(operationQueue, 1)
+    SafeOperation(op.func, table.unpack(op.args))
+  end
+end
 
 
 for i = 1, maxColumns do
@@ -334,11 +356,78 @@ function AddRowAfter(row)
     end
   end
   
+  -- ПОЛНАЯ ОЧИСТКА всех кешей
   UIManager.clearCache()
   timeDisplayCache = {}
+  SyncManager.clearCache()
+  -- Принудительная пересинхронизация
+  lastRegionState = {}
+  
   isDirty = true
   forceSave = true
-  ApplyToRegions(activeColumn)
+  ApplyToRegions(firstActiveCol)
+end
+
+function GetFromRegions(columnNumber)
+  local regions = SyncManager.getRegionsForColumn(columnNumber)
+  if #regions == 0 then
+    r.ShowMessageBox("No regions found", "Info", 0)
+    return
+  end
+  
+  -- Очищаем существующие данные
+  columns[columnNumber].subtitles = {}
+  columns[columnNumber].values = {}
+  
+  -- Импортируем из регионов
+  for i, region in ipairs(regions) do
+    columns[columnNumber].subtitles[i] = {
+      start = region.start,
+      _end = region._end,
+      text = region.text
+    }
+    columns[columnNumber].values[i] = region.text
+  end
+  
+  -- Синхронизируем остальные колонки по временным меткам
+  for colIdx = 1, maxColumns do
+    if colIdx ~= columnNumber and columns[colIdx].enabled then
+      -- Подстраиваем под новые временные метки
+      local newValues = {}
+      for i, sub in ipairs(columns[columnNumber].subtitles) do
+        -- Ищем ближайшее совпадение по времени
+        local found = false
+        for j, oldSub in ipairs(columns[colIdx].subtitles) do
+          if math.abs(oldSub.start - sub.start) < 0.5 then
+            newValues[i] = columns[colIdx].values[j] or ""
+            found = true
+            break
+          end
+        end
+        if not found then
+          newValues[i] = ""
+        end
+      end
+      
+      -- Обновляем структуру
+      columns[colIdx].subtitles = {}
+      columns[colIdx].values = newValues
+      for i, sub in ipairs(columns[columnNumber].subtitles) do
+        columns[colIdx].subtitles[i] = {
+          start = sub.start,
+          _end = sub._end,
+          text = newValues[i]
+        }
+      end
+    end
+  end
+  
+  -- Полная очистка кешей
+  UIManager.clearCache()
+  timeDisplayCache = {}
+  SyncManager.clearCache()
+  isDirty = true
+  forceSave = true
 end
 
 function AddEmptyColumn()
@@ -586,61 +675,72 @@ function MergeSelected()
 end
 
 function DeleteSelected()
-  local activeCol = columns[activeColumn]
-  if not activeCol.enabled or not activeCol.selected then return end
-  
-  local indices = {}
-  for i, v in pairs(activeCol.selected) do
-    if v then table.insert(indices, i) end
-  end
-  
-  if #indices == 0 then return end
-  
-  local result = r.ShowMessageBox("Delete " .. #indices .. " selected subtitle(s)?", "Confirm Delete", 4)
-  if result ~= 6 then return end
-  
-  -- ВРЕМЕННО отключаем синхронизацию
-  local originalSyncMode = syncMode
-  syncMode = false
-  
-  table.sort(indices, function(a, b) return a > b end)
-  
-  -- Удаляем во ВСЕХ колонках
-  for colIdx = 1, maxColumns do
-    local col = columns[colIdx]
-    if col.enabled then
-      for _, idx in ipairs(indices) do
-        if idx <= #col.subtitles then
-          table.remove(col.subtitles, idx)
-          table.remove(col.values, idx)
+  SafeOperation(function()
+    local activeCol = columns[activeColumn]
+    if not activeCol.enabled or not activeCol.selected then return end
+    
+    local indices = {}
+    for i, v in pairs(activeCol.selected) do
+      if v then table.insert(indices, i) end
+    end
+    
+    if #indices == 0 then return end
+    
+    local result = r.ShowMessageBox("Delete " .. #indices .. " selected subtitle(s)?", "Confirm Delete", 4)
+    if result ~= 6 then return end
+    
+    -- Добавить защиту от обработки во время массовых операций
+    SyncManager.pauseSync()
+    
+    -- ВРЕМЕННО отключаем синхронизацию
+    local originalSyncMode = syncMode
+    syncMode = false
+    
+    table.sort(indices, function(a, b) return a > b end)
+    
+    -- Удаляем во ВСЕХ колонках
+    for colIdx = 1, maxColumns do
+      local col = columns[colIdx]
+      if col.enabled then
+        for _, idx in ipairs(indices) do
+          if idx <= #col.subtitles then
+            table.remove(col.subtitles, idx)
+            table.remove(col.values, idx)
+          end
         end
       end
     end
-  end
-  
-  activeCol.selected = {}
-  UIManager.clearCache()
-  timeDisplayCache = {}
-  isDirty = true
-  forceSave = true
-  
-  -- Применяем из первой колонки
-  syncMode = originalSyncMode
-  
-  local firstActiveCol = nil
-  for i = 1, maxColumns do
-    local colNum = columnOrder[i]
-    if colNum and columns[colNum].enabled then
-      firstActiveCol = colNum
-      break
+    
+    activeCol.selected = {}
+    -- ПОЛНАЯ ОЧИСТКА всех кешей
+    UIManager.clearCache()
+    timeDisplayCache = {}
+    SyncManager.clearCache()
+    isDirty = true
+    forceSave = true
+    
+    -- Принудительная пересинхронизация
+    lastRegionState = {}
+    
+    -- Применяем из первой колонки
+    syncMode = originalSyncMode
+    SyncManager.resumeSync()
+    
+    local firstActiveCol = nil
+    for i = 1, maxColumns do
+      local colNum = columnOrder[i]
+      if colNum and columns[colNum].enabled then
+        firstActiveCol = colNum
+        break
+      end
     end
-  end
-  
-  if firstActiveCol then
-    ApplyToRegions(firstActiveCol)
-  end
-  
-  lastRegionState = SyncManager.getCurrentRegionState()
+    
+    if firstActiveCol then
+      ApplyToRegions(firstActiveCol)
+    end
+    
+    lastRegionState = SyncManager.getCurrentRegionState()
+  end)
 end
 
 
@@ -656,49 +756,60 @@ function DeleteAllSubtitles()
 end
 
 function DeleteSingleRow(row)
-  local activeCol = columns[activeColumn]
-  if not activeCol.enabled or row > #activeCol.subtitles then return end
-  
-  -- Подтверждение удаления
-  local result = r.ShowMessageBox("Delete subtitle #" .. row .. "?", "Confirm Delete", 4)
-  if result ~= 6 then return end -- 6 = Yes
-  
-  -- ВРЕМЕННО отключаем синхронизацию
-  local originalSyncMode = syncMode
-  syncMode = false
-  
-  -- ВАЖНО: Удаляем строку во ВСЕХ колонках чтобы избежать рассинхронизации
-  for colIdx = 1, maxColumns do
-    local col = columns[colIdx]
-    if col.enabled and row <= #col.subtitles then
-      table.remove(col.subtitles, row)
-      table.remove(col.values, row)
+  SafeOperation(function()
+    local activeCol = columns[activeColumn]
+    if not activeCol.enabled or row > #activeCol.subtitles then return end
+    
+    -- Подтверждение удаления
+    local result = r.ShowMessageBox("Delete subtitle #" .. row .. "?", "Confirm Delete", 4)
+    if result ~= 6 then return end -- 6 = Yes
+    
+    -- Добавить защиту от обработки во время массовых операций
+    SyncManager.pauseSync()
+    
+    -- ВРЕМЕННО отключаем синхронизацию
+    local originalSyncMode = syncMode
+    syncMode = false
+    
+    -- ВАЖНО: Удаляем строку во ВСЕХ колонках чтобы избежать рассинхронизации
+    for colIdx = 1, maxColumns do
+      local col = columns[colIdx]
+      if col.enabled and row <= #col.subtitles then
+        table.remove(col.subtitles, row)
+        table.remove(col.values, row)
+      end
     end
-  end
-  
-  activeCol.selected = {}
-  UIManager.clearCache()
-  timeDisplayCache = {}
-  isDirty = true
-  forceSave = true
-  
-  -- Восстанавливаем синхронизацию и применяем из ПЕРВОЙ колонки
-  syncMode = originalSyncMode
-  
-  local firstActiveCol = nil
-  for i = 1, maxColumns do
-    local colNum = columnOrder[i]
-    if colNum and columns[colNum].enabled then
-      firstActiveCol = colNum
-      break
+    
+    activeCol.selected = {}
+    -- ПОЛНАЯ ОЧИСТКА всех кешей
+    UIManager.clearCache()
+    timeDisplayCache = {}
+    SyncManager.clearCache()
+    isDirty = true
+    forceSave = true
+    
+    -- Принудительная пересинхронизация
+    lastRegionState = {}
+    
+    -- Восстанавливаем синхронизацию и применяем из ПЕРВОЙ колонки
+    syncMode = originalSyncMode
+    SyncManager.resumeSync()
+    
+    local firstActiveCol = nil
+    for i = 1, maxColumns do
+      local colNum = columnOrder[i]
+      if colNum and columns[colNum].enabled then
+        firstActiveCol = colNum
+        break
+      end
     end
-  end
-  
-  if firstActiveCol then
-    ApplyToRegions(firstActiveCol)  -- Всегда из первой колонки!
-  end
-  
-  lastRegionState = SyncManager.getCurrentRegionState()
+    
+    if firstActiveCol then
+      ApplyToRegions(firstActiveCol)  -- Всегда из первой колонки!
+    end
+    
+    lastRegionState = SyncManager.getCurrentRegionState()
+  end)
 end
 
 function MergeWithNext(row)
@@ -808,7 +919,16 @@ function FindSubtitleAtTimeWithPriority(subtitles, time)
 end
 
 function CheckTimelineSync()
-  if not syncMode or not columns[activeColumn].enabled then return end
+  -- ВСЕГДА берем время из ПЕРВОЙ активной колонки
+  local firstActiveCol = nil
+  for i = 1, maxColumns do
+    if columns[i].enabled and not columns[i].deactivated then
+      firstActiveCol = i
+      break
+    end
+  end
+  
+  if not syncMode or not firstActiveCol then return end
   
   local currentTime = r.time_precise()
   
@@ -835,7 +955,7 @@ function CheckTimelineSync()
     pos = r.GetPlayPosition()
     if math.abs(pos - lastPlayPos) > 0.1 then
       lastPlayPos = pos
-      local newRow = FindSubtitleAtTimeWithPriority(columns[activeColumn].subtitles, pos)
+      local newRow = FindSubtitleAtTimeWithPriority(columns[firstActiveCol].subtitles, pos)
       if newRow ~= activeRow then
         activeRow = newRow
         scrollToRow = activeRow
@@ -845,7 +965,7 @@ function CheckTimelineSync()
     pos = r.GetCursorPosition()
     if math.abs(pos - lastCursorPos) > 0.1 then
       lastCursorPos = pos
-      local newRow = FindSubtitleAtTimeWithPriority(columns[activeColumn].subtitles, pos)
+      local newRow = FindSubtitleAtTimeWithPriority(columns[firstActiveCol].subtitles, pos)
       if newRow ~= activeRow then
         activeRow = newRow
         scrollToRow = activeRow
@@ -993,6 +1113,10 @@ end
     if im.Button(ctx, "Load", -1) then LoadSubtitles(idx) end
     if im.Button(ctx, "Export", -1) then ExportSubtitles(idx) end
     if im.Button(ctx, "Apply to Regions", -1) then ApplyToRegions(idx) end
+    if im.Button(ctx, "Get from Regions", -1) then 
+      GetFromRegions(idx) 
+      im.CloseCurrentPopup(ctx)
+    end
     
     im.Separator(ctx)
     
@@ -1725,6 +1849,14 @@ function Main()
         -- Virtual scrolling setup
         local scrollY = im.GetScrollY(ctx)
         
+        -- Принудительный скролл к строке если запрошен
+        if scrollToRow then
+          -- Принудительно пересчитать позицию скролла
+          local targetScrollY = (scrollToRow - 1) * AVERAGE_ROW_HEIGHT
+          im.SetScrollY(ctx, targetScrollY)
+          scrollY = targetScrollY
+        end
+        
         -- Вычисляем видимые строки
         local contentHeight = tableHeight - headerHeight
         local visibleRowsCount = math.ceil(contentHeight / AVERAGE_ROW_HEIGHT)
@@ -1744,7 +1876,6 @@ function Main()
           im.TableNextRow(ctx)
           
           if scrollToRow and scrollToRow == row then
-            im.SetScrollHereY(ctx, 0.5)
             scrollToRow = nil
           end
           

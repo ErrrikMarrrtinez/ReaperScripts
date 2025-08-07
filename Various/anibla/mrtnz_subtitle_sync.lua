@@ -21,6 +21,21 @@ local markerCache = {}
 local lastMarkerCacheUpdate = 0
 local markerCacheInterval = 2.0
 
+-- Защита от синхронизации во время массовых операций
+local syncPaused = false
+
+function SyncManager.pauseSync()
+  syncPaused = true
+end
+
+function SyncManager.resumeSync()
+  syncPaused = false
+end
+
+function SyncManager.isPaused()
+  return syncPaused
+end
+
 function SyncManager.detectOrderChanges(columns, currentRegions)
   -- Берем первую активную колонку как референс
   local firstActiveCol = nil
@@ -616,6 +631,11 @@ function SyncManager.applyRegionChanges(changes, columns)
 end
 
 function SyncManager.performOptimizedRegionSync(columns, lastKnownRegions)
+  -- Проверка паузы синхронизации
+  if SyncManager.isPaused() then 
+    return false, lastKnownRegions 
+  end
+  
   local currentTime = r.time_precise()
   
   if regionCache.lastCheck and currentTime - regionCache.lastCheck < 1.0 then

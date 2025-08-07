@@ -38,6 +38,17 @@ im.Attach(ctx04, font)
 IS_CHILDREN = f.get_parent_project()
 
 
+
+function update()
+local rpp_files = f.ScanForRPPFiles()
+    for _, file in ipairs(rpp_files) do
+      f.UpdateNotesFromSubproject(file.path)
+    end
+    
+end
+
+
+
 function string.trim(s)
   return s:match("^%s*(.-)%s*$")
 end
@@ -314,27 +325,60 @@ end
 function get_source_peaks_in_range(filepath, disp_w)
   local source = r.PCM_Source_CreateFromFile(filepath)
   if not source then return nil, 0, 1, 0 end
+  
   local nch = r.GetMediaSourceNumChannels(source)
   local len = r.GetMediaSourceLength(source)
-  local ns = math.max(1, disp_w)
+  
+  -- ИСПРАВЛЕНИЕ: добавляем проверки на валидность значений
+  if not nch or nch <= 0 or nch > 32 then
+    r.PCM_Source_Destroy(source)
+    return nil, 0, 1, 0
+  end
+  
+  if not len or len <= 0 then
+    r.PCM_Source_Destroy(source) 
+    return nil, 0, nch, 0
+  end
+  
+  if not disp_w or disp_w <= 0 or disp_w ~= disp_w then -- проверка на NaN
+    disp_w = 100 -- значение по умолчанию
+  end
+  
+  local ns = math.max(1, math.floor(disp_w))
+  
+  -- ИСПРАВЛЕНИЕ: проверяем размер массива перед созданием
+  local array_size = ns * nch * 2
+  if array_size <= 0 or array_size > 1000000 then -- ограничиваем максимальный размер
+    r.PCM_Source_Destroy(source)
+    return nil, 0, nch, len
+  end
+  
   local pr = ns / len
-  local buf = r.new_array(ns * nch * 2)
+  local buf = r.new_array(array_size)
   local retval = r.PCM_Source_GetPeaks(source, pr, 0, nch, ns, 0, buf)
   local spl_cnt = retval & 0xFFFFF
   r.PCM_Source_Destroy(source)
   return buf, spl_cnt, nch, len
 end
+
 function get_cached_peaks(filepath, disp_w)
+  -- Добавляем базовые проверки
+  if not filepath or filepath == "" then
+    return nil, 0, 1, 0
+  end
+  
   local cache = waveform_cache[filepath]
   if cache and cache.disp_w == disp_w then
     return cache.peaks, cache.spl_cnt, cache.nch, cache.len
   end
+  
   local peaks, spl_cnt, nch, len = get_source_peaks_in_range(filepath, disp_w)
   if peaks then
     waveform_cache[filepath] = {peaks = peaks, spl_cnt = spl_cnt, nch = nch, len = len, disp_w = disp_w}
   end
   return peaks, spl_cnt, nch, len
 end
+
 function draw_item_waveform(dat, x, y, w, h)
   local spl_cnt = dat.spl_cnt
   local nch = dat.nch or 1
@@ -401,12 +445,23 @@ function set_ui_style()
     save_button = save_button
   }
 end
+function print(...)
+  local args = {...}
+  for i = 1, #args do
+    reaper.ShowConsoleMsg(tostring(args[i]) .. "\t")
+  end
+  reaper.ShowConsoleMsg("\n")
+end
+
 function reset_ui_style()
   im.PopStyleColor(ctx04, 16)
   im.PopStyleVar(ctx04, 8)
 end
 function load_notes()
   notes = {}
+  
+  local dir = r.GetProjectPath()
+  
   for i = 0, math.huge do
     local ok, k, v = r.EnumProjExtState(prj, 'Notes', i)
     if not ok then break end
@@ -415,7 +470,18 @@ function load_notes()
     for part in v:gmatch("([^|]*)") do
       table.insert(parts, part)
     end
-    -- Минимум должно быть 6 частей (без marker_pos и completed)
+    
+if parts[3] and parts[3] ~= "" and not r.file_exists(parts[3]) then
+  local audio_path = parts[3]
+  local fname = audio_path:match("([^\\/]+)$")
+  if fname then
+    fname = fname:match("^%s*(.-)%s*$") -- trim
+    
+    parts[3] = dir .. '/' .. fname
+  end
+end
+
+    
     if #parts >= 6 then
       notes[k] = {
         recipient = parts[1] or "",
@@ -425,7 +491,7 @@ function load_notes()
         region = parts[5] or "",
         marker_name = parts[6] or "",
         marker_pos = tonumber(parts[7]) or 0,
-        completed = tonumber(parts[8]) or 0  -- Безопасно получаем completed
+        completed = tonumber(parts[8]) or 0 
       }
       if notes[k].content ~= "" then
         notes[k].content = notes[k].content:gsub('\\n', '\n')
@@ -821,17 +887,15 @@ function draw_notes_list()
         note.completed = 0
       end
       
-      -- Отрисовываем чекбокс только в родительском проекте (когда IS_CHILDREN != nil)
-      if IS_CHILDREN then
-        local checkbox_changed, checkbox_value = im.Checkbox(ctx04, "##completed_" .. tostring(id), note.completed == 1)
-        if checkbox_changed then
-          note.completed = checkbox_value and 1 or 0
-          save_note(id)  -- Используем единую функцию сохранения
-        end
-        
-        -- Ставим Selectable на той же строке
-        im.SameLine(ctx04)
+      im.BeginDisabled(ctx04, not IS_CHILDREN)
+      local checkbox_changed, checkbox_value = im.Checkbox(ctx04, "##completed_" .. tostring(id), note.completed == 1)
+      im.EndDisabled(ctx04)
+      if IS_CHILDREN and checkbox_changed then
+        note.completed = checkbox_value and 1 or 0
+        save_note(id)
       end
+      im.SameLine(ctx04)
+      
       
       im.PushStyleColor(ctx04, im.Col_Text, text_color)
       
@@ -1021,6 +1085,7 @@ end
 if not current_id then
   current_id = find_matching_note()
 end
+update()
 r.defer(main_loop)
 r.atexit(function()
   if preview then
@@ -1030,3 +1095,5 @@ r.atexit(function()
     delete_recording_track(recording_track_guid)
   end
 end)
+
+
