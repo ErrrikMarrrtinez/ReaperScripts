@@ -743,8 +743,9 @@ function draw_audio_player()
                 -- im.PushStyleColor(ctx04, im.Col_Text, 0x00FFFFFF)
                 -- im.Text(ctx04, time_text)
                 -- im.PopStyleColor(ctx04)
+                im.EndChild(ctx04)
             end
-            im.EndChild(ctx04)
+            
             im.PopStyleColor(ctx04)
         end
         
@@ -835,7 +836,7 @@ function draw_notes_list()
             --     load_notes() 
             -- end
             
-            if im.Button(ctx04, "New", w * 0.65, 0) then -- Увеличил ширину кнопки New
+            if im.Button(ctx04, "New", w * 0.65, 25) then -- Увеличил ширину кнопки New
                 local track_name = get_selected_track_name()
                 if not track_name or track_name == "" then
                     track_name = "Note_" .. tostring(math.floor(r.time_precise() * 1000) % 10000)
@@ -846,8 +847,8 @@ function draw_notes_list()
         
             im.SameLine(ctx04)
             im.PushStyleColor(ctx04, im.Col_Button, styles.delete_button)
-            local del_button_width = w - w * 0.65 - 8 -- Уменьшил ширину кнопки X
-            if im.Button(ctx04, "X", del_button_width, 0) and current_id then
+            local del_button_width = w - w * 0.65 - 10 -- Уменьшил ширину кнопки X
+            if im.Button(ctx04, "X", del_button_width, 25) and current_id then
                 show_delete_confirm = true
                 delete_target_id = current_id
             end
@@ -1047,8 +1048,8 @@ end
 
 function main_window()
     -- Уменьшенные размеры окна и минимальные ограничения
-    im.SetNextWindowSize(ctx04, 500, 350, im.Cond_FirstUseEver)
-    im.SetNextWindowSizeConstraints(ctx04, 400, 250, 1000, 600) -- Меньшие минимальные размеры
+    im.SetNextWindowSize(ctx04, 500, 350)
+    im.SetNextWindowSizeConstraints(ctx04, 410, 310, 700, 400) 
     styles = set_ui_style()
     local visible, open = im.Begin(ctx04, "Enhanced Notes Manager", true, im.WindowFlags_NoCollapse)
     center_x, center_y = im.GetWindowPos(ctx04)
