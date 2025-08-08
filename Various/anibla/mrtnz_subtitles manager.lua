@@ -36,7 +36,6 @@ local scrollY = 0
 local needScrollToActive = false
 
 
--- ИСПРАВЛЕНИЕ УТЕЧКИ ПАМЯТИ: Ограниченные кеши
 local MAX_CACHE_SIZE = 500
 local textHeightsCache = {}
 local textHeightsCacheCount = 0
@@ -1304,37 +1303,8 @@ local lastNotesCheck = 0
 local lastProject = nil
 
 -- Функция для получения заметок из проекта
-function getProjectNotes()
-    local notes = {}
-    local prj = r.EnumProjects(-1)
-    
-    for i = 0, math.huge do
-        local ok, k, v = r.EnumProjExtState(prj, 'Notes', i)
-        if not ok then break end
-        if v == "" then goto continue end
-        
-        local parts = {}
-        for part in v:gmatch("([^|]*)") do
-            table.insert(parts, part)
-        end
-        
-        if #parts >= 7 then
-            notes[k] = {
-                recipient = parts[1] or "",
-                content = parts[2] or "",
-                audio_path = parts[3] or "",
-                timestamp = parts[4] or tostring(r.time_precise()),
-                region = parts[5] or "",
-                marker_name = parts[6] or "",
-                marker_pos = tonumber(parts[7]) or 0,
-                completed = tonumber(parts[8]) or 0  -- Параметр completed
-            }
-        end
-        ::continue::
-    end
-    
-    return notes
-end
+
+getProjectNotes = f.getProjectNotes
 
 function checkNotesAndShowManager()
     local now = r.time_precise()
@@ -1492,4 +1462,3 @@ end
 
 r.atexit()
 r.defer(main_loop)
-

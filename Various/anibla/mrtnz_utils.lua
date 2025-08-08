@@ -395,36 +395,77 @@ function f.AutoImportAllSubprojects()
   reaper.PreventUIRefresh(1)
   reaper.Undo_BeginBlock()
 
+  local function finish(msg_title, msg_text)
+    if msg_title then reaper.ShowMessageBox(msg_text or "", msg_title, 0) end
+    reaper.Undo_EndBlock("Auto-import subprojects", -1)
+    reaper.PreventUIRefresh(-1)
+    reaper.UpdateArrange()
+  end
+
   local proj_dir = f.GetCurrentProjectPath()
   if not proj_dir then
-    reaper.ShowMessageBox("Не удалось получить путь текущего проекта!", "Ошибка", 0)
-    return
+    return finish("Ошибка", "Не удалось получить путь текущего проекта!")
   end
 
-  local rpp_files = f.ScanForRPPFiles(proj_dir)
-  if #rpp_files == 0 then
-    reaper.ShowMessageBox("Подпроекты (.rpp) не найдены!", "Информация", 0)
-    return
+  -- Собираем все .rpp в текущей папке проекта
+  local rpp_files = f.ScanForRPPFiles()
+  -- Делаем быстрый индекс: имя подпроекта -> путь
+  local rpp_by_name = {}
+  for _, it in ipairs(rpp_files) do
+    rpp_by_name[it.name] = it.path
   end
 
-  for _, file in ipairs(rpp_files) do
-    f.ImportSubproject(file.path)
+  -- Сколько выделенных дорожек?
+  local sel_count = reaper.CountSelectedTracks(0)
+  if sel_count == 0 then
+    -- Как раньше: импортируем все
+    if #rpp_files == 0 then
+      return finish("Информация", "Подпроекты (.rpp) не найдены!")
+    end
+    for _, file in ipairs(rpp_files) do
+      f.ImportSubproject(file.path)
+    end
+  else
+    -- Импортируем ТОЛЬКО для выделенных дорожек, если найден одноимённый подпроект (.rpp)
+    local imported_any = false
+    for i = 0, sel_count - 1 do
+      local tr = reaper.GetSelectedTrack(0, i)
+      local ok, tr_name = reaper.GetSetMediaTrackInfo_String(tr, "P_NAME", "", false)
+      tr_name = ok and tr_name or ""
+
+      -- Снимаем суффикс " [subproject]" при сравнении
+      local base = tr_name:gsub("%s*%[subproject%]%s*$", ""):match("^%s*(.-)%s*$")
+
+      -- Если нашли подпроект с таким именем — импортируем, иначе скип
+      local subpath = base and rpp_by_name[base] or nil
+      if subpath then
+        f.ImportSubproject(subpath)
+        imported_any = true
+      end
+    end
+
+    -- Если ничего не импортировали (ни одна выделенная дорожка не совпала) — просто выходим тихо
+    if not imported_any then
+      return finish()
+    end
   end
 
-  for i = 1, reaper.CountTracks() do
+  -- Раскраска вложенных: запоминаем цвет верхнеуровневой и назначаем всем дочерним
+  local col = nil
+  local track_count = reaper.CountTracks(0)
+  for i = 1, track_count do
     local tr = reaper.GetTrack(0, i-1)
     local depth = reaper.GetTrackDepth(tr)
     if depth == 0 then
       col = reaper.GetTrackColor(tr)
-    else
+    elseif col then
       reaper.SetMediaTrackInfo_Value(tr, 'I_CUSTOMCOLOR', col)
     end
   end
 
-  reaper.Undo_EndBlock("Auto-import all subprojects", -1)
-  reaper.PreventUIRefresh(-1)
-  reaper.UpdateArrange()
+  finish()
 end
+
 
 
 -------------------------------------------------------
@@ -705,24 +746,42 @@ function f.ImportNotesFromParent()
     end
   end
   
-  -- Очищаем маркеры #ZAMETKA и #OSHIBKA с чужими именами проектов
-  local num = reaper.CountProjectMarkers(0)
-  local deleted_markers = 0
-  for i = num-1, 0, -1 do
-    local retval, isrgn, pos, rgnend, name, markrgnindexnumber = reaper.EnumProjectMarkers(i)
-    if retval and not isrgn then
-      -- Пытаемся вытащить имя после #ZAMETKA или #OSHIBKA (например, #ZAMETKA pamjol 2)
-      local tag_name = name:match("^#ZAMETKA%s+(%S+)")
-                  or name:match("^#OSHIBKA%s+(%S+)")
-      if tag_name and tag_name ~= cur_proj_name then
-        -- Удаляем маркер, если имя после тега не совпадает с именем проекта
+-- Очищаем маркеры #ZAMETKA и #OSHIBKA с чужими именами проектов И с completed = 0
+local num = reaper.CountProjectMarkers(0)
+local deleted_markers = 0
+for i = num-1, 0, -1 do
+  local retval, isrgn, pos, rgnend, name, markrgnindexnumber = reaper.EnumProjectMarkers(i)
+  if retval and not isrgn then
+    -- Пытаемся вытащить имя после #ZAMETKA или #OSHIBKA (например, #ZAMETKA pamjol 2)
+    local tag_name = name:match("^#ZAMETKA%s+(%S+)")
+                or name:match("^#OSHIBKA%s+(%S+)")
+    if tag_name then
+      local should_delete = false
+      
+      -- Удаляем если имя после тега не совпадает с именем проекта
+      if tag_name ~= cur_proj_name then
+        should_delete = true
+      else
+        
+        local project_notes = f.getProjectNotes()
+        for _, note in pairs(project_notes) do
+          
+          if note.marker_name == name and (note.completed == 1 or note.completed == nil) then
+            should_delete = true
+            break
+          end
+        end
+      end
+      
+      if should_delete then
         reaper.DeleteProjectMarker(0, markrgnindexnumber, false)
         deleted_markers = deleted_markers + 1
       end
     end
   end
-  
-  reaper.UpdateArrange()
+end
+
+reaper.UpdateArrange()
   
   if imported_count > 0 or deleted_markers > 0 then
     local message = ""
@@ -1760,6 +1819,38 @@ function utf8.fix(s)
   return s:gsub("\195([\128-\191])", function(c)
     return cs[c:byte()-127]
   end)
+end
+
+function f.getProjectNotes()
+    local notes = {}
+    local prj = r.EnumProjects(-1)
+    
+    for i = 0, math.huge do
+        local ok, k, v = r.EnumProjExtState(prj, 'Notes', i)
+        if not ok then break end
+        if v == "" then goto continue end
+        
+        local parts = {}
+        for part in v:gmatch("([^|]*)") do
+            table.insert(parts, part)
+        end
+        
+        if #parts >= 7 then
+            notes[k] = {
+                recipient = parts[1] or "",
+                content = parts[2] or "",
+                audio_path = parts[3] or "",
+                timestamp = parts[4] or tostring(r.time_precise()),
+                region = parts[5] or "",
+                marker_name = parts[6] or "",
+                marker_pos = tonumber(parts[7]) or 0,
+                completed = tonumber(parts[8]) or 0  -- Параметр completed
+            }
+        end
+        ::continue::
+    end
+    
+    return notes
 end
 
 return f
