@@ -281,10 +281,14 @@ function create_recording_track(note_name)
     r.InsertTrackAtIndex(insert_idx, false)
     local new_track = r.GetTrack(0, insert_idx)
     r.GetSetMediaTrackInfo_String(new_track, "P_NAME", track_name, true)
+    
+    -- Снимаем соло и арм со всех треков, ставим соло на новый
     for i = 0, r.CountTracks(0) - 1 do
         local track = r.GetTrack(0, i)
         r.SetMediaTrackInfo_Value(track, "I_RECARM", 0)
+        r.SetMediaTrackInfo_Value(track, "I_SOLO", track == new_track and 1 or 0)
     end
+    
     r.SetMediaTrackInfo_Value(new_track, "I_RECARM", 1)
     r.SetOnlyTrackSelected(new_track)
     local guid = r.GetTrackGUID(new_track)
@@ -525,7 +529,7 @@ function set_ui_style()
     im.PushStyleVar(ctx04, im.StyleVar_WindowRounding, 4)
     im.PushStyleVar(ctx04, im.StyleVar_FrameRounding, 2)
     im.PushStyleVar(ctx04, im.StyleVar_GrabRounding, 2)
-    im.PushStyleVar(ctx04, im.StyleVar_ScrollbarRounding, 2)
+    im.PushStyleVar(ctx04, im.StyleVar_ScrollbarSize, 2)
     im.PushStyleVar(ctx04, im.StyleVar_TabRounding, 2)
     
     return {
@@ -891,33 +895,36 @@ function draw_delete_confirmation()
     end
 end
 
+w = 140
+
 function draw_notes_list()
     local list_width = 140
+    
+    
+    if not IS_CHILDREN then
+        if im.Button(ctx04, "New", w * 0.65, 25) then
+            local track_name, track_color = get_parent_or_selected_track()
+            if not track_name or track_name == "" then
+                r.ShowMessageBox("Please select a track with a name first", "Error", 0)
+            else
+                pending_track_name = track_name
+                pending_track_color = track_color
+                show_note_type_popup = true
+            end
+        end
+    
+        im.SameLine(ctx04)
+        im.PushStyleColor(ctx04, im.Col_Button, styles.delete_button)
+        local del_button_width = w - w * 0.65 - 10
+        if im.Button(ctx04, "X", del_button_width, 25) and current_id then
+            show_delete_confirm = true
+            delete_target_id = current_id
+        end
+        im.PopStyleColor(ctx04)
+    end
+    
     if im.BeginChild(ctx04, "notes_list", list_width, -1, 1) then
         local w = im.GetContentRegionAvail(ctx04)
-        
-        if not IS_CHILDREN then
-            if im.Button(ctx04, "New", w * 0.65, 25) then
-                local track_name, track_color = get_parent_or_selected_track()
-                if not track_name or track_name == "" then
-                    r.ShowMessageBox("Please select a track with a name first", "Error", 0)
-                else
-                    pending_track_name = track_name
-                    pending_track_color = track_color
-                    show_note_type_popup = true
-                end
-            end
-        
-            im.SameLine(ctx04)
-            im.PushStyleColor(ctx04, im.Col_Button, styles.delete_button)
-            local del_button_width = w - w * 0.65 - 10
-            if im.Button(ctx04, "X", del_button_width, 25) and current_id then
-                show_delete_confirm = true
-                delete_target_id = current_id
-            end
-            im.PopStyleColor(ctx04)
-        end
-        
         local sorted_notes = {}
         for id, note in pairs(notes) do
             table.insert(sorted_notes, {id = id, note = note})
@@ -967,7 +974,7 @@ function draw_notes_list()
             -- Подготавливаем цвета и обводку
             local text_color
             local border_color = nil
-            local button_bg_color = nil
+            local button_bg_color = 0x62626220
             
             -- Используем цвет трека если он есть
             if note.track_color and note.track_color ~= 0 then
@@ -1107,7 +1114,7 @@ end
 
 function main_window()
    -- im.SetNextWindowSize(ctx04, 500, 350)
-    im.SetNextWindowSizeConstraints(ctx04, 410, 310, 700, 400) 
+    --im.SetNextWindowSizeConstraints(ctx04, 410, 310, 700, 400) 
     styles = set_ui_style()
     local visible, open = im.Begin(ctx04, "Enhanced Notes Manager", true, im.WindowFlags_NoCollapse)
     center_x, center_y = im.GetWindowPos(ctx04)
