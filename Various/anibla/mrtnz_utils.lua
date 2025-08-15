@@ -702,7 +702,7 @@ function f.ImportNotesFromParent()
   local notes_node = extstate_node:findFirstNodeByName("NOTES")
   
   if not notes_node then
-    reaper.ShowMessageBox("Не найдена секция NOTES в родительском проекте", "Информация", 0)
+    --reaper.ShowMessageBox("Не найдена секция NOTES в родительском проекте", "Информация", 0)
     return
   end
   
