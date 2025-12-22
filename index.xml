@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="560b7590b679088ff0045cd0df62844afbf50a48">
+<index version="1" name="ReaperScripts" commit="5ec92163863ee703549d750dbe4ed97dcfdf8aef">
   <category name="Item Editing">
     <reapack name="mrtnz_change fade in and fade out(gui).lua" type="script" desc="Change fade in and fade out or crop(gui)">
       <metadata>
@@ -1068,6 +1068,20 @@ Tooltip with events]]></changelog>
     </reapack>
   </category>
   <category name="Various">
+    <reapack name="mrtnz_change_buffer_size.lua" type="script" desc="Change yamaha buffer size (windows)">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Change Yamaha Steinberg USB Driver buffer size via context menu\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.00" author="mrtnz" time="2025-12-22T05:19:17Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5ec92163863ee703549d750dbe4ed97dcfdf8aef/Various/mrtnz_change_buffer_size.lua</source>
+      </version>
+    </reapack>
     <reapack name="mrtnz_Insert fx and show x parameter creating a pool by razor edit.lua" type="script" desc="Insert fx and show x parameter creating a pool by razor edit">
       <metadata>
         <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
