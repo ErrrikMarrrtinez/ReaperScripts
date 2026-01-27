@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="5ec92163863ee703549d750dbe4ed97dcfdf8aef">
+<index version="1" name="ReaperScripts" commit="5461863c64b825125207d4fd594215de002459e3">
   <category name="Item Editing">
     <reapack name="mrtnz_change fade in and fade out(gui).lua" type="script" desc="Change fade in and fade out or crop(gui)">
       <metadata>
@@ -1189,6 +1189,24 @@ to try to correctly hide this window.]]></changelog>
       </version>
       <version name="1.02" author="mrtnz" time="2023-11-01T09:43:12Z">
         <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c338155ca2519d9a508c4a9c76dd475b2be80290/Various/mrtnz_trim-touch%20track(focused%20fx%20or%20under%20mouse%20or%20selection%20or%20last%20touched).lua</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="Various/highliter">
+    <reapack name="mrtnz_MIDI Pitch Highlighter.lua" type="script" desc="MIDI Pitch Highlighter">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Visual overlay for MIDI editor that highlights selected pitches on piano roll. Works with pitch move scripts via gmem.\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0" author="mrtnz" time="2026-01-27T17:41:06Z">
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5461863c64b825125207d4fd594215de002459e3/Various/highliter/mrtnz_MIDI%20Pitch%20Highlighter.lua</source>
+        <source main="main" file="mrtnz_MIDI Pitch - Semitone (Mousewheel).lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5461863c64b825125207d4fd594215de002459e3/Various/highliter/mrtnz_MIDI%20Pitch%20-%20Semitone%20(Mousewheel).lua</source>
+        <source main="main" file="mrtnz_MIDI Pitch - Octave (Mousewheel).lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/5461863c64b825125207d4fd594215de002459e3/Various/highliter/mrtnz_MIDI%20Pitch%20-%20Octave%20(Mousewheel).lua</source>
       </version>
     </reapack>
   </category>
