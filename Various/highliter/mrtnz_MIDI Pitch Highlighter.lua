@@ -1,6 +1,6 @@
 -- @description MIDI Pitch Highlighter
 -- @author mrtnz
--- @version 1.0
+-- @version 1.1
 -- @about
 --   Visual overlay for MIDI editor that highlights selected pitches on piano roll.
 --   Works with pitch move scripts via gmem.
