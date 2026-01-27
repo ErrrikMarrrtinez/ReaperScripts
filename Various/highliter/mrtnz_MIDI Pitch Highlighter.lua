@@ -1,13 +1,13 @@
 -- @description MIDI Pitch Highlighter
 -- @author mrtnz
--- @version 1.1
+-- @version 1.2
 -- @about
 --   Visual overlay for MIDI editor that highlights selected pitches on piano roll.
 --   Works with pitch move scripts via gmem.
 -- @provides
---   [main] .
---   [main] mrtnz_MIDI Pitch - Semitone (Mousewheel).lua
---   [main] mrtnz_MIDI Pitch - Octave (Mousewheel).lua
+--   [main=main,midi_editor] .
+--   [main=main,midi_editor] mrtnz_MIDI Pitch - Semitone (Mousewheel).lua
+--   [main=main,midi_editor] mrtnz_MIDI Pitch - Octave (Mousewheel).lua
 
 
 function AddScriptStartup()
