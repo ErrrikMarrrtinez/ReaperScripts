@@ -1,6 +1,6 @@
 -- @description Markdown editor and Multiline input library
 -- @author mrtnz
--- @version 0.1.0
+-- @version 0.1.1
 -- @link Documentation https://github.com/ErrrikMarrrtinez/ReaperScripts/tree/master/Various/Markdown
 -- @about
 --   A native ReaImGui Markdown editor and reusable multiline input widget.
@@ -12,7 +12,9 @@
 --   For embedding, load init.lua and call new, prepare, render and dispose.
 --   See README.md and API.md for integration, settings and current limitations.
 -- @changelog
---   Initial release of the Markdown editor and embeddable Multiline widget.
+--   Fix fractional-height lookup returning a line past the document end.
+--   Give H1-H6 distinct, evenly stepped sizes and scale their spacing with zoom.
+--   Keep heading spacing consistent across source blank lines and Setext headings.
 -- @provides
 --   [main=main] .
 --   [nomain] API.md

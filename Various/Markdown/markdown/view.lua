@@ -2,7 +2,6 @@
 local load=...
 local Theme,Table,Commands=load('markdown.theme'),load('markdown.table'),load('markdown.commands')
 local View={}
-local scales={body=1,bold=1,italic=1,bold_italic=1,code=.94,small=.72,h1=1.9,h2=1.55,h3=1.3,h4=1.15,h5=1,h6=1}
 
 function View.prepare(e,ctx,im)
   local ui=e.ui
@@ -13,7 +12,7 @@ function View.prepare(e,ctx,im)
   e.options.background,e.options.text_color,e.options.caret_color=theme.background,theme.text,theme.accent
   e.options.selection_color,e.options.inactive_selection_color=theme.selection,theme.selection & 0xFFFFFF55
   md.current={};local metrics={}
-  for name,scale in pairs(scales) do
+  for name,scale in pairs(Theme.font_scales) do
     local family=name=='code' and (e.options.code_font_family or 'Consolas') or e.options.font_family
     local size=math.max(8,math.floor(e.options.font_size*scale+.5))
     local flags=0

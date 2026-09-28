@@ -2,7 +2,7 @@
 local load=...
 local Base,Document,Index=load('core.layout'),load('core.document'),load('core.row_index')
 local Parser,Inline=load('markdown.parser'),load('markdown.inline')
-local Code,Diagram=load('markdown.code'),load('markdown.diagram')
+local Code,Diagram,Theme=load('markdown.code'),load('markdown.diagram'),load('markdown.theme')
 local Layout={};Layout.__index=Layout
 function Layout.new(editor)
   return setmetatable({editor=editor,document=editor.document,options=editor.options,parser=Parser.new(editor.document),
@@ -69,15 +69,20 @@ function Layout:sync()
   self.pending,self.background=0,1
   for i,line in ipairs(self.document.lines) do
     local m=self.parser.lines[i]
+    local previous=self.parser.lines[i-1]
+    if previous and previous.kind=='underline' then previous=self.parser.lines[i-2] end
+    local after_heading=m.kind=='blank' and previous and previous.kind=='heading' or false
+    local heading_blank=m.kind=='heading' and entries[i-1] and entries[i-1].after_heading or false
     local sig=table.concat({m.kind,m.level or 0,m.prefix or 0,m.language or '',m.table and m.table.columns or 0,
       m.table and table.concat(m.table.align,',') or '',self.parser.reference_version or 0},':')
     if m.callout then sig=sig..':'..tostring(m.callout.last==i) end
     if m.code_group then sig=sig..':code_end='..tostring(m.code_group.last==i) end
-    if m.kind=='blank' then sig=sig..':after='..(self.parser.lines[i-1] and self.parser.lines[i-1].kind or '') end
+    if m.kind=='blank' or m.kind=='heading' then sig=sig..':gap='..tostring(after_heading or heading_blank) end
     if m.kind=='fence' and m.block.first==i then sig=sig..':'..tostring(m.block) end
     local old=self.cache[line]
     if not old or old.signature~=sig then old={generation=-1,estimate_rows=1,estimate_height=self.line_height,signature=sig} end
     old.meta=m;old.line=line;old.number=i
+    old.after_heading,old.heading_blank=after_heading,heading_blank
     if m.code_group and old.segments then
       for _,seg in ipairs(old.segments) do
         local reserve=i==m.code_group.first+1 and m.code_group.language and self:code_controls_width(m.code_group) or 0
@@ -129,7 +134,10 @@ function Layout:build(i)
     end
   end
   entry.pad_top,entry.pad_bottom=2,2
-  if m.kind=='heading' then entry.pad_top,entry.pad_bottom=10,4
+  if m.kind=='heading' then
+    entry.pad_top,entry.pad_bottom=self.options.font_size*.5,self.options.font_size*.12
+    -- A source blank keeps its own hit area but shares the next heading's margin.
+    if entry.heading_blank then entry.pad_top=math.max(0,entry.pad_top-self.line_height*.3) end
   elseif m.kind=='table' and not raw_table then
     entry.pad_top,entry.pad_bottom=self.options.table_padding_y or 5,self.options.table_padding_y or 5
   elseif m.kind=='blank' then entry.pad_top,entry.pad_bottom=0,0
@@ -179,7 +187,7 @@ function Layout:build(i)
     end
     local font=Inline.style(sty).font
     local metrics=self.font_metrics and self.font_metrics[font]
-    local lh=metrics and metrics.height or self.line_height*(sty.heading and ({1.9,1.55,1.3,1.15,1,1})[sty.heading] or 1)
+    local lh=metrics and metrics.height or self.line_height*(sty.heading and Theme.font_scales[font] or 1)
     if m.kind=='task' or m.kind=='table' then lh=math.max(lh,self.options.font_size+4) end
     layout:configure(math.max(1,width),lh,self.rich_measure or self.measure,(self.font_key or '')..':'..font)
     local seg={layout=layout,offset=a,finish=b,x=x,width=width,height=lh,col=col,projection=projection}
@@ -242,8 +250,7 @@ function Layout:work_line(i,budget,target)
   elseif entry.code_footer then height=8
   elseif entry.fence_label then height=4
   elseif entry.meta.kind=='blank' then
-    local previous=self.parser.lines[i-1]
-    height=self.line_height*(previous and previous.kind=='heading' and .3 or .65)
+    height=self.line_height*(entry.after_heading and .3 or .65)
   elseif entry.meta.kind=='rule' and i~=self.active_line then height=self.line_height*1.5
   elseif entry.meta.kind=='image' and i~=self.active_line then
     local asset=self.images and self.images[entry.meta.path]
@@ -294,8 +301,9 @@ function Layout:row(number)
       local scroll=block and self:code_state(block).x or 0
       local code_right=self.width-14
       if block and block.language and i==block.first+1 and self.active_line~=block.first then code_right=code_right-self:code_controls_width(block) end
+      local row_height=entry.meta.kind=='blank' and entry.estimate_height or seg.height
       return {a=seg.offset+raw.a,b=seg.offset+raw.b,width=raw.width,raw=raw,segment=seg,entry=entry,code_group=block,code_right=code_right,
-        x=seg.x+dx-scroll,y=self:line_y(i)+entry.pad_top+(j-1)*seg.height,height=seg.height,partial=raw.partial,
+        x=seg.x+dx-scroll,y=self:line_y(i)+entry.pad_top+(j-1)*seg.height,height=row_height,partial=raw.partial,
         number=number,hidden=entry.hidden},entry.line,i,j
     end
     j=j-count

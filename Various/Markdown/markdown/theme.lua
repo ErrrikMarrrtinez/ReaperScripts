@@ -1,5 +1,8 @@
 -- @noindex
 local Theme = {}
+-- One scale for native fonts and layout; every heading level has its own size.
+Theme.font_scales={body=1,bold=1,italic=1,bold_italic=1,code=.94,small=.72,
+  h1=1.8,h2=1.64,h3=1.48,h4=1.32,h5=1.16,h6=1}
 Theme.graphite={background=0x1C1D21FF,text=0xDEDDE5FF,muted=0x898795FF,heading=0xF1EFF8FF,
   accent=0xAB91EBFF,link=0xB6A0F1FF,border=0x3A3943FF,panel=0x24252AFF,code=0xD9B98CFF,
   code_bg=0x292A31FF,highlight=0xBE994344,selection=0x9472DB66,table_header=0x302C3AFF,
