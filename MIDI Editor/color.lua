@@ -1,6 +1,4 @@
-
---@noindex
---NoIndex: true
+-- @noindex
 
 local tk = require 'core'; local r = reaper
 local ImGui = require 'imgui' '0.9.2'

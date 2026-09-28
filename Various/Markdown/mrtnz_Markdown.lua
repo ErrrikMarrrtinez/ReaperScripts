@@ -1,0 +1,50 @@
+-- @description Markdown editor and Multiline input library
+-- @author mrtnz
+-- @version 0.1.0
+-- @link Documentation https://github.com/ErrrikMarrrtinez/ReaperScripts/tree/master/Various/Markdown
+-- @about
+--   A native ReaImGui Markdown editor and reusable multiline input widget.
+--   Includes soft wrapping, source-based selection, undo/redo, editable tables,
+--   reading mode, themes and a plain-text demonstration. No browser renderer.
+--   Requires ReaImGui with the 0.9.2.3 compatibility API, available through ReaPack.
+--   SWS is optional: it opens external HTTP links in the standalone editor.
+--   All Lua modules and documentation are installed with this package.
+--   For embedding, load init.lua and call new, prepare, render and dispose.
+--   See README.md and API.md for integration, settings and current limitations.
+-- @changelog
+--   Initial release of the Markdown editor and embeddable Multiline widget.
+-- @provides
+--   [main=main] .
+--   [nomain] API.md
+--   [nomain] MARKDOWN.md
+--   [nomain] PORTING_MAP.md
+--   [nomain] README.md
+--   [nomain] core/document.lua
+--   [nomain] core/history.lua
+--   [nomain] core/layout.lua
+--   [nomain] core/projection.lua
+--   [nomain] core/row_index.lua
+--   [nomain] core/selection.lua
+--   [nomain] core/text_actions.lua
+--   [nomain] core/utf8.lua
+--   [nomain] demo.lua
+--   [nomain] editor.lua
+--   [nomain] init.lua
+--   [nomain] markdown/code.lua
+--   [nomain] markdown/commands.lua
+--   [nomain] markdown/diagram.lua
+--   [nomain] markdown/inline.lua
+--   [nomain] markdown/layout.lua
+--   [nomain] markdown/parser.lua
+--   [nomain] markdown/sample.md
+--   [nomain] markdown/table.lua
+--   [nomain] markdown/theme.lua
+--   [nomain] markdown/view.lua
+--   [nomain] markdown_demo.lua
+--   [main=main] mrtnz_Multiline demo.lua
+--   [nomain] ui/input.lua
+--   [nomain] ui/paint.lua
+--   [nomain] ui/widget.lua
+
+local root = debug.getinfo(1, 'S').source:match('^@?(.*[\\/])')
+dofile(root .. 'markdown_demo.lua')

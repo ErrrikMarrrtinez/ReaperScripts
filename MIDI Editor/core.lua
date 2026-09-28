@@ -1,6 +1,4 @@
-
---@noindex
---NoIndex: true
+-- @noindex
 
 local tk = {
 

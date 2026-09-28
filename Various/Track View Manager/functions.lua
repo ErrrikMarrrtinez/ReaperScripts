@@ -71,16 +71,15 @@ function func.restoreVisibleTracksSnapshot(index)
     return "No data found for slot " .. index
   end
 
-  r.Undo_BeginBlock()
+  -- Начинаем с блокировки обновления интерфейса
   r.PreventUIRefresh(1)
-  r.UpdateArrange()
   
   -- Декодируем данные
   local data = json.decode(encoded_data)
   local all_tracks = {}
   local first_track = nil
   
-  -- Собираем информацию о треках, как в main_loader
+  -- Собираем информацию о треках
   if data and data.tracks then
     for guid, track_info in pairs(data.tracks) do
       all_tracks[guid] = track_info
@@ -91,6 +90,9 @@ function func.restoreVisibleTracksSnapshot(index)
   if data and data.first_visible then
     first_track = r.BR_GetMediaTrackByGUID(0, data.first_visible.guid)
   end
+  
+  -- Начинаем блок отмены только после получения всех данных
+  r.Undo_BeginBlock()
   
   -- Применяем изменения ко всем трекам
   local track_count = r.CountTracks(0)
@@ -113,34 +115,54 @@ function func.restoreVisibleTracksSnapshot(index)
     end
   end
   
-  -- Обновляем интерфейс и завершаем операцию
-  r.TrackList_AdjustWindows(false)
+  -- Подготавливаем все изменения
   r.TrackList_UpdateAllExternalSurfaces()
-  r.PreventUIRefresh(-1)
-  r.UpdateArrange()
+  
+  -- Завершаем блок отмены
   r.Undo_EndBlock("Restore visible tracks snapshot " .. index, -1)
   
-  if first_track then
-    rtk.callafter(0.3, function()
-      r.PreventUIRefresh(1)
-      -- Гарантируем, что трек виден
-      r.SetMediaTrackInfo_Value(first_track, "B_SHOWINTCP", 1)
-      
-      -- Скроллинг с дополнительными обновлениями
-      func.scrollTrackToTop(first_track)
+  -- Разрешаем обновление интерфейса, но скрываем визуальные изменения
+  
+  
+  -- Счетчик для отслеживания количества обновлений
+  local update_counter = 0
+  local max_updates = 2
+  
+  -- Функция для выполнения скроллинга с задержкой
+  local function delayedScrolling()
+    update_counter = update_counter + 1
+    
+    -- Первый проход - только обновляем интерфейс без скроллинга
+    if update_counter == 1 then
       r.UpdateArrange()
       r.TrackList_AdjustWindows(false)
       r.TrackList_AdjustWindows(true)
-      r.PreventUIRefresh(-1)
       
-      -- Повторный скроллинг для надежности
-      rtk.callafter(0.1, function()
-        func.scrollTrackToTop(first_track)
-      end)
-    end)
-  else
-    r.TrackList_AdjustWindows(true)
+      -- Запускаем следующий проход с небольшой задержкой
+      r.defer(delayedScrolling)
+      return
+    end
+    
+    -- Второй проход - выполняем скроллинг
+    if update_counter == 2 and first_track then
+      -- Гарантируем, что трек виден
+      r.SetMediaTrackInfo_Value(first_track, "B_SHOWINTCP", 1)
+      
+      -- Выполняем скроллинг
+      func.scrollTrackToTop(first_track)
+      
+      -- Финальное обновление интерфейса
+      r.TrackList_AdjustWindows(false)
+      r.TrackList_AdjustWindows(true)
+      r.UpdateArrange()
+    end
+    r.PreventUIRefresh(-1)
+    -- Возвращаем nil, чтобы остановить defer
+    return nil
   end
+  
+  -- Запускаем отложенное выполнение скроллинга
+  r.defer(delayedScrolling)
   
   return nil
 end
@@ -340,13 +362,13 @@ function func.main_loader(selected_slots)
   r.TrackList_AdjustWindows(false)
   r.TrackList_UpdateAllExternalSurfaces()
   r.UpdateArrange()
-  r.PreventUIRefresh(-1)
+  
   r.Undo_EndBlock("Restore visible tracks snapshot", -1)
 
   -- Улучшенный скроллинг: сначала скроллим с большой задержкой
   if top_track then
     -- Первый скроллинг с большой задержкой
-    rtk.callafter(0.3, function()
+    rtk.callafter(0.03, function()
       r.PreventUIRefresh(1)
       
       -- Дополнительная проверка, чтобы top_track был виден
@@ -363,21 +385,23 @@ function func.main_loader(selected_slots)
       r.UpdateArrange()
       r.TrackList_AdjustWindows(false)
       r.TrackList_AdjustWindows(true)
-      r.PreventUIRefresh(-1)
+      
       
       -- Второй скроллинг для надежности после небольшой задержки
-      rtk.callafter(0.1, function()
-        r.PreventUIRefresh(1)
+      rtk.callafter(0.01, function()
+ 
         func.scrollTrackToTop(top_track)
         r.UpdateArrange()
         r.TrackList_AdjustWindows(false)
         r.TrackList_AdjustWindows(true)
-        r.PreventUIRefresh(-1)
+        
       end)
     end)
   else
     r.TrackList_AdjustWindows(true)
   end
+
+  r.PreventUIRefresh(-1)
 end
 
 function func.saveSlotData(index, name, checkboxState)
