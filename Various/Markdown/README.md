@@ -1,4 +1,4 @@
-# Markdown editor & Multiline input for REAPER
+# ReaMD - Markdown editor, project notes & Multiline input
 
 A Lua multiline widget drawn with ReaImGui, with plain-text and live Markdown modes in the same editable surface. Embed it in your own script or use the included editor. Each instance owns its document, selection, layout caches and undo history; loading the library does not change globals or `package.path`.
 
@@ -10,12 +10,23 @@ A Lua multiline widget drawn with ReaImGui, with plain-text and live Markdown mo
    https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/index.xml
    ```
 
-2. Synchronize packages and install **Markdown editor and Multiline input library**. Install **ReaImGui: ReaScript binding for Dear ImGui** separately if needed; the scripts use its `0.9.2.3` compatibility API.
-3. In the REAPER **Main** action list, run **mrtnz_Markdown.lua** or **mrtnz_Multiline demo.lua**.
+2. Synchronize packages and search for **ReaMD**. Install **ReaMD - Markdown editor, project notes and Multiline input library**. Install **ReaImGui: ReaScript binding for Dear ImGui** separately if needed; the scripts use its `0.9.2.3` compatibility API.
+3. Search for **ReaMD** in the REAPER **Main** action list:
+   - **mrtnz_ReaMD - Markdown editor.lua** — standalone Markdown files.
+   - **mrtnz_ReaMD - Project notes.lua** — a Markdown note embedded in each REAPER project.
+   - **mrtnz_ReaMD - Multiline input demo.lua** — the reusable plain-text input.
 
-The package includes both actions, all library files and documentation. It does not need Python, a browser, ReaMD or JS_ReaScriptAPI. [SWS](https://www.sws-extension.org/) is optional for opening external HTTP links; internal heading and footnote links work without it. A host application can supply its own `on_open_link` callback.
+The package includes all three actions, library files and documentation. It does not need Python, a browser or JS_ReaScriptAPI. [SWS](https://www.sws-extension.org/) is optional for opening external HTTP links; internal heading and footnote links work without it. A host application can supply its own `on_open_link` callback.
 
-For manual installation, keep this entire directory together and load either `mrtnz_*.lua` launcher through **Actions → ReaScript: Load**. Restart a running action after updating its modules.
+For manual installation, keep this entire directory together and load a `mrtnz_ReaMD - *.lua` launcher through **Actions → ReaScript: Load**. Restart a running action after updating its modules. The package ID and library paths remain unchanged; the older launchers remain as compatibility files, while only the three ReaMD actions are registered by this release.
+
+## Project notes
+
+Run **ReaMD - Project notes** and start writing. Each project has one Markdown document; switching project tabs switches notes automatically. Open tabs retain independent undo/redo histories, selections and scroll positions while this action is running. A new project starts with an empty note.
+
+Every text change immediately updates `GetProjExtState(project, 'ReaMD', 'notes')` through `SetProjExtState` and marks that project as modified. No external `.md` file is required. **Save project** or **Ctrl+S** saves the entire REAPER project, including the note, to its `.rpp`; **Ctrl+Shift+S** opens Save As. An untitled project must be saved before its notes can survive closing the project. Closing only the notes window leaves its edits in the open project. Undo history itself is kept only for the current script session.
+
+Source/Reading modes, formatting shortcuts, tables, links and themes work like the standalone editor. Relative image paths resolve against the RPP directory (or the project recording directory before the first save). Running the action again closes the existing notes window instead of starting another writer.
 
 ## Embed a multiline field
 
@@ -25,7 +36,7 @@ This example loads the shared ReaPack installation. For a bundled copy, change `
 local library_path = reaper.GetResourcePath()
   .. '/Scripts/ReaperScripts/Various/Markdown/init.lua'
 if not reaper.file_exists(library_path) or not reaper.ImGui_GetBuiltinPath then
-  reaper.MB('Install Markdown editor and Multiline input library, and ReaImGui, through ReaPack.', 'Missing dependency', 0)
+  reaper.MB('Install ReaMD and ReaImGui through ReaPack.', 'Missing dependency', 0)
   return
 end
 

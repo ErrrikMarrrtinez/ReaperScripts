@@ -8,7 +8,7 @@ end
 local root = debug.getinfo(1, 'S').source:match('^@?(.*[\\/])')
 local im = dofile(r.ImGui_GetBuiltinPath() .. '/imgui.lua')('0.9.2.3')
 local Multiline = dofile(root .. 'init.lua')
-local ctx = im.CreateContext('Multiline — ReaCode core')
+local ctx = im.CreateContext('ReaMD - Multiline input demo')
 local sample = [[A standalone multiline input based on ReaCode.
 
 Wrapping only changes how text is displayed. Try narrowing the window, selecting several visual rows, changing the font size, and undoing a replacement of selected text.
@@ -32,7 +32,7 @@ local function loop()
   editor:prepare(ctx, im)
   second:prepare(ctx, im)
   im.SetNextWindowSize(ctx, 940, 700, im.Cond_FirstUseEver)
-  local visible, open = im.Begin(ctx, 'Multiline — ReaCode core', true)
+  local visible, open = im.Begin(ctx, 'ReaMD - Multiline input demo', true)
   if visible then
     if im.Button(ctx, 'Sample') then editor:set_text(sample, true); editor:focus() end
     im.SameLine(ctx)

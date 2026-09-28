@@ -1,21 +1,23 @@
--- @description Markdown editor and Multiline input library
+-- @description ReaMD - Markdown editor, project notes and Multiline input library
 -- @author mrtnz
--- @version 0.1.2
+-- @version 0.1.3
 -- @link Documentation https://github.com/ErrrikMarrrtinez/ReaperScripts/tree/master/Various/Markdown
 -- @about
 --   A native ReaImGui Markdown editor and reusable multiline input widget.
 --   Includes soft wrapping, source-based selection, undo/redo, editable tables,
 --   reading mode, themes and a plain-text demonstration. No browser renderer.
+--   Project notes follow the active project and store Markdown in ProjExtState.
+--   Save the REAPER project to persist these notes in its RPP file.
 --   Requires ReaImGui with the 0.9.2.3 compatibility API, available through ReaPack.
 --   SWS is optional: it opens external HTTP links in the standalone editor.
 --   All Lua modules and documentation are installed with this package.
 --   For embedding, load init.lua and call new, prepare, render and dispose.
 --   See README.md and API.md for integration, settings and current limitations.
 -- @changelog
---   Translate both demos, sample documents, dialogs and tooltips to English.
---   Use English table menus and inserted Markdown placeholders.
+--   Prefix all three Main actions and the package name with ReaMD.
+--   Add project notes stored in ProjExtState, with per-project editing history.
 -- @provides
---   [main=main] .
+--   [nomain] .
 --   [nomain] API.md
 --   [nomain] MARKDOWN.md
 --   [nomain] PORTING_MAP.md
@@ -42,7 +44,12 @@
 --   [nomain] markdown/theme.lua
 --   [nomain] markdown/view.lua
 --   [nomain] markdown_demo.lua
---   [main=main] mrtnz_Multiline demo.lua
+--   [nomain] mrtnz_Multiline demo.lua
+--   [main=main] mrtnz_ReaMD - Markdown editor.lua
+--   [main=main] mrtnz_ReaMD - Multiline input demo.lua
+--   [main=main] mrtnz_ReaMD - Project notes.lua
+--   [nomain] notes/session.lua
+--   [nomain] project_notes.lua
 --   [nomain] ui/input.lua
 --   [nomain] ui/paint.lua
 --   [nomain] ui/widget.lua

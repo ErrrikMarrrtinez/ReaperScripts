@@ -2,7 +2,7 @@
 -- ReaScript entry point: one editable Markdown surface, native ReaImGui.
 local r=reaper
 if not r or not r.ImGui_GetBuiltinPath then
-  if r then r.MB('Install ReaImGui through ReaPack, then run this script again.','Markdown',0) end
+  if r then r.MB('Install ReaImGui through ReaPack, then run this script again.','ReaMD',0) end
   return
 end
 local root=debug.getinfo(1,'S').source:match('^@?(.*[\\/])')
@@ -15,7 +15,7 @@ end
 local sample=read(root..'markdown/sample.md') or '# New note\n\n'
 local e=Multiline.new({text=sample,markdown=true,markdown_shortcuts=true,font_family='Arial',font_size=18,padding=24,
   markdown_theme='graphite',markdown_max_width=900,markdown_base_path=root,tab_mode='insert'})
-local ctx=im.CreateContext('Multiline Markdown')
+local ctx=im.CreateContext('ReaMD - Markdown editor')
 local path,clean_text,status=nil,sample,''
 local theme=0
 local pending_markdown
@@ -52,7 +52,7 @@ local function loop()
   if pending_markdown~=nil then e:set_markdown(pending_markdown);pending_markdown=nil end
   e:prepare(ctx,im)
   im.SetNextWindowSize(ctx,1100,850,im.Cond_FirstUseEver)
-  local visible,keep=im.Begin(ctx,'Notes · Markdown',true)
+  local visible,keep=im.Begin(ctx,'ReaMD - Markdown editor',true)
   if visible then
     local ctrl=im.IsKeyDown(ctx,im.Mod_Ctrl)
     if ctrl and im.IsKeyPressed(ctx,im.Key_S,false) then save(im.IsKeyDown(ctx,im.Mod_Shift)) end
@@ -97,14 +97,14 @@ local function loop()
     im.End(ctx)
   end
   if not keep and e:get_text()~=clean_text then
-    local answer=r.MB('Save changes before closing?','Markdown',3)
+    local answer=r.MB('Save changes before closing?','ReaMD',3)
     if answer==6 then save(false);keep=e:get_text()~=clean_text elseif answer==2 then keep=true end
   end
   if keep then r.defer(guarded_loop) end
 end
 guarded_loop=function()
   local ok,err=xpcall(loop,debug.traceback)
-  if not ok then r.ShowConsoleMsg('\nMultiline Markdown:\n'..tostring(err)..'\n') end
+  if not ok then r.ShowConsoleMsg('\nReaMD - Markdown editor:\n'..tostring(err)..'\n') end
 end
 r.atexit(function() e:dispose() end)
 r.defer(guarded_loop)
