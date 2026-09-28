@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="6e3d1d9c96b859ba81b4748a8744b4afbdbf7350">
+<index version="1" name="ReaperScripts" commit="08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c">
   <category name="Item Editing">
     <reapack name="mrtnz_change fade in and fade out(gui).lua" type="script" desc="Change fade in and fade out or crop(gui)">
       <metadata>
@@ -1220,6 +1220,54 @@ to try to correctly hide this window.]]></changelog>
       </version>
     </reapack>
   </category>
+  <category name="Various/Markdown">
+    <reapack name="mrtnz_Markdown.lua" type="script" desc="Markdown editor and Multiline input library">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 A native ReaImGui Markdown editor and reusable multiline input widget. Includes soft wrapping, source-based selection, undo/redo, editable tables, reading mode, themes and a plain-text demonstration. No browser renderer. Requires ReaImGui with the 0.9.2.3 compatibility API, available through ReaPack. SWS is optional: it opens external HTTP links in the standalone editor. All Lua modules and documentation are installed with this package. For embedding, load init.lua and call new, prepare, render and dispose. See README.md and API.md for integration, settings and current limitations.\par}
+}
+]]></description>
+        <link rel="website" href="https://github.com/ErrrikMarrrtinez/ReaperScripts/tree/master/Various/Markdown">Documentation</link>
+      </metadata>
+      <version name="0.1.0" author="mrtnz" time="2026-09-28T07:23:03Z">
+        <changelog><![CDATA[Initial release of the Markdown editor and embeddable Multiline widget.]]></changelog>
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/mrtnz_Markdown.lua</source>
+        <source file="API.md">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/API.md</source>
+        <source file="MARKDOWN.md">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/MARKDOWN.md</source>
+        <source file="PORTING_MAP.md">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/PORTING_MAP.md</source>
+        <source file="README.md">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/README.md</source>
+        <source file="core/document.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/core/document.lua</source>
+        <source file="core/history.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/core/history.lua</source>
+        <source file="core/layout.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/core/layout.lua</source>
+        <source file="core/projection.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/core/projection.lua</source>
+        <source file="core/row_index.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/core/row_index.lua</source>
+        <source file="core/selection.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/core/selection.lua</source>
+        <source file="core/text_actions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/core/text_actions.lua</source>
+        <source file="core/utf8.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/core/utf8.lua</source>
+        <source file="demo.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/demo.lua</source>
+        <source file="editor.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/editor.lua</source>
+        <source file="init.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/init.lua</source>
+        <source file="markdown/code.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/markdown/code.lua</source>
+        <source file="markdown/commands.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/markdown/commands.lua</source>
+        <source file="markdown/diagram.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/markdown/diagram.lua</source>
+        <source file="markdown/inline.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/markdown/inline.lua</source>
+        <source file="markdown/layout.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/markdown/layout.lua</source>
+        <source file="markdown/parser.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/markdown/parser.lua</source>
+        <source file="markdown/sample.md">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/markdown/sample.md</source>
+        <source file="markdown/table.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/markdown/table.lua</source>
+        <source file="markdown/theme.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/markdown/theme.lua</source>
+        <source file="markdown/view.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/markdown/view.lua</source>
+        <source file="markdown_demo.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/markdown_demo.lua</source>
+        <source main="main" file="mrtnz_Multiline demo.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/mrtnz_Multiline%20demo.lua</source>
+        <source file="ui/input.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/ui/input.lua</source>
+        <source file="ui/paint.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/ui/paint.lua</source>
+        <source file="ui/widget.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/08f8fbfc6eb876ef5f1733896dc2b51c2c5cfb3c/Various/Markdown/ui/widget.lua</source>
+      </version>
+    </reapack>
+  </category>
   <category name="Various/Track View Manager">
     <reapack name="mrtnz_Track View - Manager.lua" type="script" desc="Track View Manager"> HEAD
       
@@ -1238,7 +1286,18 @@ to try to correctly hide this window.]]></changelog>
 {\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
 \widowctrl\hyphauto
 
-{\pard \ql \f0 \sa180 \li0 \fi0 My reaper scripts\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 ReaperScripts\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 My REAPER scripts, distributed through ReaPack.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Import this repository in {\b Extensions \u8594 ? ReaPack \u8594 ? Import repositories}:\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \f1 https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/index.xml\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\field{\*\fldinst{HYPERLINK "Various/Markdown/README.md"}}{\fldrslt{\ul
+Markdown editor and Multiline input library
+}}}
+: a native ReaImGui editor and embeddable Lua text field, with plain-text and live Markdown modes.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\field{\*\fldinst{HYPERLINK "Various/Track%20View%20Manager"}}{\fldrslt{\ul
+Track View Manager
+}}}
+: track view tools.\sa180\par}
 }
 ]]></description>
   </metadata>
