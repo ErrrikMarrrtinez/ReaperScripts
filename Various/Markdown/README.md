@@ -83,7 +83,7 @@ For all options, methods, source projection and geometry details, see [API.md](A
 
 ## Editing and reading
 
-- Select **Чтение** (Reading) for ordinary-click links and a stable formatted view. Editing uses **Ctrl+click** to follow links. Select **Исходник** (Source) to edit raw Markdown.
+- Select **Reading** for ordinary-click links and a stable formatted view. Editing uses **Ctrl+click** to follow links. Select **Source** to edit raw Markdown. Both demos, their sample text, menus, tooltips and dialogs use English.
 - **Ctrl+B / I / K / E**: bold / italic / link / inline code. **Ctrl+Z**, **Ctrl+Shift+Z** or **Ctrl+Y**: undo / redo. **Ctrl+wheel**: zoom.
 - **Ctrl+O / S / Shift+S**: open / save / save as in the standalone editor. The compact toolbar keeps mode and theme controls; formatting remains accessible from the keyboard.
 - Tables edit in place. **Tab / Shift+Tab** move between cells, **Enter** moves down, **Shift+Enter** inserts a cell line break. Hover borders for insertion controls or right-click for row/column actions. Checked tasks are struck through.

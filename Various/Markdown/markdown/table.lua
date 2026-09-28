@@ -124,7 +124,7 @@ end
 function Table.insert(e, columns, body_rows)
   columns,body_rows=math.max(1,math.min(max_columns,math.floor(columns or 3))),math.max(1,math.floor(body_rows or 2))
   local rows,header,separator={},{},{}
-  for c=1,columns do header[c]='Колонка '..c; separator[c]='---' end
+  for c=1,columns do header[c]='Column '..c; separator[c]='---' end
   rows[1]='| '..table.concat(header,' | ')..' |'
   rows[2]='| '..table.concat(separator,' | ')..' |'
   for i=1,body_rows do rows[#rows+1]='| '..string.rep(' | ',columns-1)..' |' end

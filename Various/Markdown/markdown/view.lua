@@ -213,19 +213,19 @@ local function table_menu(e,im,ctx,zone)
       Table.edit(e,zone.group,operation,zone.row,zone.col,value);consumed=true
     end
   end
-  im.TextDisabled(ctx,'Таблица')
-  item('Строка выше','add_row',math.max(2,zone.row));item('Строка ниже','add_row',zone.row+1)
-  item('Колонка слева','add_column',zone.col);item('Колонка справа','add_column',zone.col+1)
+  im.TextDisabled(ctx,'Table')
+  item('Insert row above','add_row',math.max(2,zone.row));item('Insert row below','add_row',zone.row+1)
+  item('Insert column left','add_column',zone.col);item('Insert column right','add_column',zone.col+1)
   im.Separator(ctx)
-  item('Выровнять слева','align','left');item('По центру','align','center');item('Справа','align','right')
+  item('Align left','align','left');item('Align center','align','center');item('Align right','align','right')
   im.Separator(ctx)
-  item('Строку вверх','move_row',-1);item('Строку вниз','move_row',1)
-  item('Колонку влево','move_column',-1);item('Колонку вправо','move_column',1)
-  item('Сортировать по возрастанию','sort','ascending');item('По убыванию','sort','descending')
+  item('Move row up','move_row',-1);item('Move row down','move_row',1)
+  item('Move column left','move_column',-1);item('Move column right','move_column',1)
+  item('Sort ascending','sort','ascending');item('Sort descending','sort','descending')
   im.Separator(ctx)
-  item('Удалить строку','delete_row');item('Удалить колонку','delete_column')
+  item('Delete row','delete_row');item('Delete column','delete_column')
   local raw=e.markdown_raw_tables and e.markdown_raw_tables[zone.group.key]
-  if im.MenuItem(ctx,raw and 'Показать таблицей' or 'Исходник таблицы') then
+  if im.MenuItem(ctx,raw and 'Show rendered table' or 'Show table source') then
     e.markdown_raw_tables=e.markdown_raw_tables or {};e.markdown_raw_tables[zone.group.key]=not raw
     for i=zone.group.first,zone.group.last do e.layout:invalidate_line(i) end
     e:set_caret(e.document.lines[zone.group.rows[zone.row]].start);consumed=true
@@ -425,7 +425,7 @@ function View.draw(e,im,ctx,view,focused)
           local w=math.min(l.width,entry.image.width,(h-l.line_height-12)*entry.image.width/entry.image.height)
           local ih=w*entry.image.height/entry.image.width
           im.DrawList_AddImage(dl,entry.image.handle,ox+(l.width-w)/2,y+4,ox+(l.width+w)/2,y+4+ih)
-        else text(im,dl,md,'body',ox+14,y+12,t.muted,'Изображение · '..(m.alt or m.path)) end
+        else text(im,dl,md,'body',ox+14,y+12,t.muted,'Image · '..(m.alt or m.path)) end
         text(im,dl,md,'code',ox+14,y+h-l.line_height-2,t.muted,m.path)
       end
       if m.kind=='list' and l.active_line~=i then
@@ -545,7 +545,7 @@ function View.draw(e,im,ctx,view,focused)
       im.DrawList_AddRectFilled(dl,z.x1,z.y1+3,z.x2,z.y2-3,t.panel,2)
       im.DrawList_AddRectFilled(dl,x,z.y1+3,x+z.thumb,z.y2-3,t.muted,2)
     elseif z.kind=='diagram' and not o.read_only and inside(mx,my,z) then
-      im.SetTooltip(ctx,'Кликните для редактирования Mermaid')
+      im.SetTooltip(ctx,'Click to edit Mermaid')
     end
   end
   if not o.read_only then for _,z in ipairs(md.zones) do

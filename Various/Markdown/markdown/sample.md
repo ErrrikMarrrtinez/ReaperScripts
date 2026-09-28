@@ -1,73 +1,73 @@
-# Место для мыслей
+# A Place for Thoughts
 
-Один документ. **Живое оформление.** Никакого отдельного окна предпросмотра.
-Кликните в текст, чтобы редактировать исходную разметку. **Ctrl+B** — жирный, *Ctrl+I* — курсив, `Ctrl+E` — код, [Ctrl+K](https://help.obsidian.md) — ссылка.
+One document. **Live formatting.** No separate preview window.
+Click into the text to edit the source directly. **Ctrl+B** makes text bold, *Ctrl+I* adds italics, `Ctrl+E` formats inline code, and [Ctrl+K](https://help.obsidian.md) creates a link.
 
-## Рабочая таблица
+## Working Table
 
-Пишите прямо в ячейках. Tab переходит дальше, Shift+Tab — назад. Наведите мышь на границу строки или над границей колонок: появится **+**. Колонки можно растянуть за разделитель в заголовке; остальные действия — в меню правой кнопки.
+Write directly inside the cells. Tab moves forward; Shift+Tab moves back. Hover near a row edge or above a column boundary to reveal a **+** control. Drag a divider in the header to resize columns. Right-click for more table actions.
 
-| Этап | Что делаем | Состояние |
+| Stage | What happens here | Status |
 | :--- | :--- | :---: |
-| **Идея** | Собираем мысли и ссылки | [x] Готово |
-| Черновик | Пишем, выделяем, отменяем | [ ] В работе |
-| Проверка | Меняем ширину окна и размер шрифта | [ ] Дальше |
+| **Idea** | Collect thoughts and links | [x] Done |
+| Draft | Write, select, undo | [ ] In progress |
+| Review | Change the window width and font size | [ ] Next |
 
-## Текст с характером
+## Text with Some Character
 
-**Жирный**, *курсив*, ***оба сразу***, ~~зачёркнутый~~ и ==важный фрагмент==. Можно вложить **курсив *внутрь* жирного текста**. Экранирование: \*обычные звёздочки\*. Символы: &mdash; &hellip; &copy;.
+**Bold**, *italic*, ***both at once***, ~~strikethrough~~, and ==highlighted text==. Formatting can be nested: **bold text with *italics* inside it**. Escaping: \*plain asterisks\*. Symbols: &mdash; &hellip; &copy;.
 
-> [!tip] Всё остаётся обычным Markdown
-> Выделение и копирование возвращают исходный текст. Форматирование, флажки и операции таблицы отменяются через Ctrl+Z.
+> [!tip] It is still plain Markdown
+> Selection and copy return the source text. Formatting, checkboxes, and table edits can be undone with Ctrl+Z.
 
-### Небольшой план
+### A Small Plan
 
-- [x] Собрать независимый редактор
-- [ ] Проверить сочетания клавиш
-- [ ] Дописать заметку
-  - Вложенный пункт
-  - Ещё одна мысль
+- [x] Build the standalone editor
+- [ ] Check keyboard shortcuts
+- [ ] Finish the note
+  - Add a nested item
+  - Leave another thought here
 
-1. Первый шаг
-2. Следующий шаг — Enter продолжает список
-3. Enter на пустом пункте завершает список
+1. Start with the first step
+2. Press Enter to continue the list
+3. Press Enter on an empty item to leave the list
 
-> Хороший инструмент помогает сосредоточиться на содержании.
-> И не мешает читать собственный текст.
+> A useful editor helps you focus on the content.
+> And stays out of the way while you are reading it.
 
-### Код и формулы
+### Code and Formulas
 
 ```lua
-local note = { title = "Заметки", ready = true }
+local note = { title = "Notes", ready = true }
 for key, value in pairs(note) do
   print(key, value)
 end
 ```
 
-Простая формула: $E = mc^2$, греческие буквы $\alpha + \beta = \gamma$. Сложная LaTeX-разметка сохраняется как исходный текст.
+A simple formula: $E = mc^2$, and Greek letters: $\alpha + \beta = \gamma$. More complex LaTeX remains editable as source text.
 
 ```mermaid
 flowchart LR
-A[Идея] --> B[Черновик]
-B --> C[Готовый текст]
+A[Idea] --> B[Draft]
+B --> C[Finished text]
 ```
 
-## Связи и детали
+## Links and Details
 
-[Перейти к таблице](#Рабочая%20таблица) · [[Заметка|внутренняя ссылка]] · #заметки #работа/текст
+[Jump back to the table](#working-table) · [[Another Note|internal link]] · #notes #work/text
 
-Текст со сноской[^note]. Поддерживаются <kbd>клавиши</kbd>, <mark>выделение</mark> и <u>подчёркивание</u>.
+Text can have a footnote[^note], <kbd>keyboard keys</kbd>, <mark>highlighted text</mark>, and <u>underlined text</u>.
 
-[^note]: Сноска остаётся редактируемой частью документа.
+[^note]: A footnote remains an editable part of the document.
 
 ---
 
-%% Этот комментарий виден, когда курсор находится в его строке. %%
+%% This comment is visible while its line is being edited. %%
 
-#### Ещё немного иерархии
+#### A Little More Hierarchy
 
-##### Пятый уровень
+##### Fifth Level
 
-###### Шестой уровень
+###### Sixth Level
 
-Готово. Дальше — ваш текст.
+Ready. From here, it is your text.

@@ -131,7 +131,7 @@ function Commands.run(e,command,value)
   elseif command=='math' then return wrap(e,'$')
   elseif command=='link' or command=='image' then
     local a,b=selection(e);local label=e.document.text:sub(a+1,b)
-    if label=='' then label=command=='image' and 'изображение' or 'ссылка' end
+    if label=='' then label=command=='image' and 'image' or 'link' end
     local prefix=(command=='image' and '!' or '')..'['..label..']('
     local target=value or 'https://'
     return e:replace_range(a,b,prefix..target..')','format_link',{anchor=a+#prefix,caret=a+#prefix+#target})
@@ -151,7 +151,7 @@ function Commands.run(e,command,value)
       return new..text:sub(#old+1),#old,#new
     end)
   elseif command=='rule' then return e:insert_text('\n\n---\n\n','format_rule')
-  elseif command=='callout' then return e:insert_text('> [!note] Заметка\n> Текст заметки\n','format_callout')
+  elseif command=='callout' then return e:insert_text('> [!note] Note\n> Note text\n','format_callout')
   elseif command=='table' then return Table.insert(e,value or 3,2)
   elseif command=='toggle_task' then
     local _,line=e.document:line_at(e.caret)
