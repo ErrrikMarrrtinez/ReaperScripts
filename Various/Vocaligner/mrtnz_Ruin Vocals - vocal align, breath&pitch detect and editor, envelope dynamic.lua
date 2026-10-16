@@ -14,13 +14,10 @@
 --   installed together. Internal modules are not separate REAPER actions.
 --   For embedding, load init.lua with dofile; see README.md for the workflow.
 -- @changelog
---   Name the ReaPack package Ruin Vocals.
---   Package Vocaligner under Various/Vocaligner using the Markdown package layout.
---   Include all current modules, documentation and third-party license notices.
---   Register the vocal editor and Pitch Meter export as Main actions.
---   Install the optional Pitch Meter as a JSFX effect for measured output checks.
+--   Initial release: vocal alignment, breath control, pitch detection and editing.
+--   De-ess, envelope-based compressor and gate, plus an optional output pitch meter.
 -- @provides
---   [nomain] .
+--   [main=main] .
 --   [nomain] align/advanced/candidates.lua
 --   [nomain] align/advanced/confidence.lua
 --   [nomain] align/advanced/constraints.lua
@@ -99,8 +96,7 @@
 --   [nomain] jsfx/Vocaligner Pitch Meter - Export.lua
 --   [nomain] jsfx/README.md
 --   [effect] jsfx/Vocaligner Pitch Meter.jsfx > Vocaligner/Vocaligner Pitch Meter.jsfx
---   [main=main] mrtnz_Vocaligner - Export Pitch Meter.lua
---   [main=main] mrtnz_Vocaligner - Vocal editor.lua
+--   [main=main] mrtnz_Ruin Vocals - Export Pitch Meter.lua
 --   [nomain] navigator.lua
 --   [nomain] pitch/algorithm.lua
 --   [nomain] pitch/analysis.lua

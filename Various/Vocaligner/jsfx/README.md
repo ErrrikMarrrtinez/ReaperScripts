@@ -29,4 +29,4 @@ the detected notes. The meter publishes data through REAPER's built-in `gmem`
 API; the export action writes the files.
 
 `Vocaligner Pitch Meter - Export.lua` is the internal implementation. The Main
-action launcher is `../mrtnz_Vocaligner - Export Pitch Meter.lua`.
+action launcher is `../mrtnz_Ruin Vocals - Export Pitch Meter.lua`.

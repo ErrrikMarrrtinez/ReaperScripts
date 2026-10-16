@@ -6,9 +6,7 @@ Breaths, Compressor and Gate. Pitch edits use a dedicated take ReaPitch.
 
 ## Install and run
 
-This is the `Various/Vocaligner` package in ReaperScripts. Version **0.13.8**
-packages the current 0.13.7 implementation; this release changes installation
-and entry points, without changing its audio processing.
+Version **0.13.8** is the first public ReaPack release.
 
 1. In **Extensions → ReaPack → Import repositories**, add:
 
@@ -16,19 +14,18 @@ and entry points, without changing its audio processing.
    https://raw.githubusercontent.com/ErrrikMarrrtinez/ReaperScripts/master/index.xml
    ```
 
-2. Once this package is published, synchronize and search for **Ruin Vocals**.
+2. Synchronize packages and search for **Ruin Vocals**.
    Install **Ruin Vocals: vocal align, breath&pitch detect and editor, envelope dynamic**.
    Install **ReaImGui: ReaScript binding for Dear ImGui** separately; the editor
    uses its `0.9.3` compatibility API. Use REAPER 7 with its bundled ReaPitch.
 3. The package registers two **Main** actions:
-   - **Ruin Vocals - Vocal editor** (`mrtnz_Vocaligner - Vocal editor.lua`) opens the complete editor.
-   - **Ruin Vocals - Export Pitch Meter** (`mrtnz_Vocaligner - Export Pitch Meter.lua`) exports an optional Pitch
+   - **Ruin Vocals: vocal align, breath&pitch detect and editor, envelope dynamic** (`mrtnz_Ruin Vocals - vocal align, breath&pitch detect and editor, envelope dynamic.lua`) opens the complete editor.
+   - **Ruin Vocals - Export Pitch Meter** (`mrtnz_Ruin Vocals - Export Pitch Meter.lua`) exports an optional Pitch
      Meter measurement as CSV/text and can create MIDI notes.
 
-For manual installation, keep this entire folder together and load the vocal
-editor launcher through **Actions → ReaScript: Load**. The original
-`mrtnz_Vocaligner.lua` remains runnable for existing manual action registrations;
-it is the ReaPack manifest and does not register an additional Main action.
+For manual installation, keep this entire folder together and load the
+`mrtnz_Ruin Vocals - vocal align, breath&pitch detect and editor, envelope dynamic.lua`
+script through **Actions → ReaScript: Load**.
 ReaPack installs the internal modules, model weights, documentation and license
 notices with the package. No Python, SWS or JS_ReaScriptAPI is required.
 
