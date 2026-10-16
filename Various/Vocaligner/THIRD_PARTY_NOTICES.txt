@@ -1,0 +1,65 @@
+@noindex
+
+Vocaligner breath model training data attribution
+
+Vocaligner 0.8 Pitch component:
+SwiftF0, Copyright (c) 2025-2026 Lars Nieradzik, MIT License.
+https://github.com/lars76/swift-f0
+Pinned revision: d1ba77fe5331310b778ebe126b6cb3656d41d24f
+pitch/model.lua contains converted model weights and filterbanks;
+pitch/notes.lua adapts the confidence-weighted note segmentation method/code.
+Lua/EEL inference and the ReaPitch editor were implemented for Vocaligner.
+Full license: pitch/LICENSE_SWIFTF0.txt (must accompany these files).
+PitchNet, MPL PitchEditor, MPElodyne, melonix and WORLD were researched;
+their source code and binaries are not included in this component.
+Vocadito (https://zenodo.org/records/5578807, CC BY 4.0) was used only for
+offline evaluation; neither its recordings nor annotations are distributed here.
+Rachel M. Bittner, Katherine Pasalo, Juan Jose Bosch,
+Gabriel Meseguer-Brocal and David Rubinstein,
+"vocadito: A dataset of solo vocals with f0, note, and lyric annotations," 2021.
+
+Breath component:
+
+Respiro-en annotations: https://github.com/ydqmkkx/Respiro-en
+Only the manually annotated development CSV was used, not their neural weights.
+A separate small tree classifier was fitted and exported to Lua numerical data.
+Version 0.7 also uses locally supplied recordings and breath annotations for
+adaptation and development checks. Those recordings are not distributed here.
+
+LibriTTS-R audio: https://www.openslr.org/141/
+License: Creative Commons Attribution 4.0 International
+https://creativecommons.org/licenses/by/4.0/
+Yuma Koizumi, Heiga Zen, Shigeki Karita, Yifan Ding, Kohei Yatabe,
+Nobuyuki Morioka, Michiel Bacchiani, Yu Zhang, Wei Han and Ankur Bapna,
+"LibriTTS-R: A Restored Multi-Speaker Text-to-Speech Corpus," 2023.
+Audio was resampled for feature extraction. Audio files are not included in the
+application. The authors do not endorse Vocaligner or the derived detector.
+
+Respiro-en repository notice follows:
+
+MIT License
+
+Copyright (c) 2024 DongYANG
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+Envelope-based Compressor v2 (Julian mod), v2.20 — EUGEN27771
+Compressor transfer, circular knee and follower equations adapted in compressor/engine.lua.
+License: GNU GPL version 3. See compressor/NOTICE.md and compressor/LICENSE_GPL3.txt.

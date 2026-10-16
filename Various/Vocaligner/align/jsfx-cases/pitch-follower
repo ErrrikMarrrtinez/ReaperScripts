@@ -1,0 +1,363 @@
+desc: MIDI Pitch Follower (Non-Polyphonic)
+
+// pitch-detection algorithm adapted (bastardized) from:
+// http://recherche.ircam.fr/equipes/pcm/cheveign/pss/2002_JASA_YIN.pdf
+
+//To-Do
+// White noise to optional channel when no pitch detected
+
+slider1:20<10,100,1>Window (ms)
+slider2:80<10,4000,1>Min Freq (Hz)
+slider3:800<10,4000,1>Max Freq (Hz)
+slider4:0<0,1,{Left, Right}>Analysis Channel
+slider5:3<0,11,{A,A#/Bb,B,C,C#/Db,D,D#/Eb,E,F,F#/Gb,G,G#/Ab}>Key Center
+slider6:0<0,6,{Ionian (Major),Dorian,Phrygian,Lydian,Mixolydian,Aeolian (Minor),Locrian}>Mode
+slider7:2<0,24,0.5>Pitch Bend (Semitones)
+slider8:0<0,1,0.02>White Noise (Channels 3/4 for Vocoderizing)
+slider9:0<0,1,{Off, On}>-Show CMND (Debugging)
+
+options:no_meter
+
+@init
+spos = 0; //storage of samples in buffer ["sample position"]
+freq = 0;
+
+function avg(imin imax) //max non-inclusive
+(
+  num = 0;
+  sum = 0;
+  loop(imax-imin,
+    sum += imin[num];
+    num += 1;
+  );
+  sum / (imax-imin);
+);
+
+function round(num)
+(
+  num >= 0 ? (
+    mult = 1;
+  ) : (
+    mult = -1;
+  );
+  abs(num) - floor(abs(num)) >= 0.5 ? (
+    ret = mult * ceil(abs(num));
+  ) : (
+    ret = mult * floor(abs(num));
+  );
+  ret;
+);
+
+function d(tau istart iwinend) //Difference Function (YIN eq. 6)
+(
+  sum = 0;
+  i_d = 0;
+  loop(iwinend+1-istart-tau,
+    sum += sqr(istart[i_d]-istart[i_d+tau]);
+    i_d += 1;
+  );
+  sum;
+);
+
+function cmnd(tau istart iwinend) //Cumulative Mean Normalized Difference
+// (YIN eq. 8)
+(
+  dbufstart = 127127;
+  i = 0;
+  loop(tau + 1,
+    dbufstart[i] = d(i, istart, iwinend);
+    i += 1;
+  );
+  tau == 0 ? (
+    return = 1;):(
+    return = dbufstart[tau] / avg(dbufstart, dbufstart+tau+1);
+  );
+  return;
+);
+
+function parab(iclosest)
+(
+  x1 = iclosest - 1;
+  y1 = x1[0];
+  x2 = iclosest;
+  y2 = iclosest[0];
+  x3 = iclosest + 1;
+  y3 = x3[0];
+  
+  denom = (x1 - x2) * (x1 - x3) * (x2 - x3);
+  a = (x3 * (y2 - y1) + x2 * (y1 - y3) + x1 * (y3 - y2)) / denom;
+  b = (x3*x3 * (y1 - y2) + x2*x2 * (y3 - y1) + x1*x1 * (y2 - y3)) / denom;
+  //c = (x2 * x3 * (x2 - x3) * y1 + x3 * x1 * (x3 - x1) * y2 + x1 * x2 * (x1 - x2) * y3) / denom;
+  -b / (2*a);
+);
+
+function findMin(istart iend)
+(
+  i = 1;
+  thresh = 0.15;
+  rmin = thresh; // "running min"
+  return_ind = -srate;
+  loop(iend-istart-10,
+    istart[i] < rmin ? (
+      rmin = istart[i];
+      return_ind = istart + i;
+    );
+    istart[i] > thresh ? (
+      rmin < thresh ? (
+        rmin = -10;
+      );
+    );
+    i += 1;
+  );
+  minLook + parab(return_ind)-istart;
+);
+
+
+
+@slider
+slider2 < 1000/slider1 ? (
+  slider2 = 1000/slider1);
+slider3 < slider2 ? (
+  slider2 = slider3);
+ch = slider4;
+maxF = slider3;
+minF = slider2;
+keyShift = slider5;
+modeShift = slider6;
+pitchBend = slider7;
+noiseFactor = slider8;
+showCMND = slider9;
+winSamples = floor(slider1*srate*0.001);
+maxLook = floor(min(srate/slider2,winSamples)); //from MinFreq
+minLook = floor(srate/slider3); //from MaxFreq
+dpos = winSamples + 100; //start of cmnd buffer, "difference position"
+cmndpos = dpos + maxLook + 100;
+cmndpos[0] = 1;
+modepos = cmndpos*2;
+modepos[0] = 2;
+modepos[1] = 2;
+modepos[2] = 1;
+modepos[3] = 2;
+modepos[4] = 2;
+modepos[5] = 2;
+modepos[6] = 1;
+keyNamePos = modepos + 10;
+selectPos = keyNamePos + 10;
+graphpos = selectPos + 10;
+memset(graphpos, -1, 320);
+
+//freembuf(winSamples*2 + 1);
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+@sample
+spl2 = 0;
+spl3 = spl2;
+trot = 1.05946309436; //Twelfth Root of Two
+ch == 0 ? (s = spl0):(s = spl1);
+spos[] = s;
+spos += 1;
+spos > winSamples ? (
+  spos = 0;
+  i = 0;
+  loop(maxLook - minLook + 1,
+    dpos[i] = d(minLook+i, spos, spos+winSamples);
+    i += 1;
+  );
+  i = 1;
+  loop(maxLook - minLook + 1,
+    cmndpos[i] = dpos[i]/(avg(dpos, dpos+i+1));
+    i += 1;
+  );
+  avg(dpos, dpos+maxLook-minLook) > 0.00001 ? (
+    freq = srate/findMin(cmndpos, cmndpos+1+maxLook-minLook);
+  ) : (
+    freq = 0;
+  );
+  graphpos[0] = freq;
+  graphpos += 1;
+  graphpos > modepos + 10 + 319 ? (
+    graphpos = modepos + 10;
+  );
+  
+  m_last = m;
+  c_last = cents;
+  freq > 0 ? (
+    selectFreq = 3520*(trot^keyShift);
+    while(
+      selectFreq /= 2;
+      selectFreq > freq;
+    );
+    selectPos[0] = selectFreq;
+    selectMin = abs(freq - selectFreq);
+    select_i = 0;
+    interv_i = modeShift;
+    i = 1;
+    loop(7,
+      selectFreq *= trot^modepos[interv_i];
+      selectPos[i] = selectFreq;
+      abs(freq - selectFreq) < selectMin ? (
+        selectMin = abs(freq - selectFreq);
+        select_i = i;
+      );
+      i += 1;
+      interv_i += 1;
+      interv_i > 6 ? (interv_i = 0);
+    );
+    m = 12 * log10(selectPos[select_i]/440)/log10(2) + 69 ; //round?
+    fm = (2 ^ ((m_last-69)/12))*440;
+    cents = 1200 * (log10(freq/fm)/log10(2));
+    abs(cents) > pitchBend*100 ? (
+      fm = (2 ^ ((m-69)/12))*440;
+      cents = 1200 * (log10(freq/fm)/log10(2));
+    ) : (
+      m = m_last;
+    );
+  ) : (
+    m = 0;
+  );
+  
+  m != m_last ? (
+    midisend(0, $x80, m_last, 127);
+    m > 0 ? (
+      midisend(0, $x90, m, 127);
+    );
+  );
+  cents != c_last ? (
+    cBits = round((cents/(pitchBend*100))*8191) + 8192;
+    cLSB = cBits & 0x7F;
+    cMSB = (cBits >> 7) & 0x7F;
+    midisend(0, $xE0, cLSB, cMSB);  
+  );
+);
+
+freq == 0 ? (
+  spl2 = (rand(2) - 1)*noiseFactor;
+  spl3 = spl2;
+);
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+@gfx 640 400
+keyNamePos[0] = "A";
+keyNamePos[1] = "B";
+keyNamePos[2] = "C";
+keyNamePos[3] = "D";
+keyNamePos[4] = "E";
+keyNamePos[5] = "F";
+keyNamePos[6] = "G";
+vscale = gfx_h/(log(maxF)-log(minF));
+vadj = -log(minF)*vscale;
+f = gfx_h-log(freq)*vscale-vadj;
+trot = 1.05946309436; //Twelfth Root of Two
+
+gfx_r = 0.05;
+gfx_g = 0.05;
+gfx_b = 0.05;
+bgfreq = 55;
+loop(48,
+  gfx_line(0,gfx_h-log(bgfreq)*vscale-vadj,gfx_w,gfx_h-log(bgfreq)*vscale-vadj, 0);
+  bgfreq *= trot;
+);
+
+gfx_r = 0.3;
+gfx_g = 0.3;
+gfx_b = 0.3;
+bgfreq = 55*(trot^keyShift);
+mode_i = modeShift;
+loop(28,
+  gfx_line(0,gfx_h-log(bgfreq)*vscale-vadj,gfx_w,gfx_h-log(bgfreq)*vscale-vadj, 0);
+  bgfreq *= trot^modepos[mode_i];
+  mode_i += 1;
+  mode_i > 6 ? (mode_i = 0);
+);
+
+gfx_r = 0.65;
+gfx_g = 0;
+gfx_b = 0;
+bgfreq = 55*(trot^keyShift);
+loop(4,
+  gfx_line(0,gfx_h-log(bgfreq)*vscale-vadj,gfx_w,gfx_h-log(bgfreq)*vscale-vadj, 0);
+  bgfreq *= trot^12;
+);
+
+gfx_r = 0.6;
+gfx_g = 0.6;
+gfx_b = 0.6;
+bgfreq = 55;
+mode_i = 5;
+note_i = 0;
+loop (28,
+  gfx_x = 3;
+  gfx_y = gfx_h-log(bgfreq)*vscale-vadj-3;
+  gfx_drawstr(keyNamePos[note_i]);
+  gfx_drawnumber(floor(log(bgfreq)/0.6932)-4,0);
+  gfx_drawstr("  ");
+  //gfx_drawnumber(bgfreq,0);
+  bgfreq *= trot^modepos[mode_i];
+  note_i += 1;
+  note_i > 6 ? (note_i = 0);
+  mode_i += 1;
+  mode_i > 6 ? (mode_i = 0);
+);
+
+gfx_r = 0;
+gfx_g = 1;
+gfx_b = 0;
+gfx_x = gfx_w + 2;
+graphpos[0] > 0 ? (
+  gfx_y = gfx_h-log(graphpos[0])*vscale-vadj;
+):(
+  gfx_y = gfx_h-log(graphpos[-1])*vscale-vadj;
+);
+loop(320,
+  graphpos[0] > 0 ? (
+    gfx_lineto(gfx_x - 2, gfx_h-log(graphpos[0])*vscale-vadj, 1);
+  ):(
+    gfx_x -= 2;
+    gfx_y = gfx_h-log(graphpos[-1])*vscale-vadj;
+  );
+  graphpos -= 1;
+  graphpos < modepos + 10 ? (
+    graphpos = modepos + 10 + 319;
+  );
+);
+showCMND == 1 ? (
+  gfx_x = 0;
+  gfx_y = gfx_h-cmndpos[1]*gfx_h*0.5;
+  gfx_r = 0;
+  gfx_g = 0;
+  gfx_b = 1;
+  i = 1;
+  loop(maxLook-minLook-1,
+    gfx_lineto(gfx_x+1, gfx_h - cmndpos[i]*gfx_h*0.5);
+    i += 1;
+  );
+  gfx_x = 5;
+  gfx_y = 10;
+);
+gfx_r = 1;
+gfx_g = 1;
+gfx_b = 1;
+gfx_y = 10;
+freq > 0 ? (
+  gfx_x = gfx_w-50;
+  gfx_drawnumber(freq,1);
+  gfx_x = gfx_w-50;
+  gfx_printf("\n");
+  gfx_drawnumber(selectPos[select_i],2);
+  gfx_x = gfx_w-50;
+  gfx_printf("\n");
+  gfx_drawnumber(m,0);
+  gfx_x = gfx_w-50;
+  gfx_printf("\n");
+  gfx_drawnumber(fm,0);
+  gfx_x = gfx_w-50;
+  gfx_printf("\n");
+  gfx_drawnumber(cents,2);
+);
+
+

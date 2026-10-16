@@ -1,0 +1,1362 @@
+// @noindex
+desc:Vocaligner Pitch Meter
+//tags: analysis pitch meter tuner vocal
+//author: Vocaligner
+/*
+Vocaligner Pitch Meter 1.1
+
+Measures the pitch of the audio that actually reaches this plug-in and keeps
+a history on the host timeline. Audio passes through untouched.
+
+- Replaying a zone replaces that zone. The version measured before the
+  replay becomes the "Prev" ghost, so a re-listen after an edit shows what
+  changed. "Pin Ref" freezes the current measurement as a reference.
+- Detector (own implementation of published methods): YIN difference
+  function computed with an FFT (de Cheveigne & Kawahara 2002), pYIN-style
+  threshold prior for candidate probabilities (Mauch & Dixon 2014), a
+  centred 3-period refinement of every candidate, then Viterbi smoothing
+  over candidates. Nothing is interpolated across unvoiced audio.
+- Notes are segmented from the smoothed contour (change-point DP with
+  energy-dip boundaries). The centre is the loudness-weighted mean of the
+  stable core, not the first or the loudest frame.
+- Placement: after the processor whose result you want to hear, e.g. as
+  take FX after ReaPitch, or as the first track FX of the vocal track.
+- Shared memory "VocalignerPitchMeter" publishes the measurement for the
+  Vocaligner Pitch editor (Check) and for the export script.
+*/
+
+slider1:1<0,1,1{Off,On}>-Analyze
+slider2:60<40,400,1>-Min pitch (Hz)
+slider3:1000<150,2000,1>-Max pitch (Hz)
+slider4:2<0,2,1{Left,Right,Mid (L+R)/2}>-Input
+slider5:440<415,466,0.1>-A4 (Hz)
+slider6:0<-250,250,0.1>-Time offset (ms)
+slider7:-60<-90,-20,1>-Silence gate (dBFS)
+slider8:0.15<0.05,0.35,0.01>-Voicing threshold
+slider9:10<2,40,0.5>-Note split penalty
+slider10:0<0,2000000000,1>-Instance ID
+
+in_pin:left input
+in_pin:right input
+out_pin:left output
+out_pin:right output
+
+options:gmem=VocalignerPitchMeter
+options:maxmem=8388608
+options:gfx_idle
+options:no_meter
+
+@init
+ext_noinit = 1;
+gfx_ext_retina = 1;
+jsfx_version = 1.1;
+
+HOP = 0.005;          // fixed 5 ms grid on the host timeline
+NFR = 240000;         // 20 minutes of frames
+SLOT = 262144;
+NMAX = 32768;         // note pool
+LAG = 60;             // frames kept provisional while capturing (300 ms)
+L_SW = log(0.02);
+L_STAY = log(0.98);
+OCT_PEN = 10;         // extra cost of an exact octave (or two) jump between frames
+// EEL2 has no exponent literals.
+EPS5 = 0.00001; EPS9 = 0.000000001; EPS10 = 0.0000000001; EPS12 = 0.000000000001;
+EPS20 = 10^-20; BIG = 10^30; BIG29 = 10^29; BIG31 = 10^31;
+
+// ---------------------------------------------------------------- memory
+m_fft = 65536;        // complex FFT <= 16384 points; both buffers stay
+m_fft2 = 98304;       // inside one 65536-item block as the API requires
+m_win = 131072;
+m_pref = 151072;
+m_dif = 171080;
+m_cmn = 191080;
+m_ring = 212992; RSIZE = 65536; RMASK = 65535;
+m_scr = 278528;
+c_tau = m_scr; c_val = m_scr + 64; c_mass = m_scr + 128; c_hz = m_scr + 192; c_rq = m_scr + 256;
+bw = m_scr + 320;
+vs_a = m_scr + 440; vs_b = m_scr + 448;
+qbuf = m_scr + 512;
+colh = m_scr + 1024;
+
+fa = 1048576;
+fp = fa;            fd = fa + SLOT;       fc1 = fa + 2*SLOT;   fc2 = fa + 3*SLOT;
+fc3 = fa + 4*SLOT;  fq1 = fa + 5*SLOT;    fq2 = fa + 6*SLOT;   fq3 = fa + 7*SLOT;
+fhz = fa + 8*SLOT;  fst = fa + 9*SLOT;    fnote = fa + 10*SLOT;
+fphz = fa + 11*SLOT; fpdb = fa + 12*SLOT; frhz = fa + 13*SLOT; frdb = fa + 14*SLOT;
+fgen = fa + 15*SLOT; fconf = fa + 16*SLOT;
+fb0 = fa + 17*SLOT; fb1 = fa + 18*SLOT;   fb2 = fa + 19*SLOT;  fb3 = fa + 20*SLOT;
+fsb = fa + 21*SLOT; fsk = fa + 22*SLOT;   ftmp = fa + 23*SLOT;
+np = fa + 24*SLOT;
+n_alive = np;          n_i0 = np + NMAX;      n_i1 = np + 2*NMAX;    n_cen = np + 3*NMAX;
+n_et = np + 4*NMAX;    n_db = np + 5*NMAX;    n_conf = np + 6*NMAX;  n_drift = np + 7*NMAX;
+n_vrate = np + 8*NMAX; n_vdep = np + 9*NMAX;  n_min = np + 10*NMAX;  n_max = np + 11*NMAX;
+n_pass = np + 12*NMAX; n_amp = np + 13*NMAX;  n_gd = np + 14*NMAX;   n_gn = np + 15*NMAX;
+nfree = np + 16*NMAX;
+dpc = nfree + NMAX; dps = dpc + 1024; dpv = dps + 1024;
+h_d = dpv + 1024;     // |delta| histogram, 1 cent bins, 0..1200
+h_e = h_d + 1216;     // |ET deviation| histogram, 0..50 cents
+
+// ---------------------------------------------------------------- shared memory
+G_MAGIC = 5263437;
+g_reg = 64; g_regsz = 64; g_nslot = 8;
+r_id = 0; r_hb = 1; r_ahb = 2; r_trk = 3; r_flg = 4; r_cpos = 5; r_hop = 6; r_org = 7;
+r_cap = 8; r_ver = 9; r_ppos = 10; r_pwall = 11; r_pst = 12; r_on = 13; r_gen = 14; r_ctxgen = 15;
+r_ctxseq = 16; r_sr = 17; r_fmin = 18; r_fmax = 19; r_a4 = 20; r_offs = 21; r_resreq = 22; r_resack = 23;
+r_expreq = 24; r_expack = 25; r_front = 26; r_imin = 27; r_imax = 28; r_passes = 29; r_jver = 30; r_rate = 31;
+r_ready = 32; r_capon = 33; r_curpass = 34;
+g_data = 1024; g_slotsz = 3*NFR;
+g_exp = g_data + g_nslot*g_slotsz + 4096;
+
+// ---------------------------------------------------------------- state
+!inited ? (
+  inited = 1;
+  v_t0 = 0; v_span = 8; v_top = 76; v_rows = 30;
+  ui_follow = 1; ui_ghost = 1; ui_info = 0; ui_color = 0;
+);
+my_slot = -1; slot_ok = 0; claim_pending = 0; reg_retry = 0;
+a_rate = 1; a_last_r = 0; a_have_last = 0;
+pass_serial = 0; cur_pass = 0; cap_pass = 0; cap_first = -1; cap_last = -1; cur_gen = 0; ctx_gen = 0;
+seg_on = 0; cap_on = 0; force_seg = 1;
+tl_set = 0; tl_org = 0; data_imin = NFR; data_imax = -1;
+n_hw = 0; fs_top = 0; qh = 0; qt = 0; fin_pass = 0; fin_i = -1;
+rs_req = 0; rs_ack = 0; exp_pending = 0; stats_dirty = 1;
+hover_id = 0; msg_t = 0;
+
+// ---------------------------------------------------------------- helpers
+function hz2m(h) ( 69 + 17.312340490667560*log(h/p_a4) );
+function lin(db) ( exp(db*0.11512925464970229) );
+function clampv(x, a, b) ( x < a ? a : x > b ? b : x );
+
+function configure() local(t, s, m, b, sum, w0, cw, al, a0) (
+  c_sr = srate;
+  c_fmin = max(30, p_fmin);
+  c_fmax = max(c_fmin*2, p_fmax);
+  tau_min = max(2, floor(srate/c_fmax));
+  tau_max = ceil(srate/c_fmin);
+  win_w = max(ceil(0.020*srate), tau_max);
+  (win_w + 1.5*tau_max) > 15000 ? ( tau_max = 5600; win_w = 5600; );
+  span = win_w + ceil(1.5*tau_max) + 8;
+  half = floor(span*0.5);
+  s1_o = half - floor((win_w + tau_max*0.5)*0.5);
+  fft_n = 16; while (fft_n < win_w + tau_max + 2) ( fft_n *= 2; );
+  ref_ws_min = max(16, ceil(0.006*srate));
+  // High-pass on the analysis copy only (RBJ, Q 0.707). Output stays untouched.
+  w0 = 2*$pi*0.6*c_fmin/srate; cw = cos(w0); al = sin(w0)/(2*0.70710678);
+  a0 = 1 + al;
+  hb0 = (1 + cw)*0.5/a0; hb1 = -(1 + cw)/a0; hb2 = hb0; ha1 = -2*cw/a0; ha2 = (1 - al)/a0;
+  // pYIN threshold prior: Beta(2, b) with the requested mean.
+  m = clampv(p_thr, 0.05, 0.35); b = 2*(1 - m)/m; sum = 0; t = 0;
+  loop(100, s = (t + 0.5)*0.01; bw[t] = s*(1 - s)^(b - 1); sum += bw[t]; t += 1;);
+  t = 0; loop(100, bw[t] /= sum; t += 1;);
+  c_pfmin = p_fmin; c_pfmax = p_fmax; c_pthr = p_thr;
+);
+
+// ---------------------------------------------------------------- capture bookkeeping
+function pass_end() local(q) (
+  cap_pass > 0 ? (
+    cap_last >= 0 ? (
+      q = qbuf + (qh & 63)*4; q[0] = cap_pass; q[1] = cap_first; q[2] = cap_last; q[3] = 1;
+      qh += 1;
+    );
+    cap_pass = 0;
+  );
+);
+function pass_begin() (
+  pass_end();
+  pass_serial += 1; cur_pass = pass_serial; cur_gen = ctx_gen;
+  cap_first = -1; cap_last = -1; prov_prev_i = -10;
+  cap_pass = cur_pass;
+);
+function seg_begin(t0) (
+  seg_t0 = t0; seg_rate = a_rate; seg_n = 0;
+  hx1 = hx2 = hy1 = hy2 = 0;
+  next_k = ceil((t0 + (half + 2)/srate*seg_rate)/HOP - EPS9);
+  seg_on = 1;
+  pass_begin();
+);
+function seg_end() ( seg_on ? ( pass_end(); seg_on = 0; ); );
+
+// ---------------------------------------------------------------- detector
+function refine(t1) local(ws, j0, ta, tb, tau, best, bv, v, e1, e2, xy, a, b, c, den, dx, out) (
+  out = t1;
+  ws = max(ref_ws_min, min(win_w, floor(3*t1 + 0.5)));
+  j0 = floor(half - (ws + t1)*0.5 + 0.5);
+  ta = max(2, floor(t1*0.96)); tb = ceil(t1*1.04);
+  (j0 >= 0 && j0 + ws + tb + 1 <= span) ? (
+    best = -1; bv = 10; tau = ta;
+    loop(tb - ta + 1,
+      e1 = m_pref[j0 + ws] - m_pref[j0];
+      e2 = m_pref[j0 + tau + ws] - m_pref[j0 + tau];
+      xy = mem_multiply_sum(m_win + j0, m_win + j0 + tau, ws);
+      v = (e1 + e2) > EPS20 ? (e1 + e2 - 2*xy)/(e1 + e2) : 1;
+      m_dif[tau] = v;
+      v < bv ? ( bv = v; best = tau; );
+      tau += 1;
+    );
+    (best > ta && best < tb && bv < 0.6) ? (
+      a = m_dif[best - 1]; b = m_dif[best]; c = m_dif[best + 1];
+      den = a - 2*b + c;
+      dx = den > 0 ? 0.5*(a - c)/den : 0;
+      out = best + clampv(dx, -0.5, 0.5);
+      ref_ok += 1;
+    ) : ref_fail += 1;
+  ) : ref_fail += 1;
+  out;
+);
+
+function yin_frame() local(n, j, k, re, im, rm, im2, ar, ai, br, bi, e0, tau, sum, v, a, b, c, den, dx,
+                           nmin, gval, gmin, t, s, found, top, best, q, hz, dup) (
+  n = fft_n;
+  j = 0;
+  loop(n,
+    m_fft[2*j] = j < win_w ? m_win[s1_o + j] : 0;
+    m_fft[2*j + 1] = j < win_w + tau_max + 2 ? m_win[s1_o + j] : 0;
+    j += 1;
+  );
+  fft(m_fft, n); fft_permute(m_fft, n);
+  // Separate both real spectra, then cross-correlate: conj(A) * B.
+  j = 0;
+  loop(n,
+    k = (n - j) & (n - 1);
+    re = m_fft[2*j]; im = m_fft[2*j + 1]; rm = m_fft[2*k]; im2 = m_fft[2*k + 1];
+    ar = 0.5*(re + rm); ai = 0.5*(im - im2);
+    br = 0.5*(im + im2); bi = 0.5*(rm - re);
+    m_fft2[2*j] = ar*br + ai*bi;
+    m_fft2[2*j + 1] = ar*bi - ai*br;
+    j += 1;
+  );
+  fft_ipermute(m_fft2, n); ifft(m_fft2, n);
+  // YIN difference function d(tau) and its cumulative mean normalisation.
+  e0 = m_pref[s1_o + win_w] - m_pref[s1_o];
+  m_cmn[0] = 1; sum = 0; tau = 1;
+  loop(tau_max + 1,
+    v = e0 + (m_pref[s1_o + tau + win_w] - m_pref[s1_o + tau]) - 2*m_fft2[2*tau]/n;
+    v < 0 ? v = 0;
+    m_dif[tau] = v; sum += v;
+    m_cmn[tau] = sum > 0 ? v*tau/sum : 1;
+    tau += 1;
+  );
+  // Every local minimum, ascending lag, parabolic interpolation.
+  nmin = 0; gval = 10; gmin = 0;
+  tau = max(2, tau_min);
+  loop(tau_max - tau + 1,
+    a = m_cmn[tau - 1]; b = m_cmn[tau]; c = m_cmn[tau + 1];
+    (b < a && b <= c && nmin < 48) ? (
+      den = a - 2*b + c; dx = den > 0 ? 0.5*(a - c)/den : 0; dx = clampv(dx, -0.5, 0.5);
+      c_tau[nmin] = tau + dx; c_val[nmin] = b - 0.25*(a - c)*dx; c_mass[nmin] = 0;
+      c_val[nmin] < gval ? ( gval = c_val[nmin]; gmin = nmin; );
+      nmin += 1;
+    );
+    tau += 1;
+  );
+  // pYIN: each threshold votes for the first dip below it.
+  cand_mass_total = 0; top = 0;
+  nmin > 0 ? (
+    t = 0;
+    loop(100,
+      s = (t + 0.5)*0.01; found = -1; j = 0;
+      while (found < 0 && j < nmin) ( c_val[j] < s ? found = j; j += 1; );
+      found >= 0 ? c_mass[found] += bw[t] : c_mass[gmin] += bw[t]*0.01;
+      t += 1;
+    );
+    // Harmonic ambiguity: prefer a substantially better repeat over a strong
+    // partial (including 3rd-harmonic and 3:2 traps). The absolute floor
+    // avoids preferring a subharmonic for tiny interpolation differences.
+    // This is evidence weighting, not proof of a unique fundamental.
+    j = 0;
+    loop(nmin,
+      c_mass[j] > 0 ? (
+        k = j + 1;
+        loop(nmin - j - 1,
+          (c_tau[k] > c_tau[j]*1.4 && c_tau[k] < c_tau[j]*4.1 && c_val[j] > 0.002 && c_val[k] < 0.5*c_val[j] && c_val[j] - c_val[k] > 0.001) ? (
+            c_mass[k] += 0.8*c_mass[j]; c_mass[j] *= 0.2;
+          );
+          k += 1;
+        );
+      );
+      j += 1;
+    );
+    loop(3,
+      best = -1; q = 0.0005; j = 0;
+      loop(nmin, c_mass[j] > q ? ( q = c_mass[j]; best = j; ); j += 1;);
+      best >= 0 ? (
+        hz = srate/refine(c_tau[best]);
+        (hz >= c_fmin*0.97 && hz <= c_fmax*1.03) ? (
+          dup = -1; k = 0;
+          loop(top, abs(log(hz/c_hz[k])) < 0.01155 ? dup = k; k += 1;);
+          dup >= 0 ? c_rq[dup] += q : ( c_hz[top] = hz; c_rq[top] = q; top += 1; );
+          cand_mass_total += q;
+        );
+        c_mass[best] = -1;
+      );
+    );
+  );
+  top;
+);
+
+function store_frame(i, db, nc, g) local(op, pv, j, bq, prevhz, pick, d, hz) (
+  op = fp[i];
+  (op > 0 && op != cur_pass) ? (
+    fphz[i] = fhz[i] > 0 ? fhz[i] : -1;
+    fpdb[i] = fd[i];
+  );
+  fp[i] = cur_pass; fd[i] = db; fgen[i] = cur_gen;
+  fc1[i] = nc > 0 ? c_hz[0] : 0; fq1[i] = nc > 0 ? c_rq[0]*g : 0;
+  fc2[i] = nc > 1 ? c_hz[1] : 0; fq2[i] = nc > 1 ? c_rq[1]*g : 0;
+  fc3[i] = nc > 2 ? c_hz[2] : 0; fq3[i] = nc > 2 ? c_rq[2]*g : 0;
+  pv = fq1[i] + fq2[i] + fq3[i];
+  // Provisional choice until Viterbi runs: strongest candidate, kept
+  // continuous with the previous frame when a nearby one is nearly as strong.
+  pick = 0; hz = 0;
+  pv >= 0.5 ? (
+    pick = 1; bq = fq1[i];
+    fq2[i] > bq ? ( pick = 2; bq = fq2[i]; );
+    fq3[i] > bq ? ( pick = 3; bq = fq3[i]; );
+    prevhz = (prov_prev_i == i - 1 && i > 0 && fp[i - 1] == cur_pass) ? fhz[i - 1] : 0;
+    prevhz > 0 ? (
+      j = 1;
+      loop(3,
+        hz = j == 1 ? fc1[i] : j == 2 ? fc2[i] : fc3[i];
+        d = j == 1 ? fq1[i] : j == 2 ? fq2[i] : fq3[i];
+        (hz > 0 && abs(log(hz/prevhz)) < 0.0578 && d >= 0.6*bq) ? pick = j;
+        j += 1;
+      );
+    );
+    hz = pick == 1 ? fc1[i] : pick == 2 ? fc2[i] : fc3[i];
+  );
+  fhz[i] = hz;
+  fst[i] = pick > 0 ? -pick : -9;
+  fconf[i] = pick == 1 ? fq1[i] : pick == 2 ? fq2[i] : pick == 3 ? fq3[i] : 0;
+  prov_prev_i = i;
+  cap_first < 0 ? cap_first = i;
+  cap_last = i;
+  i < data_imin ? data_imin = i;
+  i > data_imax ? data_imax = i;
+  data_ver += 1;
+  slot_ok ? (
+    gmem[gm_mid + i] = hz > 0 ? hz2m(hz) : 0;
+    gmem[gm_conf + i] = fconf[i];
+    gmem[gm_gen + i] = -cur_gen - 1;
+    gmem[gm_eb + r_ver] = data_ver;
+    gmem[gm_eb + r_front] = i;
+  );
+);
+
+function analyze_frame(k, s0) local(i, j, e, db, g, c0, nc, t0) (
+  t0 = time_precise();
+  !tl_set ? ( tl_org = max(0, k - 2000); tl_set = 1; );
+  i = k - tl_org;
+  (i < 0 || i >= NFR) ? out_frames += 1 : (
+    j = 0; loop(span, m_win[j] = m_ring[(s0 + j) & RMASK]; j += 1;);
+    m_pref[0] = 0; j = 0; loop(span, m_pref[j + 1] = m_pref[j] + sqr(m_win[j]); j += 1;);
+    c0 = floor((span - win_w)*0.5);
+    e = (m_pref[c0 + win_w] - m_pref[c0])/win_w;
+    db = e > EPS20 ? 10*log10(e) : -200;
+    g = clampv((db - p_gate)/6, 0, 1);
+    nc = g > 0 ? yin_frame() : 0;
+    store_frame(i, db, nc, g);
+    frames_done += 1;
+  );
+  cpu_acc += time_precise() - t0;
+);
+
+function analyze_pending() local(tk, nc, s0, guard) (
+  guard = 0;
+  while (seg_on && guard < 40 && (tk = next_k*HOP; nc = floor((tk - seg_t0)*srate/seg_rate + 0.5); nc + half + 2 <= seg_n)) (
+    s0 = nc - half;
+    s0 >= 0 ? ( s0 >= seg_n - RSIZE + 16 ? analyze_frame(next_k, s0) : lost_frames += 1; );
+    next_k += 1; guard += 1;
+  );
+);
+
+// ---------------------------------------------------------------- Viterbi over candidates
+function st_hz(i, s) ( s == 1 ? fc1[i] : s == 2 ? fc2[i] : s == 3 ? fc3[i] : 0 );
+function st_p(i, s) ( s == 1 ? fq1[i] : s == 2 ? fq2[i] : s == 3 ? fq3[i] : 0 );
+// The absolute gate is already in fq*. Do not erase quiet voiced frames
+// based on an unrelated louder phrase elsewhere in the recording.
+function vit_obs(i, s) local(p) (
+  s == 0 ? ( p = 1 - (fq1[i] + fq2[i] + fq3[i]); log(max(EPS5, p)); ) : (
+    p = st_p(i, s); (st_hz(i, s) > 0 && p > 0) ? log(max(EPS5, p)) : -BIG;
+  );
+);
+// sigma 0.7 semitone per 5 ms frame, plus a 3% floor that still allows real leaps
+// An exact octave jump is the typical YIN error (strong 2nd harmonic); a
+// sustained real leap still wins because its evidence accumulates.
+function vit_trans(ha, hb) local(d, ad) (
+  (ha > 0 && hb > 0) ? (
+    d = 17.31234049*log(hb/ha); ad = abs(d);
+    log(0.97*exp(-d*d*1.0204) + 0.00125) + L_STAY - ((abs(ad - 12) < 1 || abs(ad - 24) < 1) ? OCT_PEN : 0);
+  ) : ((ha > 0) != (hb > 0)) ? L_SW : L_STAY;
+);
+function write_final(i, s) local(hz) (
+  hz = st_hz(i, s);
+  fst[i] = s; fhz[i] = s > 0 ? hz : 0;
+  fconf[i] = s > 0 ? st_p(i, s) : 0;
+  slot_ok ? (
+    gmem[gm_mid + i] = s > 0 ? hz2m(hz) : 0;
+    gmem[gm_conf + i] = fconf[i];
+    gmem[gm_gen + i] = fgen[i];
+  );
+);
+function viterbi(i0, i1, wr, pass, sh, hs) local(i, s, sp, best, bs, v, hz, hp, bv) (
+  s = 0; loop(4, vs_a[s] = vit_obs(i0, s) + (hs ? vit_trans(sh, st_hz(i0, s)) : 0); s += 1;);
+  i = i0 + 1;
+  loop(i1 - i0,
+    s = 0;
+    loop(4,
+      hz = st_hz(i, s); v = vit_obs(i, s); bs = 0;
+      v > -BIG29 ? (
+        best = -BIG; sp = 0;
+        loop(4,
+          vs_a[sp] > -BIG29 ? (
+            hp = st_hz(i - 1, sp);
+            bv = vs_a[sp] + vit_trans(hp, hz);
+            bv > best ? ( best = bv; bs = sp; );
+          );
+          sp += 1;
+        );
+        vs_b[s] = best + v;
+      ) : vs_b[s] = -BIG;
+      (s == 0 ? fb0 : s == 1 ? fb1 : s == 2 ? fb2 : fb3)[i] = bs;
+      s += 1;
+    );
+    best = max(max(vs_b[0], vs_b[1]), max(vs_b[2], vs_b[3]));
+    s = 0; loop(4, vs_a[s] = vs_b[s] > -BIG29 ? vs_b[s] - best : -BIG; s += 1;);
+    i += 1;
+  );
+  bs = 0; best = -BIG31; s = 0;
+  loop(4, vs_a[s] > best ? ( best = vs_a[s]; bs = s; ); s += 1;);
+  i = i1;
+  loop(i1 - i0 + 1,
+    (i <= wr && fp[i] == pass) ? write_final(i, bs);
+    i > i0 ? bs = (bs == 0 ? fb0 : bs == 1 ? fb1 : bs == 2 ? fb2 : fb3)[i];
+    i -= 1;
+  );
+);
+
+// ---------------------------------------------------------------- notes
+function note_alloc() local(id) (
+  fs_top > 0 ? ( fs_top -= 1; id = nfree[fs_top]; ) : (
+    n_hw < NMAX - 1 ? ( n_hw += 1; id = n_hw; ) : ( id = 0; notes_full += 1; );
+  );
+  id;
+);
+function note_free(id) local(i) (
+  n_alive[id] ? (
+    n_alive[id] = 0;
+    i = n_i0[id];
+    loop(n_i1[id] - n_i0[id] + 1, fnote[i] == id ? fnote[i] = 0; i += 1;);
+    nfree[fs_top] = id; fs_top += 1;
+  );
+);
+function voiced_final(i) ( fp[i] > 0 && fst[i] > 0 );
+function slope_at(i, a, b) local(l, r) (
+  l = max(a, i - 1); r = min(b, i + 1);
+  r > l ? abs(ftmp[r] - ftmp[l])/((r - l)*HOP) : 0;
+);
+function dip_at(i, a, b) local(d, k, j, mxl, mxr, ok) (
+  d = fd[i]; ok = 1; k = -2;
+  loop(5, j = clampv(i + k, a, b); (j != i && fd[j] < d) ? ok = 0; k += 1;);
+  ok ? (
+    mxl = -300; mxr = -300; k = 1;
+    loop(12, mxl = max(mxl, fd[max(a, i - k)]); mxr = max(mxr, fd[min(b, i + k)]); k += 1;);
+    ok = (mxl - d >= 6) && (mxr - d >= 6);
+  );
+  ok;
+);
+function note_make(a, b) local(id, n, c0, c1, i, p, w, sw, swp, amp, pk, cs, mn, mx, t, sx, sy, sxx, sxy, cnt,
+                               d, slope, icpt, r, rr, zc, sg, dur, rate, dep) (
+  id = note_alloc();
+  id > 0 ? (
+    n = b - a + 1;
+    n_alive[id] = 1; n_i0[id] = a; n_i1[id] = b; n_pass[id] = fp[a];
+    c0 = a + floor(n*0.15); c1 = b - floor(n*0.15);
+    sw = 0; swp = 0; pk = 0; cs = 0; mn = 1000; mx = -1000; i = a;
+    loop(n,
+      p = ftmp[i];
+      amp = lin(fd[i]); pk = max(pk, amp); cs += fconf[i]; mn = min(mn, p); mx = max(mx, p);
+      (i >= c0 && i <= c1) ? (
+        w = amp*max(0.05, fconf[i])*(slope_at(i, a, b) < 40 ? 1 : 0.05);
+        sw += w; swp += w*p;
+      );
+      fnote[i] = id;
+      i += 1;
+    );
+    n_cen[id] = sw > 0 ? swp/sw : (mn + mx)*0.5;
+    n_et[id] = (n_cen[id] - floor(n_cen[id] + 0.5))*100;
+    n_db[id] = 20*log10(max(pk, EPS10)); n_amp[id] = max(pk, EPS10);
+    n_conf[id] = cs/n; n_min[id] = mn; n_max[id] = mx;
+    // drift = linear trend over the core; vibrato = detrended residual
+    cnt = c1 - c0 + 1; sx = sy = sxx = sxy = 0; i = c0;
+    loop(cnt, t = (i - c0)*HOP; sx += t; sy += ftmp[i]; sxx += t*t; sxy += t*ftmp[i]; i += 1;);
+    d = cnt*sxx - sx*sx;
+    slope = d > EPS12 ? (cnt*sxy - sx*sy)/d : 0; icpt = (sy - slope*sx)/max(1, cnt);
+    n_drift[id] = slope*cnt*HOP*100;
+    rr = 0; zc = 0; sg = 0; i = c0;
+    loop(cnt,
+      r = ftmp[i] - (icpt + slope*(i - c0)*HOP); rr += r*r;
+      r > 0.05 ? ( sg < 0 ? zc += 1; sg = 1; ) : r < -0.05 ? ( sg > 0 ? zc += 1; sg = -1; );
+      i += 1;
+    );
+    dur = cnt*HOP; rate = dur > 0 ? zc/(2*dur) : 0; dep = sqrt(rr/max(1, cnt))*141.42;
+    (dur >= 0.25 && rate >= 3.5 && rate <= 9 && dep >= 12) ? ( n_vrate[id] = rate; n_vdep[id] = dep; ) : ( n_vrate[id] = 0; n_vdep[id] = 0; );
+    n_gd[id] = -9999; n_gn[id] = 0;
+  );
+);
+function dip_depth(i, a, b) local(k, mxl, mxr) (
+  mxl = -300; mxr = -300; k = 1;
+  loop(12, mxl = max(mxl, fd[max(a, i - k)]); mxr = max(mxr, fd[min(b, i + k)]); k += 1;);
+  min(mxl, mxr) - fd[i];
+);
+function segment_dp(s, e) local(n, i, j, lo, hi, p, w, cnum, step, best, bj, newc, d, o, na, nb) (
+  n = e - s + 1;
+  n >= 3 ? (
+    lo = 1000; hi = -1000; i = s;
+    loop(n, p = hz2m(fhz[i]); ftmp[i] = p; lo = min(lo, p); hi = max(hi, p); i += 1;);
+    step = 0.1; cnum = floor((hi - lo)/step) + 1;
+    cnum > 600 ? ( step = (hi - lo)/599; cnum = 600; );
+    j = 0; loop(cnum, dpv[j] = lo + j*step; dpc[j] = BIG; dps[j] = s; j += 1;);
+    best = 0; i = s;
+    loop(n,
+      w = max(0.05, fconf[i])/(1 + sqr(slope_at(i, s, e)/25));
+      o = dip_at(i, s, e) ? 0.3 : 1;
+      newc = best + p_split*o;
+      best = BIG; bj = 0; j = 0;
+      loop(cnum,
+        newc < dpc[j] ? ( dpc[j] = newc; dps[j] = i; );
+        d = abs(ftmp[i] - dpv[j]); d > 3 ? d = 3;
+        dpc[j] += d*w;
+        dpc[j] < best ? ( best = dpc[j]; bj = j; );
+        j += 1;
+      );
+      fsb[i] = dps[bj] - 1; fsk[i] = bj;
+      i += 1;
+    );
+    nb = e;
+    while (nb >= s) ( na = fsb[nb] + 1; na < s ? na = s; note_make(na, nb); nb = na - 1; );
+  );
+);
+// A deep level dip inside one voiced run separates syllables even when the
+// pitch does not change (repeated notes). The dip's lowest frame is the cut.
+function segment(s, e) local(i, a, k, lowest, li, lv) (
+  a = s; i = s + 3;
+  while (i <= e - 3) (
+    dip_depth(i, s, e) >= 9 ? (
+      li = i; lv = fd[i]; k = i;
+      while (k <= e - 3 && dip_depth(k, s, e) >= 9) ( fd[k] < lv ? ( lv = fd[k]; li = k; ); k += 1; );
+      li - a >= 2 ? ( segment_dp(a, li); a = li + 1; );
+      i = k;
+    ) : i += 1;
+  );
+  segment_dp(a, e);
+);
+function rebuild_notes(i0, i1) local(ua, ub, i, id, s, pass, changed, iter) (
+  ua = max(0, i0 - 1); ub = min(NFR - 1, i1 + 1);
+  changed = 1; iter = 0;
+  while (changed && iter < 8) (
+    changed = 0; iter += 1;
+    while (ua > 0 && voiced_final(ua) && voiced_final(ua - 1) && fp[ua - 1] == fp[ua]) ( ua -= 1; );
+    while (ub < NFR - 1 && voiced_final(ub) && voiced_final(ub + 1) && fp[ub + 1] == fp[ub]) ( ub += 1; );
+    i = ua;
+    loop(ub - ua + 1,
+      id = fnote[i];
+      id > 0 ? (
+        n_i0[id] < ua ? ( ua = n_i0[id]; changed = 1; );
+        n_i1[id] > ub ? ( ub = n_i1[id]; changed = 1; );
+        note_free(id);
+      );
+      i += 1;
+    );
+  );
+  i = ua;
+  while (i <= ub) (
+    voiced_final(i) ? (
+      s = i; pass = fp[i];
+      while (i < ub && voiced_final(i + 1) && fp[i + 1] == pass) ( i += 1; );
+      segment(s, i);
+    );
+    i += 1;
+  );
+);
+
+// ---------------------------------------------------------------- post-processing (UI thread)
+function post_process() local(q, pass, a, b, i, j, lo, hi, has, sh, n) (
+  qh - qt > 64 ? qt = qh - 64;
+  while (qt != qh) (
+    q = qbuf + (qt & 63)*4; pass = q[0]; a = q[1]; b = q[2];
+    i = a;
+    while (i <= b) (
+      fp[i] == pass ? (
+        j = i; while (j < b && fp[j + 1] == pass) ( j += 1; );
+        viterbi(i, j, j, pass, 0, 0);
+        rebuild_notes(i, j);
+        i = j + 1;
+      ) : i += 1;
+    );
+    fin_pass == pass ? fin_pass = 0;
+    qt += 1; stats_dirty = 1;
+    data_ver += 1; slot_ok ? gmem[gm_eb + r_ver] = data_ver;
+  );
+  pass = cap_pass; a = cap_first; b = cap_last;
+  (pass > 0 && a >= 0 && b >= a && pass == cap_pass) ? (
+    lo = fin_pass == pass ? fin_i + 1 : a;
+    hi = min(b - LAG, lo + 4000);
+    hi >= lo ? (
+      has = lo > a && fst[lo - 1] >= 0;
+      sh = has ? fhz[lo - 1] : 0;
+      n = min(b, hi + LAG);
+      viterbi(lo, n, hi, pass, sh, has);
+      rebuild_notes(lo, hi);
+      fin_pass = pass; fin_i = hi; stats_dirty = 1;
+      data_ver += 1; slot_ok ? gmem[gm_eb + r_ver] = data_ver;
+    );
+  );
+);
+
+function ghost_hz(i) ( ui_ghost == 1 ? fphz[i] : ui_ghost == 2 ? frhz[i] : 0 );
+
+function mirror_range(a, b) local(i) (
+  i = max(0, a);
+  loop(max(0, min(NFR - 1, b) - i + 1),
+    fp[i] > 0 ? (
+      gmem[gm_mid + i] = fhz[i] > 0 ? hz2m(fhz[i]) : 0;
+      gmem[gm_conf + i] = fconf[i];
+      gmem[gm_gen + i] = fst[i] >= 0 ? fgen[i] : -fgen[i] - 1;
+    ) : ( gmem[gm_mid + i] = -1; gmem[gm_conf + i] = 0; gmem[gm_gen + i] = 0; );
+    i += 1;
+  );
+);
+
+function do_reset(all) local(a, b) (
+  a = data_imin; b = data_imax;
+  memset(fp, 0, NFR); memset(fd, 0, NFR);
+  memset(fc1, 0, NFR); memset(fc2, 0, NFR); memset(fc3, 0, NFR);
+  memset(fq1, 0, NFR); memset(fq2, 0, NFR); memset(fq3, 0, NFR);
+  memset(fhz, 0, NFR); memset(fst, 0, NFR); memset(fnote, 0, NFR);
+  memset(fphz, 0, NFR); memset(fpdb, 0, NFR); memset(fgen, 0, NFR); memset(fconf, 0, NFR);
+  all ? ( memset(frhz, 0, NFR); memset(frdb, 0, NFR); ref_have = 0; tl_set = 0; );
+  memset(n_alive, 0, NMAX); n_hw = 0; fs_top = 0;
+  data_imin = NFR; data_imax = -1;
+  qt = qh; fin_pass = 0; fin_i = -1;
+  ref_ok = ref_fail = out_frames = lost_frames = frames_done = notes_full = 0;
+  stats_dirty = 1; hover_id = 0;
+  slot_ok && b >= a ? mirror_range(a, b);
+  data_ver += 1; slot_ok ? gmem[gm_eb + r_ver] = data_ver;
+);
+
+function pin_ref() local(i) (
+  memset(frhz, 0, NFR); memset(frdb, 0, NFR);
+  i = max(0, data_imin);
+  loop(max(0, data_imax - data_imin + 1),
+    fp[i] > 0 ? ( frhz[i] = fhz[i] > 0 ? fhz[i] : -1; frdb[i] = fd[i]; );
+    i += 1;
+  );
+  ref_have = data_imax >= data_imin; ui_ghost = 2; stats_dirty = 1;
+);
+
+// ---------------------------------------------------------------- statistics and report
+function fmt_time(dst, t) local(mn, s) ( mn = floor(t/60); s = t - mn*60; sprintf(dst, "%d:%06.3f", mn, s); dst; );
+function note_name(dst, m) local(k, pc, oc) (
+  k = floor(m + 0.5); pc = k - 12*floor(k/12); oc = floor(k/12) - 1;
+  strcpy_substr(#nn_a, "C C#D D#E F F#G G#A A#B ", pc*2, 2);
+  str_getchar(#nn_a, 1) == 32 ? ( strcpy_substr(#nn_b, #nn_a, 0, 1); strcpy(#nn_a, #nn_b); );
+  sprintf(dst, "%s%d", #nn_a, oc);
+  dst;
+);
+function hist_q(h, n, total, q) local(acc, k, out) (
+  acc = 0; k = 0; out = n - 1;
+  while (k < n && acc < total*q) ( acc += h[k]; out = k; k += 1; );
+  out;
+);
+function compute_stats() local(i, st, v, g, d, n_data, n_voiced, n_prov, conf_sum, fixes, am, bq, n_cmp,
+                               sum_s, vd, n_both, id, dur, tot, et, w10, w25, cmin, cmax, nv, vr, vdp,
+                               c0, c1, k, gs, gn, mg, moved, cmpd, L, best, bl, cnt, acc, stride, j, gg, lag_frames) (
+  memset(h_d, 0, 1216); memset(h_e, 0, 64);
+  n_data = n_voiced = n_prov = conf_sum = fixes = n_cmp = sum_s = vd = n_both = 0;
+  i = max(0, data_imin);
+  loop(max(0, data_imax - data_imin + 1),
+    fp[i] > 0 ? (
+      n_data += 1; st = fst[i]; v = fhz[i] > 0;
+      st < 0 ? n_prov += 1;
+      v ? (
+        n_voiced += 1; conf_sum += fconf[i];
+        st > 0 ? (
+          am = 1; bq = fq1[i]; fq2[i] > bq ? ( am = 2; bq = fq2[i]; ); fq3[i] > bq ? am = 3;
+          am != st ? fixes += 1;
+        );
+      );
+      g = ghost_hz(i);
+      g != 0 ? (
+        n_both += 1;
+        (v && g > 0) ? (
+          d = (hz2m(fhz[i]) - hz2m(g))*100;
+          h_d[min(1200, floor(abs(d)))] += 1; n_cmp += 1; sum_s += d;
+        ) : ( v != (g > 0) ? vd += 1; );
+      );
+    );
+    i += 1;
+  );
+  // notes
+  tot = w10 = w25 = nv = vr = vdp = moved = cmpd = 0; cmin = 1000; cmax = -1000; st_notes = 0;
+  id = 1;
+  loop(n_hw,
+    n_alive[id] ? (
+      st_notes += 1;
+      dur = (n_i1[id] - n_i0[id] + 1)*HOP; tot += dur;
+      et = abs(n_et[id]); h_e[min(50, floor(et))] += dur;
+      et <= 10 ? w10 += dur; et <= 25 ? w25 += dur;
+      cmin = min(cmin, n_cen[id]); cmax = max(cmax, n_cen[id]);
+      n_vrate[id] > 0 ? ( nv += 1; vr += n_vrate[id]; vdp += n_vdep[id]; );
+      // centre difference against the ghost over the same core frames
+      n_gd[id] = -9999; n_gn[id] = 0;
+      ui_ghost > 0 ? (
+        k = n_i1[id] - n_i0[id] + 1; c0 = n_i0[id] + floor(k*0.15); c1 = n_i1[id] - floor(k*0.15);
+        gs = 0; gn = 0; j = c0;
+        loop(c1 - c0 + 1,
+          gg = ghost_hz(j);
+          (gg > 0 && fhz[j] > 0) ? ( gs += hz2m(fhz[j]) - hz2m(gg); gn += 1; );
+          j += 1;
+        );
+        gn >= 3 ? (
+          n_gd[id] = gs/gn*100; n_gn[id] = gn; cmpd += 1;
+          abs(n_gd[id]) > 10 ? moved += 1;
+        );
+      );
+    );
+    id += 1;
+  );
+  // best time alignment against the ghost (+-60 ms), strided for speed
+  st_lag_ms = 0; st_lag_gain = 0; lag_frames = 0;
+  (ui_ghost > 0 && n_cmp > 60) ? (
+    stride = max(1, floor((data_imax - data_imin + 1)/30000));
+    best = BIG; bl = 0; L = -12;
+    loop(25,
+      acc = 0; cnt = 0; i = max(0, data_imin) + 12;
+      while (i <= data_imax - 12) (
+        (fhz[i] > 0 && (gg = ghost_hz(i + L)) > 0) ? ( acc += abs(hz2m(fhz[i]) - hz2m(gg)); cnt += 1; );
+        i += stride;
+      );
+      (cnt > 30 && acc/cnt < best) ? ( best = acc/cnt; bl = L; );
+      L == 0 ? ( lag_frames = cnt > 0 ? acc/cnt : 0; );
+      L += 1;
+    );
+    st_lag_gain = (lag_frames - best)*100;
+    st_lag_ms = (st_lag_gain >= 1.5 && st_lag_gain >= 0.1*lag_frames*100) ? bl*HOP*1000 : 0;
+  );
+  st_data_s = n_data*HOP; st_voiced = n_data > 0 ? n_voiced/n_data*100 : 0;
+  st_prov = n_prov; st_conf = n_voiced > 0 ? conf_sum/n_voiced : 0;
+  st_fix = fixes; st_fixp = n_voiced > 0 ? fixes/n_voiced*100 : 0;
+  st_refp = (ref_ok + ref_fail) > 0 ? ref_ok/(ref_ok + ref_fail)*100 : 0;
+  st_et_med = tot > 0 ? hist_q(h_e, 51, tot, 0.5) + 0.5 : 0;
+  st_w10 = tot > 0 ? w10/tot*100 : 0; st_w25 = tot > 0 ? w25/tot*100 : 0;
+  st_cmin = cmin; st_cmax = cmax; st_nv = nv; st_vr = nv > 0 ? vr/nv : 0; st_vd = nv > 0 ? vdp/nv : 0;
+  st_cmp_s = n_cmp*HOP; st_dmed = n_cmp > 0 ? hist_q(h_d, 1201, n_cmp, 0.5) + 0.5 : 0;
+  st_d95 = n_cmp > 0 ? hist_q(h_d, 1201, n_cmp, 0.95) + 0.5 : 0;
+  st_dmean = n_cmp > 0 ? sum_s/n_cmp : 0; st_vdp = n_both > 0 ? vd/n_both*100 : 0;
+  st_moved = moved; st_cmpd = cmpd;
+  // text
+  data_imax >= data_imin ? (
+    fmt_time(#ta, (tl_org + data_imin)*HOP); fmt_time(#tb, (tl_org + data_imax)*HOP);
+    sprintf(#r1, "Live %s - %s | analyzed %.1f s | voiced %.0f%% | passes %d%s", #ta, #tb, st_data_s, st_voiced, pass_serial, st_prov > 0 ? " | finishing..." : "");
+  ) : strcpy(#r1, "No measurement yet. Play the item with Analyze on.");
+  st_notes > 0 ? (
+    note_name(#na, st_cmin); note_name(#nb, st_cmax);
+    sprintf(#r2, "Notes %d | range %s-%s | tuning |dev| median %.0f ct | within 10 ct %.0f%% | within 25 ct %.0f%%", st_notes, #na, #nb, st_et_med, st_w10, st_w25);
+    sprintf(#r4, "Vibrato %d notes | %.1f Hz | +-%.0f ct", st_nv, st_vr, st_vd);
+  ) : ( strcpy(#r2, "Notes 0"); strcpy(#r4, ""); );
+  sprintf(#r3, "Confidence %.2f | Viterbi candidate changes %d frames (%.1f%%) | centred refinement %.0f%%", st_conf, st_fix, st_fixp, st_refp);
+  ui_ghost == 0 ? strcpy(#r5, "Ghost off") : st_cmp_s <= 0 ? (
+    sprintf(#r5, "vs %s: no common voiced frames yet", ui_ghost == 1 ? "Prev" : "Ref");
+  ) : (
+    sprintf(#r5, "vs %s: common %.1f s | |delta| median %.1f ct, p95 %.1f ct | mean %+.1f ct | voicing changed %.1f%% | notes moved >10 ct: %d/%d | %s",
+      ui_ghost == 1 ? "Prev" : "Ref", st_cmp_s, st_dmed, st_d95, st_dmean, st_vdp, st_moved, st_cmpd,
+      st_lag_ms != 0 ? sprintf(#lg, "timing shift %+.0f ms (-%.1f ct)", st_lag_ms, st_lag_gain) : "no timing shift");
+  );
+  sprintf(#r6, "YIN-FFT W %.0f ms + 3-period refine | hop 5 ms | %d-%d Hz | A4 %.1f | offset %+.1f ms | gate %d dBFS",
+    win_w/srate*1000, c_fmin, c_fmax, p_a4, p_offset, p_gate);
+  sprintf(#r7, "%s%s | %d Hz | rate %.3f | CPU %.1f%% | link %s",
+    hp_flags & 1 ? "take FX" : "track FX", hp_trk >= 0 ? sprintf(#pt, " on track %d", hp_trk + 1) : " (master/monitor)",
+    srate, a_rate, cpu_pct, slot_ok ? sprintf(#ls, "slot %d gen %d", my_slot + 1, cur_gen) : "none");
+  strcpy(#r8, "");
+  out_frames > 0 ? sprintf(#r8, "%d frames outside the 20-minute window (Reset all to move it). ", out_frames);
+  lost_frames > 0 ? strcat(#r8, sprintf(#lf, "%d frames skipped (CPU). ", lost_frames));
+  abs(a_rate - 1) > 0.001 ? strcat(#r8, "Play rate is not 1: pitch is measured as played. ");
+  notes_full > 0 ? strcat(#r8, "Note pool full. ");
+);
+function build_report(dst) (
+  strcpy(dst, "Vocaligner Pitch Meter report\n");
+  strcat(dst, #r1); strcat(dst, "\n"); strcat(dst, #r2); strcat(dst, "\n"); strcat(dst, #r3); strcat(dst, "\n");
+  strcat(dst, #r4); strcat(dst, "\n"); strcat(dst, #r5); strcat(dst, "\n"); strcat(dst, #r6); strcat(dst, "\n");
+  strcat(dst, #r7); strcat(dst, "\n"); strcat(dst, #r8); strcat(dst, "\n");
+  dst;
+);
+
+// ---------------------------------------------------------------- export to shared memory
+function do_export(token) local(b, i, n, o, id, nn, k) (
+  b = g_exp;
+  gmem[b + 1] = 1; gmem[b + 0] = token; gmem[b + 2] = p_iid;
+  o = b + 64; n = 0; i = max(0, data_imin);
+  loop(max(0, data_imax - data_imin + 1),
+    fp[i] > 0 ? (
+      gmem[o] = (tl_org + i)*HOP; gmem[o + 1] = fhz[i]; gmem[o + 2] = fconf[i]; gmem[o + 3] = fd[i];
+      gmem[o + 4] = fp[i]; gmem[o + 5] = fphz[i]; gmem[o + 6] = frhz[i]; gmem[o + 7] = fst[i];
+      o += 8; n += 1;
+    );
+    i += 1;
+  );
+  gmem[b + 5] = n; gmem[b + 6] = 8; gmem[b + 7] = b + 64;
+  nn = 0; gmem[b + 10] = o; i = max(0, data_imin);
+  while (i <= data_imax) (
+    id = fnote[i];
+    (id > 0 && n_alive[id]) ? (
+      gmem[o] = (tl_org + n_i0[id] - 0.5)*HOP; gmem[o + 1] = (tl_org + n_i1[id] + 0.5)*HOP;
+      gmem[o + 2] = n_cen[id]; gmem[o + 3] = n_et[id]; gmem[o + 4] = n_db[id]; gmem[o + 5] = n_conf[id];
+      gmem[o + 6] = n_drift[id]; gmem[o + 7] = n_vrate[id]; gmem[o + 8] = n_vdep[id]; gmem[o + 9] = n_min[id];
+      gmem[o + 10] = n_max[id]; gmem[o + 11] = n_gd[id];
+      o += 12; nn += 1; i = n_i1[id] + 1;
+    ) : i += 1;
+  );
+  gmem[b + 8] = nn; gmem[b + 9] = 12;
+  build_report(#rep); k = strlen(#rep); gmem[b + 11] = k; gmem[b + 12] = o;
+  i = 0; loop(k, gmem[o + i] = str_getchar(#rep, i); i += 1;);
+  gmem[b + 3] = HOP; gmem[b + 4] = tl_org; gmem[b + 13] = srate; gmem[b + 14] = p_a4;
+  gmem[b + 15] = c_fmin; gmem[b + 16] = c_fmax; gmem[b + 17] = p_offset; gmem[b + 18] = ui_ghost;
+  gmem[b + 19] = hp_trk; gmem[b + 20] = hp_flags; gmem[b + 21] = jsfx_version;
+  gmem[b + 1] = 2;
+  slot_ok ? gmem[gm_eb + r_expack] = token;
+);
+
+// ---------------------------------------------------------------- registry (one slot per instance)
+function reg_tick() local(e, eb, now, fr, coll) (
+  now = time_precise();
+  gmem[0] != G_MAGIC ? ( gmem[0] = G_MAGIC; gmem[1] = 1; );
+  my_slot >= 0 && !claim_pending ? ( gmem[gm_eb + r_id] != p_iid ? ( slot_ok = 0; my_slot = -1; ); );
+  (my_slot < 0 && now >= reg_retry && p_iid > 0) ? (
+    fr = -1; coll = 0; e = 0;
+    loop(g_nslot,
+      eb = g_reg + e*g_regsz;
+      (gmem[eb + r_id] == p_iid && now - gmem[eb + r_hb] < 4) ? coll = 1;
+      (fr < 0 && (gmem[eb + r_id] == 0 || now - gmem[eb + r_hb] > 12)) ? fr = e;
+      e += 1;
+    );
+    coll ? (
+      // A copied FX carries the same ID. Choose a new one.
+      slider10 = 1 + floor(rand(1999999998)); p_iid = slider10; sliderchange(slider10);
+      reg_retry = now + 0.2;
+    ) : fr >= 0 ? (
+      eb = g_reg + fr*g_regsz;
+      gmem[eb + r_id] = p_iid; gmem[eb + r_hb] = now; gmem[eb + r_ctxgen] = 0;
+      gmem[eb + r_resreq] = 0; gmem[eb + r_expreq] = 0; gmem[eb + r_ready] = 0;
+      my_slot = fr; gm_eb = eb;
+      gm_mid = g_data + fr*g_slotsz; gm_conf = gm_mid + NFR; gm_gen = gm_conf + NFR;
+      claim_pending = 1; reg_retry = now + 0.3; res_seen = 0; exp_seen = 0;
+    ) : ( reg_retry = now + 2; );
+  );
+  (my_slot >= 0 && claim_pending && now >= reg_retry) ? (
+    gmem[gm_eb + r_id] == p_iid ? ( mirror_range(0, NFR - 1); slot_ok = 1; data_ver += 1; gmem[gm_eb + r_ver] = data_ver; ) : my_slot = -1;
+    claim_pending = 0;
+  );
+  slot_ok ? (
+    eb = gm_eb;
+    gmem[eb + r_hb] = now;
+    hp_trk = get_host_placement(hp_pos, hp_flags);
+    gmem[eb + r_trk] = hp_trk; gmem[eb + r_flg] = hp_flags; gmem[eb + r_cpos] = hp_pos;
+    gmem[eb + r_hop] = HOP; gmem[eb + r_org] = tl_set ? tl_org : -1; gmem[eb + r_cap] = NFR;
+    gmem[eb + r_on] = p_on; gmem[eb + r_gen] = cur_gen; gmem[eb + r_sr] = srate;
+    gmem[eb + r_fmin] = c_fmin; gmem[eb + r_fmax] = c_fmax; gmem[eb + r_a4] = p_a4; gmem[eb + r_offs] = p_offset;
+    gmem[eb + r_imin] = data_imin; gmem[eb + r_imax] = data_imax; gmem[eb + r_passes] = pass_serial;
+    gmem[eb + r_jver] = jsfx_version; gmem[eb + r_rate] = a_rate; gmem[eb + r_ready] = 1;
+    gmem[eb + r_curpass] = cap_pass;
+    e = gmem[eb + r_resreq]; (e != 0 && e != res_seen) ? ( res_seen = e; rs_req = 1; rs_all = 0; rs_token = e; );
+    e = gmem[eb + r_expreq]; (e != 0 && e != exp_seen) ? ( exp_seen = e; exp_pending = e; );
+  );
+);
+
+// ---------------------------------------------------------------- drawing helpers
+function set_rgb(r, g, b, a) ( gfx_r = r; gfx_g = g; gfx_b = b; gfx_a = a; );
+function text_w(s) local(w, h) ( gfx_measurestr(s, w, h); w; );
+function palette(m, a) local(u, i, f, r0, g0, b0, r1, g1, b1) (
+  // Same blue-purple-pink-red-orange cycle as the Vocaligner Pitch editor.
+  u = (m - 48)/5; u = u - 8*floor(u/8); u > 4 ? u = 8 - u;
+  i = min(3, floor(u)); f = u - i; f = f*f*(3 - 2*f);
+  i == 0 ? ( r0 = 65; g0 = 115; b0 = 223; r1 = 154; g1 = 83; b1 = 216; ) :
+  i == 1 ? ( r0 = 154; g0 = 83; b0 = 216; r1 = 237; g1 = 87; b1 = 136; ) :
+  i == 2 ? ( r0 = 237; g0 = 87; b0 = 136; r1 = 233; g1 = 68; b1 = 64; ) :
+           ( r0 = 233; g0 = 68; b0 = 64; r1 = 244; g1 = 153; b1 = 65; );
+  set_rgb((r0 + (r1 - r0)*f)/255, (g0 + (g1 - g0)*f)/255, (b0 + (b1 - b0)*f)/255, a);
+);
+function tuning_color(et, a) local(x) (
+  x = abs(et);
+  x <= 10 ? set_rgb(0.36, 0.80, 0.48, a) : x <= 25 ? set_rgb(0.92, 0.78, 0.32, a) : set_rgb(0.93, 0.38, 0.34, a);
+);
+function x_of_t(t) ( cx0 + (t - v_t0)/v_span*cw );
+function t_of_x(x) ( v_t0 + (x - cx0)/cw*v_span );
+function y_of_m(m) ( cy0 + (v_top - m)/v_rows*ch );
+function x_of_i(i) ( x_of_t((tl_org + i)*HOP) );
+function i_of_t(t) ( floor(t/HOP + 0.5) - tl_org );
+function layer_m(layer, i) local(h) (
+  (i < 0 || i >= NFR) ? 0 : layer == 0 ? ( (fp[i] > 0 && fhz[i] > 0) ? hz2m(fhz[i]) : 0 ) :
+  ( h = layer == 1 ? fphz[i] : frhz[i]; h > 0 ? hz2m(h) : 0 );
+);
+
+function ui_button(x, y, w, h, label, on) local(hov, clicked) (
+  hov = mouse_x >= x && mouse_x < x + w && mouse_y >= y && mouse_y < y + h;
+  on ? set_rgb(0.24, 0.36, 0.46, 1) : set_rgb(0.17, 0.19, 0.23, 1);
+  hov ? ( gfx_r += 0.06; gfx_g += 0.06; gfx_b += 0.06; );
+  gfx_rect(x, y, w, h);
+  set_rgb(0.86, 0.89, 0.94, 1);
+  gfx_x = x + floor((w - text_w(label))*0.5); gfx_y = y + floor((h - gfx_texth)*0.5);
+  gfx_drawstr(label);
+  clicked = hov && click_up && press_x >= x && press_x < x + w && press_y >= y && press_y < y + h;
+  clicked ? click_up = 0;
+  clicked;
+);
+function toolbar_button(label, on) local(w, c) (
+  w = text_w(label) + 14*sc;
+  c = ui_button(bx, 3*sc, w, tb_h - 6*sc, label, on);
+  bx += w + 4*sc;
+  c;
+);
+
+function draw_layer(layer, r, g, b, a) local(fpp, i, iend, pm, m, x, ia, ib, mn, mx, first_v, last_v, prev_last, j, cf) (
+  fpp = v_span/HOP/cw;
+  fpp <= 1.5 ? (
+    i = max(1, i_of_t(v_t0) - 1); iend = min(NFR - 1, i_of_t(v_t0 + v_span) + 1);
+    pm = layer_m(layer, i - 1);
+    while (i <= iend) (
+      m = layer_m(layer, i);
+      (m > 0 && pm > 0 && (layer != 0 || fp[i] == fp[i - 1])) ? (
+        layer == 0 ? (
+          cf = fconf[i];
+          fst[i] < 0 ? set_rgb(0.62, 0.88, 0.96, 0.35 + 0.45*cf) : set_rgb(r, g, b, 0.35 + 0.65*cf);
+        ) : set_rgb(r, g, b, a);
+        gfx_line(x_of_i(i - 1), y_of_m(pm), x_of_i(i), y_of_m(m), 1);
+        layer == 0 ? gfx_line(x_of_i(i - 1), y_of_m(pm) + 1, x_of_i(i), y_of_m(m) + 1, 1);
+      );
+      pm = m; i += 1;
+    );
+  ) : (
+    set_rgb(r, g, b, a);
+    x = cx0; prev_last = 0;
+    loop(cw,
+      ia = max(0, i_of_t(t_of_x(x))); ib = min(NFR, i_of_t(t_of_x(x + 1))); ib <= ia ? ib = ia + 1;
+      mn = 1000; mx = -1; first_v = 0; last_v = 0; j = ia;
+      loop(ib - ia,
+        m = layer_m(layer, j);
+        m > 0 ? ( mn = min(mn, m); mx = max(mx, m); j == ia ? first_v = m; last_v = m; ) : last_v = 0;
+        j += 1;
+      );
+      mx > 0 ? (
+        gfx_line(x, y_of_m(mx), x, y_of_m(mn) + 1, 0);
+        (prev_last > 0 && first_v > 0) ? gfx_line(x - 1, y_of_m(prev_last), x, y_of_m(first_v), 1);
+      );
+      prev_last = last_v; x += 1;
+    );
+  );
+);
+
+function draw_note(id) local(i0, i1, cen, x0, x1, yc, hh, xa, xb, ia, ib, j, amp, k, cap, n, x, hp, h, lx, et) (
+  i0 = n_i0[id]; i1 = n_i1[id]; cen = n_cen[id];
+  x0 = x_of_t((tl_org + i0 - 0.5)*HOP); x1 = x_of_t((tl_org + i1 + 0.5)*HOP);
+  yc = y_of_m(cen); hh = clampv(ch/v_rows*0.42, 3*sc, 26*sc);
+  (x1 >= cx0 && x0 <= cx1 && yc + hh >= cy0 && yc - hh <= cy1) ? (
+    // amplitude envelope per 2 px column, normalised per note
+    n = 0; x = max(x0, cx0);
+    while (x < min(x1, cx1) && n < 2000) (
+      xa = x; xb = min(x + 2, x1);
+      ia = max(i0, i_of_t(t_of_x(xa))); ib = min(i1, i_of_t(t_of_x(xb)));
+      amp = 0; j = ia; loop(max(1, ib - ia + 1), amp = max(amp, lin(fd[j])); j += 1;);
+      amp = max(0.14, sqrt(amp/n_amp[id]));
+      k = min(xa - x0, x1 - xb)/(3.5*sc); cap = sqrt(clampv(1 - sqr(1 - clampv(k, 0, 1)), 0, 1));
+      colh[2*n] = xa; colh[2*n + 1] = hh*amp*cap;
+      n += 1; x = xb;
+    );
+    colh[2*n] = min(x1, cx1); colh[2*n + 1] = 0; n += 1;
+    et = n_et[id];
+    ui_color ? tuning_color(et, id == hover_id ? 0.95 : 0.78) : palette(cen, id == hover_id ? 0.95 : 0.78);
+    k = 1;
+    loop(n - 1,
+      xa = colh[2*k - 2]; hp = colh[2*k - 1]; xb = colh[2*k]; h = colh[2*k + 1];
+      (hp > 0.3 || h > 0.3) ? gfx_triangle(xa, yc - hp, xb, yc - h, xb, yc + h, xa, yc + hp);
+      k += 1;
+    );
+    set_rgb(1, 1, 1, id == hover_id ? 0.55 : 0.22);
+    k = 1;
+    loop(n - 1,
+      gfx_line(colh[2*k - 2], yc - colh[2*k - 1], colh[2*k], yc - colh[2*k + 1], 1);
+      gfx_line(colh[2*k - 2], yc + colh[2*k - 1], colh[2*k], yc + colh[2*k + 1], 1);
+      k += 1;
+    );
+    (mouse_x >= x0 && mouse_x <= x1 && abs(mouse_y - yc) <= hh + 3 && mouse_y >= cy0 && mouse_y < cy1) ? hover_new = id;
+    (x1 - x0 > 46*sc && ch/v_rows >= 11*sc) ? (
+      note_name(#lbl, cen); sprintf(#lbl2, "%s %+.0f", #lbl, et);
+      set_rgb(0.86, 0.89, 0.95, 0.85);
+      lx = max(cx0 + 2, x0 + 3); gfx_x = lx; gfx_y = yc - hh - gfx_texth - 1; gfx_drawstr(#lbl2);
+    );
+  );
+);
+
+function draw_notes() local(i, iend, id) (
+  i = max(0, i_of_t(v_t0) - 1); iend = min(NFR - 1, i_of_t(v_t0 + v_span) + 1);
+  while (i <= iend) (
+    id = fnote[i];
+    (id > 0 && n_alive[id]) ? ( draw_note(id); i = max(i + 1, n_i1[id] + 1); ) : i += 1;
+  );
+);
+
+function draw_delta_lane() local(x, ia, ib, j, s, n, m, g, d, y0, yz, scale) (
+  y0 = cy1; yz = y0 + lane_h*0.5; scale = (lane_h*0.5 - 3)/100;
+  set_rgb(0.10, 0.11, 0.14, 1); gfx_rect(0, y0, gfx_w, lane_h);
+  set_rgb(0.35, 0.38, 0.45, 0.8); gfx_line(cx0, yz, cx1, yz, 0);
+  set_rgb(0.30, 0.32, 0.38, 0.45); gfx_line(cx0, yz - 50*scale, cx1, yz - 50*scale, 0); gfx_line(cx0, yz + 50*scale, cx1, yz + 50*scale, 0);
+  set_rgb(0.55, 0.58, 0.65, 1); gfx_x = 3*sc; gfx_y = yz - gfx_texth*0.5; gfx_drawstr(ui_ghost == 1 ? "dPrev" : "dRef");
+  set_rgb(0.42, 0.45, 0.52, 1); gfx_x = cx0 + 4*sc; gfx_y = y0 + 1*sc; gfx_drawstr("+-50 ct");
+  x = cx0;
+  loop(cw,
+    ia = max(0, i_of_t(t_of_x(x))); ib = min(NFR, i_of_t(t_of_x(x + 1))); ib <= ia ? ib = ia + 1;
+    s = 0; n = 0; j = ia;
+    loop(ib - ia, m = layer_m(0, j); g = ghost_hz(j); (m > 0 && g > 0) ? ( s += (m - hz2m(g))*100; n += 1; ); j += 1;);
+    n > 0 ? (
+      d = clampv(s/n, -100, 100);
+      abs(d) <= 10 ? set_rgb(0.36, 0.80, 0.48, 0.9) : abs(d) <= 25 ? set_rgb(0.92, 0.78, 0.32, 0.9) : set_rgb(0.93, 0.38, 0.34, 0.9);
+      gfx_line(x, yz, x, yz - d*scale, 0);
+    );
+    x += 1;
+  );
+);
+
+function fit_view() local(lo, hi, id, t0, t1) (
+  data_imax >= data_imin ? (
+    t0 = (tl_org + data_imin)*HOP; t1 = (tl_org + data_imax)*HOP;
+    v_span = max(0.5, t1 - t0 + 0.4); v_t0 = t0 - 0.2;
+    lo = 1000; hi = -1000; id = 1;
+    loop(n_hw, n_alive[id] ? ( lo = min(lo, n_cen[id]); hi = max(hi, n_cen[id]); ); id += 1;);
+    hi >= lo ? ( v_rows = clampv(hi - lo + 8, 8, 96); v_top = (lo + hi)*0.5 + v_rows*0.5; );
+    follow_pause = time_precise() + 3;
+  );
+);
+
+function draw_info() local(x, y, w, k, lh) (
+  lh = gfx_texth + 2*sc;
+  w = max(max(text_w(#r1), text_w(#r2)), max(text_w(#r5), text_w(#r6))) + 16*sc;
+  w = min(w, cw - 8*sc);
+  x = cx0 + 6*sc; y = cy0 + 6*sc;
+  set_rgb(0.07, 0.08, 0.10, 0.82); gfx_rect(x, y, w, lh*8 + 8*sc);
+  set_rgb(0.83, 0.87, 0.93, 1);
+  gfx_x = x + 8*sc; gfx_y = y + 4*sc; gfx_drawstr(#r1);
+  gfx_x = x + 8*sc; gfx_y += lh; gfx_drawstr(#r2);
+  gfx_x = x + 8*sc; gfx_y += lh; gfx_drawstr(#r3);
+  gfx_x = x + 8*sc; gfx_y += lh; gfx_drawstr(#r4);
+  set_rgb(0.98, 0.84, 0.45, 1);
+  gfx_x = x + 8*sc; gfx_y += lh; gfx_drawstr(#r5);
+  set_rgb(0.62, 0.66, 0.74, 1);
+  gfx_x = x + 8*sc; gfx_y += lh; gfx_drawstr(#r6);
+  gfx_x = x + 8*sc; gfx_y += lh; gfx_drawstr(#r7);
+  set_rgb(0.95, 0.55, 0.45, 1);
+  gfx_x = x + 8*sc; gfx_y += lh; gfx_drawstr(#r8);
+);
+
+function draw_tooltip(id) local(x, y, w, lh) (
+  note_name(#tn, n_cen[id]); fmt_time(#tt, (tl_org + n_i0[id] - 0.5)*HOP);
+  sprintf(#t1, "%s %+.1f ct  at %s  %.3f s", #tn, n_et[id], #tt, (n_i1[id] - n_i0[id] + 1)*HOP);
+  sprintf(#t2, "conf %.2f  drift %+.0f ct  range %.2f st  peak %.1f dB", n_conf[id], n_drift[id], n_max[id] - n_min[id], n_db[id]);
+  n_vrate[id] > 0 ? sprintf(#t3, "vibrato %.1f Hz  +-%.0f ct", n_vrate[id], n_vdep[id]) : strcpy(#t3, "no regular vibrato");
+  n_gd[id] > -9999 ? sprintf(#t4, "vs %s: %+.1f ct over %d frames", ui_ghost == 1 ? "Prev" : "Ref", n_gd[id], n_gn[id]) : strcpy(#t4, ui_ghost ? "no ghost data under this note" : "ghost off");
+  lh = gfx_texth + 2*sc;
+  w = max(max(text_w(#t1), text_w(#t2)), max(text_w(#t3), text_w(#t4))) + 14*sc;
+  x = min(mouse_x + 14*sc, gfx_w - w - 4); y = min(mouse_y + 16*sc, cy1 - lh*4 - 10*sc);
+  set_rgb(0.12, 0.13, 0.17, 0.95); gfx_rect(x, y, w, lh*4 + 8*sc);
+  set_rgb(0.90, 0.92, 0.96, 1);
+  gfx_x = x + 7*sc; gfx_y = y + 4*sc; gfx_drawstr(#t1);
+  set_rgb(0.72, 0.76, 0.84, 1);
+  gfx_x = x + 7*sc; gfx_y += lh; gfx_drawstr(#t2);
+  gfx_x = x + 7*sc; gfx_y += lh; gfx_drawstr(#t3);
+  set_rgb(0.98, 0.84, 0.45, 1);
+  gfx_x = x + 7*sc; gfx_y += lh; gfx_drawstr(#t4);
+);
+
+function mark(on) ( on ? "!" : "" );
+function settings_menu() local(r) (
+  #sm = "";
+  strcat(#sm, sprintf(#s1, "%sRange: bass 40-400 Hz|", mark(slider2 == 40 && slider3 == 400)));
+  strcat(#sm, sprintf(#s1, "%sRange: male 60-1000 Hz|", mark(slider2 == 60 && slider3 == 1000)));
+  strcat(#sm, sprintf(#s1, "%sRange: female 90-1400 Hz|", mark(slider2 == 90 && slider3 == 1400)));
+  strcat(#sm, sprintf(#s1, "%sRange: wide 50-2000 Hz|", mark(slider2 == 50 && slider3 == 2000)));
+  strcat(#sm, sprintf(#s1, "%sInput: left|", mark(p_chan == 0)));
+  strcat(#sm, sprintf(#s1, "%sInput: right|", mark(p_chan == 1)));
+  strcat(#sm, sprintf(#s1, "%sInput: mid (L+R)/2|", mark(p_chan == 2)));
+  strcat(#sm, sprintf(#s1, "%sA4 = 440 Hz|", mark(slider5 == 440)));
+  strcat(#sm, sprintf(#s1, "%sA4 = 442 Hz|", mark(slider5 == 442)));
+  strcat(#sm, sprintf(#s1, "%sA4 = 432 Hz|", mark(slider5 == 432)));
+  strcat(#sm, sprintf(#s1, "Time offset: -10 ms (now %+.1f)|", slider6));
+  strcat(#sm, sprintf(#s1, "Time offset: +10 ms (now %+.1f)|", slider6));
+  strcat(#sm, sprintf(#s1, "%sTime offset: 0|", mark(slider6 == 0)));
+  strcat(#sm, sprintf(#s1, "%sVoicing: strict|", mark(slider8 == 0.1)));
+  strcat(#sm, sprintf(#s1, "%sVoicing: normal|", mark(slider8 == 0.15)));
+  strcat(#sm, sprintf(#s1, "%sVoicing: lenient (breathy, noisy)|", mark(slider8 == 0.25)));
+  strcat(#sm, sprintf(#s1, "%sSilence gate -70 dBFS|", mark(slider7 == -70)));
+  strcat(#sm, sprintf(#s1, "%sSilence gate -60 dBFS|", mark(slider7 == -60)));
+  strcat(#sm, sprintf(#s1, "%sSilence gate -50 dBFS|", mark(slider7 == -50)));
+  strcat(#sm, sprintf(#s1, "%sNotes: fine split|", mark(slider9 == 6)));
+  strcat(#sm, sprintf(#s1, "%sNotes: normal split|", mark(slider9 == 10)));
+  strcat(#sm, sprintf(#s1, "%sNotes: coarse split", mark(slider9 == 16)));
+  gfx_x = settings_x; gfx_y = tb_h;
+  r = gfx_showmenu(#sm);
+  r == 1 ? ( slider2 = 40; slider3 = 400; );
+  r == 2 ? ( slider2 = 60; slider3 = 1000; );
+  r == 3 ? ( slider2 = 90; slider3 = 1400; );
+  r == 4 ? ( slider2 = 50; slider3 = 2000; );
+  r == 5 ? slider4 = 0; r == 6 ? slider4 = 1; r == 7 ? slider4 = 2;
+  r == 8 ? slider5 = 440; r == 9 ? slider5 = 442; r == 10 ? slider5 = 432;
+  r == 11 ? slider6 = max(-250, slider6 - 10); r == 12 ? slider6 = min(250, slider6 + 10); r == 13 ? slider6 = 0;
+  r == 14 ? slider8 = 0.1; r == 15 ? slider8 = 0.15; r == 16 ? slider8 = 0.25;
+  r == 17 ? slider7 = -70; r == 18 ? slider7 = -60; r == 19 ? slider7 = -50;
+  r == 20 ? slider9 = 6; r == 21 ? slider9 = 10; r == 22 ? slider9 = 16;
+  r > 0 ? (
+    p_fmin = slider2; p_fmax = slider3; p_chan = slider4; p_a4 = slider5; p_offset = slider6;
+    p_gate = slider7; p_thr = slider8; p_split = slider9;
+    sliderchange(1022); stats_dirty = 1;
+  );
+);
+function ui_draw() local(now, lmb, rmb, inside, wheel, t, tp, m, p, yy, k, x, step, tt, menu, i) (
+  now = time_precise();
+  sc = max(1, gfx_ext_retina);
+  gfx_setfont(1, "Arial", 13*sc);
+  tb_h = 26*sc; ru_h = 18*sc; cov_h = 4*sc; kw = 38*sc; lane_h = ui_ghost > 0 ? 46*sc : 0;
+  cx0 = kw; cy0 = tb_h + ru_h + cov_h; cx1 = gfx_w; cy1 = gfx_h - lane_h;
+  cw = max(10, cx1 - cx0); ch = max(10, cy1 - cy0);
+  lmb = mouse_cap & 1; rmb = mouse_cap & 2;
+  click_down = lmb && !last_lmb; click_up = !lmb && last_lmb; rclick_up = !rmb && last_rmb;
+  click_down ? ( press_x = mouse_x; press_y = mouse_y; );
+  inside = mouse_x >= cx0 && mouse_x < cx1 && mouse_y >= cy0 && mouse_y < cy1;
+
+  // follow playback
+  host_playing = (a_host_state & 1) && now - a_hb < 0.5;
+  tp = host_playing ? a_host_pos + (now - a_hb)*a_rate : a_host_pos;
+  (ui_follow && host_playing && now >= follow_pause && !drag_on) ? (
+    v_t0 = tp - 0.7*v_span;
+    (cap_last >= 0 && fhz[cap_last] > 0) ? (
+      m = hz2m(fhz[cap_last]);
+      (m > v_top - 1 || m < v_top - v_rows + 1) ? v_top += (m + v_rows*0.5 - v_top)*0.15;
+    );
+  );
+
+  // input: wheel, drag, double-click, context menu
+  wheel = mouse_wheel/120; mouse_wheel = 0;
+  (wheel != 0 && (inside || mouse_x < cx0)) ? (
+    (mouse_cap & 4) || mouse_x < cx0 ? (
+      m = v_top - (mouse_y - cy0)/ch*v_rows;
+      v_rows = clampv(v_rows*exp(-wheel*0.15), 3, 96); v_top = m + (mouse_y - cy0)/ch*v_rows;
+    ) : (mouse_cap & 8) ? ( v_t0 -= wheel*v_span*0.1; follow_pause = now + 2.5;
+    ) : (mouse_cap & 16) ? ( v_top += wheel*2;
+    ) : (
+      t = t_of_x(mouse_x); v_span = clampv(v_span*exp(-wheel*0.2), 0.2, 1200);
+      v_t0 = t - (mouse_x - cx0)/cw*v_span; follow_pause = now + 2.5;
+    );
+  );
+  (click_down && inside) ? (
+    now - last_click_t < 0.3 ? ( fit_view(); last_click_t = 0; ) : (
+      last_click_t = now; drag_on = 1; d_t0 = v_t0; d_top = v_top;
+    );
+  );
+  (drag_on && lmb) ? (
+    v_t0 = d_t0 - (mouse_x - press_x)/cw*v_span; v_top = d_top + (mouse_y - press_y)/ch*v_rows;
+    follow_pause = now + 2.5;
+  );
+  !lmb ? drag_on = 0;
+  v_rows = clampv(v_rows, 3, 96); v_top = clampv(v_top, 10, 130); v_span = clampv(v_span, 0.2, 1200);
+
+  // background and piano rows
+  set_rgb(0.094, 0.102, 0.122, 1); gfx_rect(0, 0, gfx_w, gfx_h);
+  p = floor(v_top - v_rows) - 1;
+  loop(ceil(v_rows) + 3,
+    yy = y_of_m(p + 0.5); k = p - 12*floor(p/12);
+    (k == 1 || k == 3 || k == 6 || k == 8 || k == 10) ? set_rgb(0.082, 0.09, 0.11, 1) : set_rgb(0.125, 0.137, 0.165, 1);
+    gfx_rect(cx0, max(cy0, yy), cw, max(0, min(cy1, y_of_m(p - 0.5)) - max(cy0, yy)));
+    (k == 1 || k == 3 || k == 6 || k == 8 || k == 10) ? set_rgb(0.14, 0.15, 0.19, 1) : set_rgb(0.20, 0.22, 0.26, 1);
+    gfx_rect(0, max(cy0, yy), kw - 2, max(0, min(cy1, y_of_m(p - 0.5)) - max(cy0, yy)));
+    set_rgb(0.18, 0.19, 0.22, 1); (yy >= cy0 && yy < cy1) ? gfx_line(0, yy, cx1, yy, 0);
+    (k == 0 || ch/v_rows >= 16*sc) && y_of_m(p) > cy0 + 5 && y_of_m(p) < cy1 - 5 ? (
+      note_name(#rk, p); set_rgb(k == 0 ? 0.84 : 0.50, k == 0 ? 0.86 : 0.53, k == 0 ? 0.90 : 0.60, 1);
+      gfx_x = 3*sc; gfx_y = y_of_m(p) - gfx_texth*0.5; gfx_drawstr(#rk);
+    );
+    p += 1;
+  );
+  // time grid
+  step = 10^floor(log10(max(0.02, v_span/8))); v_span/step > 14 ? step *= 2; v_span/step > 14 ? step *= 2.5;
+  tt = floor(v_t0/step)*step;
+  loop(40,
+    x = x_of_t(tt);
+    (x >= cx0 && x <= cx1) ? ( set_rgb(0.17, 0.18, 0.21, 1); gfx_line(x, cy0, x, cy1, 0); );
+    tt += step;
+  );
+
+  // coverage strip: which frames have a live measurement / a previous version
+  x = cx0;
+  loop(cw,
+    i = i_of_t(t_of_x(x + 0.5));
+    (i >= 0 && i < NFR && fp[i] > 0) ? (
+      fp[i] == cap_pass && cap_pass > 0 ? set_rgb(0.98, 0.84, 0.45, 1) : set_rgb(0.40, 0.72, 0.72, 1);
+      gfx_rect(x, tb_h + ru_h, 1, cov_h*0.6);
+      fphz[i] != 0 ? ( set_rgb(0.68, 0.55, 0.85, 1); gfx_rect(x, tb_h + ru_h + cov_h*0.6, 1, cov_h*0.4); );
+    );
+    x += 1;
+  );
+
+  // layers: ghost, notes, live contour
+  hover_new = 0;
+  ui_ghost == 1 ? draw_layer(1, 0.72, 0.60, 0.92, 0.55);
+  ui_ghost == 2 ? draw_layer(2, 0.98, 0.70, 0.35, 0.60);
+  draw_notes();
+  draw_layer(0, 0.97, 0.96, 1.0, 1);
+  hover_id = drag_on ? 0 : hover_new;
+
+  // play cursor while REAPER plays; when stopped, the host position (normally the edit cursor)
+  host_playing ? (
+    x = x_of_t(tp);
+    (x >= cx0 && x <= cx1) ? ( set_rgb(0.50, 0.85, 0.75, 0.9); gfx_line(x, cy0, x, cy1, 0); );
+  ) : (
+    x = x_of_t(a_host_pos);
+    (x >= cx0 && x <= cx1 && now - a_hb < 1) ? ( set_rgb(0.75, 0.77, 0.82, 0.45); gfx_line(x, cy0, x, cy1, 0); );
+  );
+  ui_ghost > 0 ? draw_delta_lane();
+
+  // keyboard border and toolbar
+  set_rgb(0.30, 0.32, 0.37, 1); gfx_line(kw - 1, cy0, kw - 1, cy1, 0);
+  set_rgb(0.11, 0.12, 0.15, 1); gfx_rect(0, 0, gfx_w, tb_h + ru_h);
+  set_rgb(0.45, 0.48, 0.55, 1);
+  tt = floor(v_t0/step)*step;
+  loop(40,
+    x = x_of_t(tt);
+    (x >= cx0 && x <= cx1 && tt >= 0) ? (
+      fmt_time(#tl, tt); gfx_x = x + 3; gfx_y = tb_h + 1*sc; gfx_drawstr(#tl);
+      gfx_line(x, tb_h + ru_h - 6*sc, x, tb_h + ru_h, 0);
+    );
+    tt += step;
+  );
+  bx = 4*sc;
+  toolbar_button(p_on ? "Analyze: ON" : "Analyze: OFF", p_on) ? ( slider1 = !slider1; p_on = slider1; sliderchange(slider1); );
+  toolbar_button("Reset", 0) ? ( rs_req = 1; rs_all = 0; rs_token = 0; );
+  toolbar_button(ref_have ? "Re-pin Ref" : "Pin Ref", 0) ? pin_ref();
+  toolbar_button(ui_ghost == 1 ? "Ghost: Prev" : ui_ghost == 2 ? "Ghost: Ref" : "Ghost: Off", ui_ghost > 0) ? ( ui_ghost = ui_ghost >= 2 ? 0 : ui_ghost + 1; stats_dirty = 1; );
+  toolbar_button("Follow", ui_follow) ? ( ui_follow = !ui_follow; follow_pause = 0; );
+  toolbar_button("Info", ui_info) ? ui_info = !ui_info;
+  toolbar_button(ui_color ? "Color: Tuning" : "Color: Pitch", ui_color) ? ui_color = !ui_color;
+  settings_x = bx; toolbar_button("Settings", 0) ? settings_open = 1;
+  toolbar_button("Export", 0) ? ( exp_pending = 1 + floor(rand(1000000)); msg_t = now + 6;
+    strcpy(#msg, "Published to shared memory. Run the action 'Vocaligner Pitch Meter - Export' to save CSV/TXT."); );
+  // status
+  rs_req ? strcpy(#st, "Resetting...") : (cap_on && host_playing) ? sprintf(#st, "REC pass %d", cap_pass) : p_on ? strcpy(#st, "Waiting for playback") : strcpy(#st, "Off");
+  set_rgb(cap_on ? 0.98 : 0.60, cap_on ? 0.80 : 0.63, cap_on ? 0.45 : 0.70, 1);
+  gfx_x = max(bx + 8*sc, gfx_w - text_w(#st) - 8*sc); gfx_y = (tb_h - gfx_texth)*0.5; gfx_drawstr(#st);
+
+  ui_info ? draw_info();
+  hover_id > 0 && !drag_on ? draw_tooltip(hover_id);
+  now < msg_t ? (
+    set_rgb(0.15, 0.17, 0.22, 0.95); gfx_rect(cx0 + 6*sc, cy1 - gfx_texth - 14*sc, text_w(#msg) + 16*sc, gfx_texth + 8*sc);
+    set_rgb(0.95, 0.90, 0.70, 1); gfx_x = cx0 + 14*sc; gfx_y = cy1 - gfx_texth - 10*sc; gfx_drawstr(#msg);
+  );
+
+  settings_open ? ( settings_open = 0; settings_menu(); );
+  // context menu
+  (rclick_up && inside) ? (
+    gfx_x = mouse_x; gfx_y = mouse_y;
+    menu = gfx_showmenu("Reset live (keep Ref)|Reset everything (Live, Prev, Ref)|Clear Prev|Clear Ref|Fit to measurement");
+    menu == 1 ? ( rs_req = 1; rs_all = 0; rs_token = 0; );
+    menu == 2 ? ( rs_req = 1; rs_all = 1; rs_token = 0; );
+    menu == 3 ? ( memset(fphz, 0, NFR); memset(fpdb, 0, NFR); stats_dirty = 1; );
+    menu == 4 ? ( memset(frhz, 0, NFR); memset(frdb, 0, NFR); ref_have = 0; stats_dirty = 1; );
+    menu == 5 ? fit_view();
+  );
+  last_lmb = lmb; last_rmb = rmb;
+);
+
+@slider
+// No ID means a new instance, or state inherited from another plug-in after
+// editing a file in place: start from the documented defaults.
+slider10 < 1 ? (
+  slider1 = 1; slider2 = 60; slider3 = 1000; slider4 = 2; slider5 = 440;
+  slider6 = 0; slider7 = -60; slider8 = 0.15; slider9 = 10;
+  slider10 = 1 + floor(rand(1999999998));
+  sliderchange(1023);
+);
+slider1 = slider1 >= 0.5 ? 1 : 0;
+(slider2 < 40 || slider2 > 400) ? slider2 = 60;
+(slider3 < 150 || slider3 > 2000) ? slider3 = 1000;
+(slider4 < 0 || slider4 > 2) ? slider4 = 2;
+(slider5 < 415 || slider5 > 466) ? slider5 = 440;
+(slider6 < -250 || slider6 > 250) ? slider6 = 0;
+(slider7 < -90 || slider7 > -20) ? slider7 = -60;
+(slider8 < 0.05 || slider8 > 0.35) ? slider8 = 0.15;
+(slider9 < 2 || slider9 > 40) ? slider9 = 10;
+p_on = slider1; p_fmin = slider2; p_fmax = slider3; p_chan = floor(slider4 + 0.5); p_a4 = slider5;
+p_offset = slider6; p_gate = slider7; p_thr = slider8; p_split = slider9;
+p_iid = slider10;
+stats_dirty = 1;
+
+@block
+(srate != c_sr || p_fmin != c_pfmin || p_fmax != c_pfmax || p_thr != c_pthr) ? ( configure(); seg_end(); force_seg = 1; );
+a_nblk = samplesblock; a_bi = 0;
+a_hb = time_precise();
+a_host_pos = play_position - p_offset*0.001; a_host_state = play_state;
+ctx_gen = slot_ok ? gmem[gm_eb + r_ctxgen] : 0;
+slot_ok ? (
+  gmem[gm_eb + r_ahb] = a_hb; gmem[gm_eb + r_ppos] = play_position; gmem[gm_eb + r_pwall] = a_hb;
+  gmem[gm_eb + r_pst] = play_state; gmem[gm_eb + r_capon] = cap_on;
+);
+rs_req ? ( seg_end(); cap_on = 0; rs_ack = 1; a_have_last = 0; ) : (
+  want = p_on && (play_state == 1 || play_state == 5);
+  want ? (
+    ppos = play_position - p_offset*0.001;
+    a_have_last ? (
+      blk_r = (play_position - a_last_pp)*srate/max(1, a_last_nblk);
+      (blk_r > 0.2 && blk_r < 5 && abs(blk_r - a_last_r) < 0.0005) ? a_rate = blk_r;
+      a_last_r = blk_r;
+    );
+    cont = seg_on && !force_seg && a_have_last && abs(ppos - a_expect) < 0.0015 + 0.01*a_last_nblk/srate;
+    !cont ? ( seg_end(); seg_begin(ppos); force_seg = 0; ) : (
+      ctx_gen != cur_gen ? pass_begin();
+    );
+    a_expect = ppos + a_nblk/srate*a_rate;
+    a_disp_pos = ppos; a_disp_wall = a_hb;
+    cap_on = 1;
+  ) : ( seg_end(); cap_on = 0; );
+  a_last_pp = play_position; a_last_nblk = a_nblk; a_have_last = want;
+);
+
+@sample
+(cap_on && seg_on) ? (
+  inx = p_chan == 0 ? spl0 : p_chan == 1 ? spl1 : 0.5*(spl0 + spl1);
+  iny = hb0*inx + hb1*hx1 + hb2*hx2 - ha1*hy1 - ha2*hy2;
+  hx2 = hx1; hx1 = inx; hy2 = hy1; hy1 = iny;
+  m_ring[seg_n & RMASK] = iny;
+  seg_n += 1;
+);
+a_bi += 1;
+a_bi == a_nblk ? ( (cap_on && seg_on) ? analyze_pending(); );
+
+@serialize
+file_var(0, ui_follow); file_var(0, ui_ghost); file_var(0, ui_info); file_var(0, ui_color);
+file_var(0, v_span); file_var(0, v_rows); file_var(0, v_top);
+inited = 1;
+
+@gfx 960 500
+gfx_now = time_precise();
+// Take FX (and idle tracks) get no @block while REAPER is stopped or paused,
+// so the audio thread never sees the stop. Close the pass from here; the
+// audio thread is not running, and resumes with a fresh segment.
+(cap_on && gfx_now - a_hb > 0.5) ? ( seg_end(); cap_on = 0; a_have_last = 0; force_seg = 1; stats_dirty = 1; );
+reg_tick();
+rs_req ? (
+  (rs_ack || gfx_now - a_hb > 0.25) ? (
+    do_reset(rs_all); rs_ack = 0; rs_req = 0;
+    (slot_ok && rs_token != 0) ? gmem[gm_eb + r_resack] = rs_token;
+    force_seg = 1;
+  );
+) : (
+  post_process();
+);
+gfx_now - cpu_t >= 1 ? ( cpu_pct = (cpu_acc - cpu_last)/max(0.001, gfx_now - cpu_t)*100; cpu_last = cpu_acc; cpu_t = gfx_now; );
+(stats_dirty && gfx_now - stats_t > 0.4) ? ( compute_stats(); stats_t = gfx_now; stats_dirty = 0; );
+exp_pending != 0 && !rs_req ? ( compute_stats(); do_export(exp_pending); exp_pending = 0; );
+(gfx_ext_flags & 2) == 0 && gfx_w > 50 && gfx_h > 50 ? ui_draw();

@@ -1,0 +1,160 @@
+-- @description Ruin Vocals: vocal align, breath&pitch detect and editor, envelope dynamic
+-- @author mrtnz
+-- @version 0.13.8
+-- @link Documentation https://github.com/ErrrikMarrrtinez/ReaperScripts/tree/master/Various/Vocaligner
+-- @about
+--   Vocal timing, take-volume cleanup and a vocal pitch editor in one ReaImGui window.
+--   Includes Classic Align, experimental Advanced and Hybrid timing, De-ess,
+--   Breaths, Compressor, Gate, cached analysis and project-persistent pitch edits.
+--   Requires REAPER 7 and ReaImGui with the 0.9.3 compatibility API via ReaPack.
+--   Pitch correction uses REAPER's bundled ReaPitch. No SWS, Python or external
+--   audio libraries are required. The optional Pitch Meter JSFX supplies Check
+--   measurements; the included export action saves its frames and notes.
+--   All Lua modules, model weights, documentation and license notices are
+--   installed together. Internal modules are not separate REAPER actions.
+--   For embedding, load init.lua with dofile; see README.md for the workflow.
+-- @changelog
+--   Name the ReaPack package Ruin Vocals.
+--   Package Vocaligner under Various/Vocaligner using the Markdown package layout.
+--   Include all current modules, documentation and third-party license notices.
+--   Register the vocal editor and Pitch Meter export as Main actions.
+--   Install the optional Pitch Meter as a JSFX effect for measured output checks.
+-- @provides
+--   [nomain] .
+--   [nomain] align/advanced/candidates.lua
+--   [nomain] align/advanced/confidence.lua
+--   [nomain] align/advanced/constraints.lua
+--   [nomain] align/advanced/defaults.lua
+--   [nomain] align/advanced/distance.lua
+--   [nomain] align/advanced/features.lua
+--   [nomain] align/advanced/guided.lua
+--   [nomain] align/advanced/match.lua
+--   [nomain] align/advanced/native.lua
+--   [nomain] align/advanced/native_code.lua
+--   [nomain] align/advanced/phrases.lua
+--   [nomain] align/advanced/pitch.lua
+--   [nomain] align/advanced/plan.lua
+--   [nomain] align/advanced/reduce.lua
+--   [nomain] align/advanced/regularize.lua
+--   [nomain] align/advanced/solver.lua
+--   [nomain] align/advanced/validate.lua
+--   [nomain] align/cleanup_bridge.lua
+--   [nomain] align/controller.lua
+--   [nomain] align/export.lua
+--   [nomain] align/HYBRID.md
+--   [nomain] align/hybrid/plan.lua
+--   [nomain] align/hybrid/render.lua
+--   [nomain] align/hybrid/ui.lua
+--   [nomain] align/legacy_adapter.lua
+--   [nomain] align/ownership.lua
+--   [nomain] align/preferences.lua
+--   [nomain] align/reader.lua
+--   [nomain] align/README.md
+--   [nomain] align/registry.lua
+--   [nomain] align/renderers/stretch.lua
+--   [nomain] align/session.lua
+--   [nomain] align/ui.lua
+--   [nomain] align/util.lua
+--   [nomain] align_ui.lua
+--   [nomain] app.lua
+--   [nomain] apply.lua
+--   [nomain] audio.lua
+--   [nomain] breath.lua
+--   [nomain] breath_engine.lua
+--   [nomain] breath_features.lua
+--   [nomain] breath_model.lua
+--   [nomain] BREATH_MODEL.md
+--   [nomain] breath_profile.lua
+--   [nomain] breath_regions.lua
+--   [nomain] cache_packing.lua
+--   [nomain] cleaner.lua
+--   [nomain] cleaner_batch.lua
+--   [nomain] cleaner_ui.lua
+--   [nomain] cleanup.lua
+--   [nomain] cleanup_dsp.lua
+--   [nomain] cleanup_state.lua
+--   [nomain] cleanup_ui.lua
+--   [nomain] codec.lua
+--   [nomain] compressor/audio.lua
+--   [nomain] compressor/chain.lua
+--   [nomain] compressor/curves.lua
+--   [nomain] compressor/engine.lua
+--   [nomain] compressor/LICENSE_GPL3.txt
+--   [nomain] compressor/NOTICE.md
+--   [nomain] compressor/preset_ui.lua
+--   [nomain] compressor/presets.lua
+--   [nomain] compressor/README.md
+--   [nomain] compressor/settings.lua
+--   [nomain] compressor/ui.lua
+--   [nomain] config.lua
+--   [nomain] controls.lua
+--   [nomain] curves.lua
+--   [nomain] dsp.lua
+--   [nomain] dtw.lua
+--   [nomain] eel.lua
+--   [nomain] EEL_GUIDE.md
+--   [nomain] envelope.lua
+--   [nomain] init.lua
+--   [nomain] job.lua
+--   [nomain] jsfx/Vocaligner Pitch Meter - Export.lua
+--   [nomain] jsfx/README.md
+--   [effect] jsfx/Vocaligner Pitch Meter.jsfx > Vocaligner/Vocaligner Pitch Meter.jsfx
+--   [main=main] mrtnz_Vocaligner - Export Pitch Meter.lua
+--   [main=main] mrtnz_Vocaligner - Vocal editor.lua
+--   [nomain] navigator.lua
+--   [nomain] pitch/algorithm.lua
+--   [nomain] pitch/analysis.lua
+--   [nomain] pitch/batch.lua
+--   [nomain] pitch/case_export.lua
+--   [nomain] pitch/check.lua
+--   [nomain] pitch/contour.lua
+--   [nomain] pitch/curve.lua
+--   [nomain] pitch/CURVE_V4.md
+--   [nomain] pitch/draw.lua
+--   [nomain] pitch/editor.lua
+--   [nomain] pitch/expression.lua
+--   [nomain] pitch/features.lua
+--   [nomain] pitch/fx.lua
+--   [nomain] pitch/glyph.lua
+--   [nomain] pitch/group.lua
+--   [nomain] pitch/LICENSE_SWIFTF0.txt
+--   [nomain] pitch/link.lua
+--   [nomain] pitch/LINK_SPEC.md
+--   [nomain] pitch/model.lua
+--   [nomain] pitch/neural.lua
+--   [nomain] pitch/neural_dot.lua
+--   [nomain] pitch/NEXT_PHASE.md
+--   [nomain] pitch/notes.lua
+--   [nomain] pitch/prepare.lua
+--   [nomain] pitch/psola.lua
+--   [nomain] pitch/README.md
+--   [nomain] pitch/RESEARCH.md
+--   [nomain] pitch/ROADMAP.md
+--   [nomain] pitch/scale.lua
+--   [nomain] pitch/store.lua
+--   [nomain] pitch/TEST_CASE.md
+--   [nomain] pitch/tests/quality.lua
+--   [nomain] pitch/tests/vocal_render.lua
+--   [nomain] pitch/trace.lua
+--   [nomain] pitch/TRANSITIONS_PLAN.md
+--   [nomain] pitch/ui.lua
+--   [nomain] pitch/vocal_render.lua
+--   [nomain] pitch/waveform.lua
+--   [nomain] pitch/workspace.lua
+--   [nomain] progress.lua
+--   [nomain] README.md
+--   [nomain] RESEARCH.md
+--   [nomain] session_cache.lua
+--   [nomain] TEST_TOMORROW.md
+--   [nomain] THIRD_PARTY_NOTICES.txt
+--   [nomain] timing.lua
+--   [nomain] transport.lua
+--   [nomain] ui.lua
+--   [nomain] version.lua
+--   [nomain] vocaligner.lua
+--   [nomain] warp.lua
+--   [nomain] waveform.lua
+
+local root = debug.getinfo(1, 'S').source:match('^@?(.*[\\/])')
+
+dofile(root .. 'vocaligner.lua')
