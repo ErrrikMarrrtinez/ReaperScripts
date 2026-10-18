@@ -16,9 +16,15 @@ function M.read_points(bytes,job)
   local out={};local previous=-math.huge
   for at=1,#bytes,32 do
     local t,v,shape,tension=string.unpack('<dddd',bytes,at)
-    assert(t==t and math.abs(t)<math.huge and t>=previous and v==v and v>=0 and v<math.huge
-      and shape%1==0 and shape>=0 and shape<math.huge and tension==tension and math.abs(tension)<math.huge,'Invalid envelope point.')
-    out[#out+1]={t=t,v=v,shape=shape,tension=tension};previous=t;checkpoint(job,#out)
+    assert(t==t and math.abs(t)<math.huge and v==v and v>=0 and v<math.huge
+      and shape%1==0 and shape>=0 and shape<math.huge and tension==tension and math.abs(tension)<math.huge,
+      ('Invalid envelope point %d: t=%s value=%s shape=%s tension=%s.'):format(#out+1,tostring(t),tostring(v),tostring(shape),tostring(tension)))
+    -- Native boundary points can differ by a few double-precision ULPs, e.g.
+    -- 20.444734768696751 followed by 20.444734768696748. Preserve their exact
+    -- values and order: sorting/coalescing could change a coincident shaped edge.
+    local rounding=8*2^-52*math.max(1,math.abs(t),previous==-math.huge and 0 or math.abs(previous))
+    assert(t>=previous-rounding,('Invalid envelope point %d: time %.17g precedes %.17g beyond floating-point rounding.'):format(#out+1,t,previous))
+    out[#out+1]={t=t,v=v,shape=shape,tension=tension};previous=math.max(previous,t);checkpoint(job,#out)
   end
   packed[out]=bytes;return out
 end
@@ -28,7 +34,7 @@ function M.curve(curve,job)
     local out={};for i,p in ipairs(curve.points) do out[i]=string.pack('<dd',p.t,p.db);checkpoint(job,i) end
     bytes=table.concat(out);packed[curve.points]=bytes
   end
-  return {packed=bytes,max_db=curve.max_db,hop=curve.hop,detail=curve.detail,recipes=curve.recipes,
+  return {packed=bytes,max_db=curve.max_db,hop=curve.hop,detail=curve.detail,recipes=curve.recipes,shapes=curve.shapes,
     frozen=curve.frozen and M.curve(curve.frozen,job) or nil}
 end
 local fields={'t','rms','zcr','noise_flat','breath_flat','breath_tonal','air','low','flat','min','max','flux'}

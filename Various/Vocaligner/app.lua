@@ -97,6 +97,7 @@ function M:diagnostics()
   add('');add('LOG:');for _,message in ipairs(self.log) do add(message) end
   if self.job then add('Current phase: '..self.job.label) end
   add('');add(self.cleaner:diagnostics());add('');add(self.pitch:diagnostics())
+  if self.click_cleanup then add('');add(self.click_cleanup:diagnostics())end
   return table.concat(lines,'\n')
 end
 local group_fields={'project','ref','ref_audio','ref_quick','dubs','view','error','analyzed','dirty','replan','alignment','align_engine'}

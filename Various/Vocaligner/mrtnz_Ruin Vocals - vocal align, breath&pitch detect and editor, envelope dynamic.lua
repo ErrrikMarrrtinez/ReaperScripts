@@ -1,6 +1,6 @@
 -- @description Ruin Vocals: vocal align, breath&pitch detect and editor, envelope dynamic
 -- @author mrtnz
--- @version 0.13.8
+-- @version 0.14.0
 -- @link Documentation https://github.com/ErrrikMarrrtinez/ReaperScripts/tree/master/Various/Vocaligner
 -- @about
 --   Vocal timing, take-volume cleanup and a vocal pitch editor in one ReaImGui window.
@@ -10,12 +10,14 @@
 --   Pitch correction uses REAPER's bundled ReaPitch. No SWS, Python or external
 --   audio libraries are required. The optional Pitch Meter JSFX supplies Check
 --   measurements; the included export action saves its frames and notes.
---   All Lua modules, model weights, documentation and license notices are
+--   All Lua modules, model weights and license notices are
 --   installed together. Internal modules are not separate REAPER actions.
---   For embedding, load init.lua with dofile; see README.md for the workflow.
+--   For embedding, load init.lua with dofile.
 -- @changelog
---   Initial release: vocal alignment, breath control, pitch detection and editing.
---   De-ess, envelope-based compressor and gate, plus an optional output pitch meter.
+--   Dynamics: Settings window (Auto, RT Update, envelope options), Bypass instead of Remove.
+--   Breaths: Target level always on, Curve (Bezier fades) instead of Envelope detail.
+--   Outside envelope edits are kept instead of locking the item; play rate and trims adapt.
+--   Presets can save Default. One-sided waveform and a smoother overview strip.
 -- @provides
 --   [main=main] .
 --   [nomain] align/advanced/candidates.lua
@@ -38,7 +40,6 @@
 --   [nomain] align/cleanup_bridge.lua
 --   [nomain] align/controller.lua
 --   [nomain] align/export.lua
---   [nomain] align/HYBRID.md
 --   [nomain] align/hybrid/plan.lua
 --   [nomain] align/hybrid/render.lua
 --   [nomain] align/hybrid/ui.lua
@@ -46,7 +47,6 @@
 --   [nomain] align/ownership.lua
 --   [nomain] align/preferences.lua
 --   [nomain] align/reader.lua
---   [nomain] align/README.md
 --   [nomain] align/registry.lua
 --   [nomain] align/renderers/stretch.lua
 --   [nomain] align/session.lua
@@ -60,7 +60,6 @@
 --   [nomain] breath_engine.lua
 --   [nomain] breath_features.lua
 --   [nomain] breath_model.lua
---   [nomain] BREATH_MODEL.md
 --   [nomain] breath_profile.lua
 --   [nomain] breath_regions.lua
 --   [nomain] cache_packing.lua
@@ -80,7 +79,6 @@
 --   [nomain] compressor/NOTICE.md
 --   [nomain] compressor/preset_ui.lua
 --   [nomain] compressor/presets.lua
---   [nomain] compressor/README.md
 --   [nomain] compressor/settings.lua
 --   [nomain] compressor/ui.lua
 --   [nomain] config.lua
@@ -89,12 +87,10 @@
 --   [nomain] dsp.lua
 --   [nomain] dtw.lua
 --   [nomain] eel.lua
---   [nomain] EEL_GUIDE.md
 --   [nomain] envelope.lua
 --   [nomain] init.lua
 --   [nomain] job.lua
 --   [nomain] jsfx/Vocaligner Pitch Meter - Export.lua
---   [nomain] jsfx/README.md
 --   [effect] jsfx/Vocaligner Pitch Meter.jsfx > Vocaligner/Vocaligner Pitch Meter.jsfx
 --   [main=main] mrtnz_Ruin Vocals - Export Pitch Meter.lua
 --   [nomain] navigator.lua
@@ -105,7 +101,6 @@
 --   [nomain] pitch/check.lua
 --   [nomain] pitch/contour.lua
 --   [nomain] pitch/curve.lua
---   [nomain] pitch/CURVE_V4.md
 --   [nomain] pitch/draw.lua
 --   [nomain] pitch/editor.lua
 --   [nomain] pitch/expression.lua
@@ -115,33 +110,21 @@
 --   [nomain] pitch/group.lua
 --   [nomain] pitch/LICENSE_SWIFTF0.txt
 --   [nomain] pitch/link.lua
---   [nomain] pitch/LINK_SPEC.md
 --   [nomain] pitch/model.lua
 --   [nomain] pitch/neural.lua
 --   [nomain] pitch/neural_dot.lua
---   [nomain] pitch/NEXT_PHASE.md
 --   [nomain] pitch/notes.lua
 --   [nomain] pitch/prepare.lua
 --   [nomain] pitch/psola.lua
---   [nomain] pitch/README.md
---   [nomain] pitch/RESEARCH.md
---   [nomain] pitch/ROADMAP.md
 --   [nomain] pitch/scale.lua
 --   [nomain] pitch/store.lua
---   [nomain] pitch/TEST_CASE.md
---   [nomain] pitch/tests/quality.lua
---   [nomain] pitch/tests/vocal_render.lua
 --   [nomain] pitch/trace.lua
---   [nomain] pitch/TRANSITIONS_PLAN.md
 --   [nomain] pitch/ui.lua
 --   [nomain] pitch/vocal_render.lua
 --   [nomain] pitch/waveform.lua
 --   [nomain] pitch/workspace.lua
 --   [nomain] progress.lua
---   [nomain] README.md
---   [nomain] RESEARCH.md
 --   [nomain] session_cache.lua
---   [nomain] TEST_TOMORROW.md
 --   [nomain] THIRD_PARTY_NOTICES.txt
 --   [nomain] timing.lua
 --   [nomain] transport.lua
@@ -150,6 +133,35 @@
 --   [nomain] vocaligner.lua
 --   [nomain] warp.lua
 --   [nomain] waveform.lua
+--   [nomain] click/controller.lua
+--   [nomain] click/detector.lua
+--   [nomain] click/diagnostics.lua
+--   [nomain] click/engine.lua
+--   [nomain] click/repair.lua
+--   [nomain] click/sample_edits.lua
+--   [nomain] click/session.lua
+--   [nomain] click/settings.lua
+--   [nomain] click/spectral.lua
+--   [nomain] click/view.lua
+--   [nomain] click/wave.lua
+--   [nomain] click_mouth_experimental.lua
+--   [nomain] pitch/polyline.lua
+--   [nomain] ui2.lua
+--   [nomain] ui2/assets/icons.png
+--   [nomain] ui2/assets/knobs/BigBlue_ring.png
+--   [nomain] ui2/assets/knobs/BigGreen.png
+--   [nomain] ui2/assets/pitch.png
+--   [nomain] ui2/assets/ui.png
+--   [nomain] ui2/breath.lua
+--   [nomain] ui2/canvas.lua
+--   [nomain] ui2/declick.lua
+--   [nomain] ui2/dynamics.lua
+--   [nomain] ui2/knob.lua
+--   [nomain] ui2/master.lua
+--   [nomain] ui2/pitch.lua
+--   [nomain] ui2/sampler.lua
+--   [nomain] ui2/snapshot.lua
+--   [nomain] ui2/widgets.lua
 
 local root = debug.getinfo(1, 'S').source:match('^@?(.*[\\/])')
 

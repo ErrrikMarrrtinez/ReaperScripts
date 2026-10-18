@@ -4,6 +4,6 @@ The compressor transfer curve, circular Julian knee, RMS follower and attack/rel
 
 Reference inspected: `2ReaperScripts/gen_Envelope-based Compressor v2 (Julian mod).eel` and `2ReaperScripts/inc/AudioFunctions.eel` in the user's installed `eugen_legacy` scripts. Original author page: <https://forum.cockos.com/member.php?u=50462>.
 
-Modified 2026-10-03 for Vocaligner: private ReaImGui EEL functions, linked channel power, two-second RMS storage, cached PCM and detector passes, independent gate, bounded block execution and ordered gain composition. Legacy GUI, preset storage and SWS envelope activation calls are not included. Parameters and processing conventions are documented in [README.md](README.md).
+Modified 2026-10-03 for Vocaligner: private ReaImGui EEL functions, linked channel power, two-second RMS storage, cached PCM and detector passes, independent gate, bounded block execution and ordered gain composition. Legacy GUI, preset storage and SWS envelope activation calls are not included.
 
 This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for details.

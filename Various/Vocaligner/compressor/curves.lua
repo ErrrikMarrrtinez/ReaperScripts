@@ -8,6 +8,33 @@ function M.times(len,curves,extra)
  for _,t in ipairs(all)do if t>=0 and t<=len and t>previous+1e-9 then out[#out+1]=t;previous=t end end
  return out
 end
+-- First point index with t>a (binary search on sorted points).
+local function after(points,a)
+ local lo,hi=1,#points+1
+ while lo<hi do local mid=(lo+hi)//2;if points[mid].t>a then hi=mid else lo=mid+1 end end
+ return lo
+end
+-- A Bezier fade stays native only where every other stage is flat; there the
+-- summed curve is that fade plus a constant. Otherwise Apply samples points.
+local function shapes(layers)
+ local out={}
+ for kind,curve in pairs(layers)do for _,shape in ipairs(curve.shapes or {})do
+  local clean=true
+  for other,oc in pairs(layers)do if other~=kind and clean then
+   local base=M.value(oc,shape.a)
+   if math.abs(M.value(oc,shape.b)-base)>.01 then clean=false end
+   local points=oc.points or {}
+   for i=after(points,shape.a),#points do
+    local p=points[i];if p.t>=shape.b or not clean then break end
+    if math.abs(p.db-base)>.01 then clean=false end
+   end
+  end end
+  if clean then out[#out+1]=shape end
+ end end
+ table.sort(out,function(a,b)return a.a<b.a end)
+ return out
+end
+M.shapes=shapes
 function M.sum(data,layers,job)
  local out={points={},max_db=0,hop=data.hop,sequential=true}
  for i,t in ipairs(M.times(data.len,layers))do
@@ -15,6 +42,7 @@ function M.sum(data,layers,job)
   out.points[i]={t=t,db=db};out.max_db=math.max(out.max_db,math.abs(db))
   if job and i%256==0 then job:checkpoint() end
  end
+ out.shapes=shapes(layers)
  return out
 end
 function M.patch(data,old,new,range,job)
@@ -31,6 +59,11 @@ function M.patch(data,old,new,range,job)
   out.points[i]={t=t,db=db};out.max_db=math.max(out.max_db,math.abs(db))
   if job and i%256==0 then job:checkpoint() end
  end
+ -- Bezier fades survive only where the patch leaves their curve untouched.
+ local kept={}
+ for _,shape in ipairs(old and old.shapes or {})do if shape.b<=a or shape.a>=b then kept[#kept+1]=shape end end
+ for _,shape in ipairs(new.shapes or {})do if shape.a>=a+fade and shape.b<=b-fade or a<=0 and b>=data.len then kept[#kept+1]=shape end end
+ if #kept>0 then table.sort(kept,function(x,y)return x.a<y.a end);out.shapes=kept end
  return out
 end
 function M.changed(data,a,b,job)

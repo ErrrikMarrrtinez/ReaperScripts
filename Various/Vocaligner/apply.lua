@@ -92,7 +92,12 @@ function M.run(r,project,reference,dubs,cfg,transaction)
       batch[#batch+1]={dub=d,state=before,volume_only=d.plan.volume_only}
     end
   end
-  if #batch==0 then return nil,'Nothing to apply. The enabled takes already match or have no usable result.' end
+  -- Cleanup (без reference): если ни одному тейку нечего писать — это не ошибка, а «уже совпадает».
+  -- Так бывает при нескольких выделенных айтемах, когда часть из них без найденных событий.
+  if #batch==0 then
+    if not reference then return 0 end
+    return nil,'Nothing to apply. The enabled takes already match or have no usable result.'
+  end
   local mode=reference and pitch_mode(r) or -1
   if transaction then
     if transaction.open and transaction.project~=project then return nil,'The edit belongs to another project.' end
@@ -180,9 +185,16 @@ function M.run(r,project,reference,dubs,cfg,transaction)
       history.last=signature
     end
     d.output_sequence=(d.output_sequence or 0)+1
+    -- Cleanup outputs remember their baseline (it can be a kept manual edit)
+    -- and the bypassed stages, so Undo/Redo restores both.
+    local base=d.plan.volume_only and (d.original_state or entry.state) or nil
+    d.bypassed=d.next_bypassed or d.bypassed;d.next_bypassed=nil
+    local bypassed={};for mode,layer in pairs(d.bypassed or {})do bypassed[mode]=layer end
     d.outputs[signature]={plan=d.plan,cleanup=d.cleanup,envelope_points=d.envelope_points,
       layers=d.next_layers or d.layers,cfg=d.cleanup_cfg,volume_envelope=after.volume_envelope,volume_points=after.volume_points,sequence=d.output_sequence,
-      native_state=d.align_app and after or nil,volume_origin=d.align_volume_state}
+      native_state=d.align_app and after or nil,volume_origin=d.align_volume_state,
+      baseline=base and {volume_envelope=base.volume_envelope,volume_points=base.volume_points} or nil,
+      bypassed=d.plan.volume_only and bypassed or nil}
     if d.align_app then d.outputs[signature].timing_applied=not d.plan.unchanged end
     -- Different recipes/order can produce the same native curve. Invalidate the
     -- ownership shortcut too, otherwise the next check resurrects old layers.

@@ -101,7 +101,9 @@ function M.dynamic(c,d,cfg,mode,upstream,job)
 end
 function M.build(c,d,cfg,mode,range,job,remove)
  local layers=Config.copy(d.layers or {});local original=layers[mode]
- if remove then layers[mode]=nil
+ -- A bypassed stage keeps its layer in d.bypassed and is left out of the chain.
+ for kind in pairs(d.bypassed or {})do layers[kind]=nil end
+ if remove or d.bypassed and d.bypassed[mode] then layers[mode]=nil
  else layers[mode]={recipes=recipes(original,cfg,range),frozen=original and original.frozen or original and not original.recipes and original or nil} end
  local resolved,stage_cache={},{};local detected={sibilants={},breaths={}};local current,hf
  for _,kind in ipairs(Settings.parse(cfg.chain_order)) do

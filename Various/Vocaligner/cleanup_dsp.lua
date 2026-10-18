@@ -91,6 +91,21 @@ function M:execute(samples,offset,channels,count,frames,hop,sr,native,reuse_inpu
   end
   return result,peak
 end
+-- Только энергии первых `bands` полос по 500 Hz, плоским массивом frames*bands (без таблиц на кадр).
+-- Тот же EEL-проход, что execute(); нужен Mouth (click/spectral.lua), где остальные признаки не используются.
+function M:band_rows(samples,offset,channels,count,frames,hop,sr,bands)
+  assert(frames>=1 and frames<=48 and channels>=1 and channels<=8 and #samples<=131072 and bands>=1 and bands<=32)
+  local im,fn=self.im,self.fn
+  im.Function_SetValue_Array(fn,'input',self.r.new_array(samples))
+  for key,value in pairs({offset=offset,channels=channels,samples_count=count,frames=frames,hop=hop,sr=sr,reuse_input=0}) do im.Function_SetValue(fn,key,value) end
+  local out=self.r.new_array(frames*42);local started=self.r.time_precise()
+  im.Function_Execute(fn);self.kernel_ms=(self.kernel_ms or 0)+(self.r.time_precise()-started)*1000
+  assert(im.Function_GetValue(fn,'invalid')==0,'Invalid PCM sample in cleanup analysis')
+  im.Function_GetValue_Array(fn,'output',out)
+  local values=out.table();local result={}
+  for i=1,frames do local at=(i-1)*42+10;for b=1,bands do result[#result+1]=values[at+b] end end
+  return result
+end
 function M.new(im,ctx,r)
   local self=setmetatable({im=im,r=r,label='Lua + native FFT'},M)
   local ok,why=pcall(function()

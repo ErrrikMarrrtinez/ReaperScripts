@@ -10,7 +10,7 @@ M.defaults = {
   deess_detail = 70,
   breath_sensitivity = 50, breath_db = 6, breath_min_ms = 80,
   breath_pre_ms = 10, breath_release_ms = 20, breath_detail = 70,
-  breath_mode = 0, breath_target = -34,
+  breath_mode = 1, breath_target = -34, breath_curve = 50,
   breath_join_ms = 160, breath_edge_ms = 120,
   sample_rate = 32000, fft_size = 1024, hop = 320, mel_bands = 32,
   max_seconds = 1800, max_total_frames = 120000, max_cells = 24000000, frame_budget = 0.008,
@@ -29,8 +29,8 @@ local bounds = {strength={0,100}, tolerance_ms={0,80}, search_s={0.05,5},
   deess_pre_ms={0,30},deess_release_ms={0,200},
   deess_detail={0,100},marker_density={0,100},
   breath_sensitivity={0,100},breath_db={0,18},breath_min_ms={40,500},
-  breath_pre_ms={0,100},breath_release_ms={0,300},breath_detail={0,100},breath_mode={0,1},breath_target={-60,-12},
-  breath_join_ms={0,300},breath_edge_ms={0,250}}
+  breath_pre_ms={0,100},breath_release_ms={0,300},breath_detail={0,100},breath_mode={0,1},breath_target={-80,-12},
+  breath_join_ms={0,300},breath_edge_ms={0,250},breath_curve={0,100}}
 for k,v in pairs(Dynamics.defaults)do M.defaults[k]=v end
 for _,mode in ipairs({'compressor','gate'})do
   M[mode..'_keys']={}
@@ -38,7 +38,14 @@ for _,mode in ipairs({'compressor','gate'})do
 end
 for _,k in ipairs({'dynamics_rt','chain_active','chain_visible'})do bounds[k]={0,1}end
 M.deess_keys={'deess_hz','deess_threshold','deess_amount','deess_max_db','deess_pre_ms','deess_release_ms','deess_detail'}
-M.breath_keys={'breath_sensitivity','breath_db','breath_min_ms','breath_pre_ms','breath_release_ms','breath_detail','breath_mode','breath_target','breath_join_ms','breath_edge_ms'}
+M.breath_keys={'breath_sensitivity','breath_db','breath_min_ms','breath_pre_ms','breath_release_ms','breath_detail','breath_mode','breath_target','breath_join_ms','breath_edge_ms','breath_curve'}
+-- Dynamics controls that are hidden for now. Every switch keeps the old code
+-- path: set it back to restore the previous control and behaviour.
+M.dynamics_ui={
+  breath_target_only=true,   -- Target level is always on; its checkbox and Reduction are hidden
+  breath_max_cut_db=25,      -- hidden Max cut used by Target level instead of breath_db
+  breath_bezier=true,        -- Curve (Bezier fades) replaces Envelope detail for Breaths
+}
 function M.copy(t) local o={}; for k,v in pairs(t) do o[k]=v end; return o end
 function M.load(r)
   local c=M.copy(M.defaults)

@@ -7,12 +7,19 @@ function M.draw(im,ctx,d,w,h,r,project)
   im.DrawList_AddRectFilled(draw,x,y,x+w,y+h,0x171A2060,4)
   if not d or not (d.audio or d.quick) or not d.view then return end
   local data,v=d.audio or d.quick,d.view;local scale=math.max(3,d.tool_preview and d.tool_preview.max_db or 0)
-  for px=0,math.floor(w)-1 do
-    local db=Cleanup.value(d.tool_preview,data.len*(px+.5)/w)
-    if db>.01 then
-      local top=y+h-3-(h-6)*db/scale
-      im.DrawList_AddRectFilled(draw,x+px,top,x+px+1,y+h-3,0xD8AC7790)
-    end
+  -- Reduction overview: a light 5 px blur and an antialiased outline instead
+  -- of one hard bar per pixel.
+  local n=math.floor(w);local raw={}
+  if d.tool_preview then for px=0,n-1 do raw[px]=math.max(0,Cleanup.value(d.tool_preview,data.len*(px+.5)/w)) end end
+  local previous,previous_db
+  for px=0,n-1 do
+    local sum,count=0,0
+    for k=-2,2 do local value=raw[px+k];if value then sum=sum+value;count=count+1 end end
+    local db=count>0 and sum/count or 0
+    local top=y+h-2-(h-4)*math.min(1,db/scale)
+    if db>.01 then im.DrawList_AddLine(draw,x+px+.5,top,x+px+.5,y+h-2,0xD8AC7748) end
+    if previous and (db>.01 or previous_db>.01) then im.DrawList_AddLine(draw,x+px-1,previous,x+px,top,0xE6BC88D0,1.2) end
+    previous,previous_db=top,db
   end
   local a=x+(v.start-data.pos)/data.len*w;local b=a+v.span/data.len*w
   if im.IsItemHovered(ctx) and im.IsMouseClicked(ctx,0) then

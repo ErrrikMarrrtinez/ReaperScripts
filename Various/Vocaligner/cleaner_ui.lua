@@ -1,6 +1,7 @@
 -- @noindex
 local import=...;local DSP=import('dsp');local Regions=import('cleanup_ui');local Navigator=import('navigator')
 local Controls=import('controls');local Progress=import('progress');local Transport=import('transport');local M={}
+local UI=import('config').dynamics_ui
 local function canvas(im,ctx,c,w,h,color,wave)
   local d=c:current();local x,y=im.GetCursorScreenPos(ctx);local draw=im.GetWindowDrawList(ctx)
   local font=im.GetFontSize(ctx)
@@ -53,18 +54,25 @@ local function canvas(im,ctx,c,w,h,color,wave)
     im.DrawList_AddText(draw,xx+3,y+4,color.muted,string.format(step<1 and '%.2fs' or '%.1fs',t))
   end
   local events=d.detected and (c.mode=='breath' and d.detected.breaths or d.detected.sibilants or {}) or {}
-  wave(im,ctx,draw,data,nil,x,top,w,height,v,0xA0AABA30)
-  wave(im,ctx,draw,data,nil,x,top,w,height,v,0xA3AFBFD0,d.preview,{events=events,tint=0xEBC080FF})
-  if not (d.processed_modes and d.processed_modes[c.mode]) and not (d.layers and d.layers[c.mode]) then
-    local label='Unprocessed';local tw=im.CalcTextSize(ctx,label)
-    im.DrawList_AddText(draw,x+w-tw-8,y+26,color.muted,label)
+  -- One-sided waveform: amplitude rises from the bottom edge, not mirrored.
+  wave(im,ctx,draw,data,nil,x,top,w,height,v,0xA0AABA30,nil,{half=true})
+  wave(im,ctx,draw,data,nil,x,top,w,height,v,0xA3AFBFD0,d.preview,{events=events,tint=0xEBC080FF,half=true})
+  local bypassed=c:bypassed(d)
+  local status=bypassed and 'Bypassed' or not (d.processed_modes and d.processed_modes[c.mode]) and not (d.layers and d.layers[c.mode]) and 'Unprocessed'
+  if status then
+    local tw=im.CalcTextSize(ctx,status)
+    im.DrawList_AddText(draw,x+w-tw-8,y+26,bypassed and color.warn or color.muted,status)
   end
+  local count=c.targets and #c.targets or 0
+  im.DrawList_AddText(draw,x+8,y+26,color.muted,(count>1 and count..' items · ' or '')..d.snapshot.name)
   Regions.draw(im,ctx,draw,c,d,x,top,w,height)
   if d.selected then
     local a,b=xpos(d.range[1]),xpos(d.range[2])
     if a>x then im.DrawList_AddRectFilled(draw,x,y+25,math.min(x+w,a),y+h,0x171A2090) end
     if b<x+w then im.DrawList_AddRectFilled(draw,math.max(x,b),y+25,x+w,y+h,0x171A2090) end
-    for _,xx in ipairs({a,b}) do im.DrawList_AddLine(draw,xx,y+25,xx,y+h,color.after,1) end
+    -- Only real scope edges; a selection clamped to the item start/end draws no line.
+    if d.range[1]>1e-9 then im.DrawList_AddLine(draw,a,y+25,a,y+h,color.after,1) end
+    if d.range[2]<data.len-1e-9 then im.DrawList_AddLine(draw,b,y+25,b,y+h,color.after,1) end
   end
   Transport.draw(im,draw,transport,function(t)return x+(t-v.start)/v.span*w end,x,x+w,y+24,y+h)
   im.DrawList_PopClipRect(draw)
@@ -88,14 +96,25 @@ local breath_knobs={
   {'breath_join_ms','Join gaps',0,300,'%.0f ms','Join fragments only when the gap has compatible spectrum and level. Keeps one gain across the breath.'},
   {'breath_edge_ms','Find edges',0,250,'%.0f ms','Maximum boundary search around a detected breath. Stops at silence, protected sounds and sharp spectral or level changes.'},
 }
+local breath_target={'breath_target','Target',-80,-12,'%.1f dBFS','80th-percentile source RMS per breath. One gain for the whole breath; existing take volume and FX are not included.'}
+local breath_curve={'breath_curve','Curve',0,100,'%.0f%%','Bezier strength of both fades. 0 is linear; higher values drop into the breath sooner and return later. Fade in/out set where each curve starts and ends.'}
 local function breath_controls(im,ctx,c,d)
-  local changed,target=im.Checkbox(ctx,'Target level',(c.cfg.breath_mode or 0)>=.5)
-  if changed then c.cfg.breath_mode=target and 1 or 0;c:settings_changed('breath_mode');c:control_released() end
-  if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Lower each detected breath toward one RMS target, limited by Max cut. Already quieter breaths stay unchanged.') end
+  -- Target level is forced on for now (Config.dynamics_ui); the checkbox,
+  -- Reduction and Max cut return when breath_target_only is switched off.
+  if not UI.breath_target_only then
+    local changed,target=im.Checkbox(ctx,'Target level',(c.cfg.breath_mode or 0)>=.5)
+    if changed then c.cfg.breath_mode=target and 1 or 0;c:settings_changed('breath_mode');c:control_released() end
+    if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Lower each detected breath toward one RMS target, limited by Max cut. Already quieter breaths stay unchanged.') end
+  end
   local entries={};for i,e in ipairs(breath_knobs) do entries[i]=e end
-  if (c.cfg.breath_mode or 0)>=.5 then
-    entries[2]={'breath_target','Target',-60,-12,'%.1f dBFS','80th-percentile source RMS per breath. One gain for the whole breath; existing take volume and FX are not included.'}
+  if UI.breath_target_only then entries[2]=breath_target
+  elseif (c.cfg.breath_mode or 0)>=.5 then
+    entries[2]=breath_target
     table.insert(entries,3,{'breath_db','Max cut',0,18,'-%.1f dB','Limit how much Target level can reduce a breath. It never boosts audio.'})
+  end
+  -- Envelope detail is kept for rollback; Curve replaces it with Bezier fades.
+  if UI.breath_bezier then
+    for i,e in ipairs(entries)do if e[1]=='breath_detail' then entries[i]=breath_curve end end
   end
   Controls.grid(im,ctx,c,'##breath_controls',entries,3)
   local length=d and d.range[2]-d.range[1] or 0
@@ -146,17 +165,32 @@ end
 function M.draw(im,ctx,app,color,slider,wave)
   local c=app.cleaner;local d=c:current()
   local hard_busy=app.job~=nil or (c.job and c.job.kind~='preview' and not c.job.live) or false
+  local row=false
   im.BeginDisabled(ctx,hard_busy)
-  local changed,auto=im.Checkbox(ctx,'Auto',c.auto)
-  if changed then c:set_auto(auto) end
-  if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Select one or several audio items in REAPER to analyze and apply this tab. Turn off to capture only with Get.') end
-  im.SameLine(ctx)
-  if im.Button(ctx,'Get') then c:capture() end
-  im.SameLine(ctx)
-  Controls.disabled(im,ctx,c.job~=nil or c.pending~=nil or not d or not (d.layers and d.layers[c.mode]),
-    not hard_busy and d and d.layers and d.layers[c.mode])
-  if im.Button(ctx,'Remove') then c:apply(true) end
-  im.EndDisabled(ctx)
+  -- Auto lives in Settings. Get only matters while capture is manual.
+  if not c.auto then
+    if im.Button(ctx,'Get') then c:capture() end
+    if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Capture the selected audio items and process this tab. Turn on Auto in Settings to follow the REAPER selection.') end
+    row=true
+  end
+  -- Remove is gone: Bypass takes this stage out of the envelope and keeps its
+  -- layer, so it can come back. Shown only when there is something to bypass.
+  if c:can_bypass(d) then
+    if row then im.SameLine(ctx) end
+    local on=c:bypassed(d)
+    Controls.disabled(im,ctx,c.job~=nil and (c.job.kind=='apply' or c.job.kind=='batch' or c.job.kind=='read' or c.job.kind=='learn'),true)
+    if on then
+      im.PushStyleColor(ctx,im.Col_Button,0x8C6A3CFF);im.PushStyleColor(ctx,im.Col_ButtonHovered,0xA07A46FF);im.PushStyleColor(ctx,im.Col_ButtonActive,0xB08850FF)
+    end
+    if im.Button(ctx,'Bypass') then c:set_bypass(not on) end
+    if on then im.PopStyleColor(ctx,3) end
+    im.EndDisabled(ctx)
+    if im.IsItemHovered(ctx) then im.SetTooltip(ctx,on and 'Bypassed: this stage is out of the envelope. Click to bring back its processing and settings.'
+      or 'Take this stage out of the take volume envelope. Its processing and settings are kept for this REAPER session.') end
+    row=true
+  end
+  --[[ Item list, hidden for now. Get still captures every selected item;
+  -- the focused item name is shown on the waveform.
   d=c:current()
   im.SameLine(ctx)
   local width=im.GetContentRegionAvail(ctx);im.SetNextItemWidth(ctx,math.max(70,width))
@@ -167,18 +201,21 @@ function M.draw(im,ctx,app,color,slider,wave)
     im.EndCombo(ctx)
   end
   if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Get captures all selected items. Choosing an item here focuses its own controls.') end
+  ]]
   im.EndDisabled(ctx)
+  d=c:current()
   local knobs_busy=app.job~=nil or c.follow_due~=nil or (c.job and not c.job.live and c.job.kind~='preview' and c.job.kind~='read' and c.job.kind~='batch') or false
-  im.BeginDisabled(ctx,knobs_busy or not d or (d and d.stale) or false)
+  -- A bypassed stage keeps its settings untouched until it is brought back.
+  im.BeginDisabled(ctx,knobs_busy or not d or (d and d.stale) or c:bypassed(d) or false)
+  if row then im.SameLine(ctx) end
   import('compressor/preset_ui').draw(im,ctx,c)
   if import('compressor/settings').dynamic(c.mode) then import('compressor/ui').controls(im,ctx,c)
   elseif c.mode=='breath' then breath_controls(im,ctx,c,d)
   else Controls.grid(im,ctx,c,'##cleanup_controls',deess_knobs,3) end
   im.EndDisabled(ctx)
-  if c.error then im.TextWrapped(ctx,(c.error:match('^[^\r\n]+') or c.error))
-  end
+  -- Errors go to the REAPER console and Report, not above the waveform.
   Progress.draw(im,ctx,c.operation or (c.job and not c.job.live and (c.job.kind~='preview' or import('compressor/settings').dynamic(c.mode)) and c.job or nil),c.r)
-  local w,h=im.GetContentRegionAvail(ctx);local nav=38
+  local w,h=im.GetContentRegionAvail(ctx);local nav=30
   local meter=c.mode=='deess' and 52 or 0
   canvas(im,ctx,c,w,math.max(100,h-nav-meter-16),color,wave)
   if meter>0 then detector(im,ctx,c,w,meter,color) end

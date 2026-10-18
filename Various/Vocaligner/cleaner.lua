@@ -141,7 +141,7 @@ function M:capture(preview_only)
     local reuse=old and old.snapshot.item==s.item and Audio.check_dub(r,old)
     if reuse then captured[#captured+1]={index=index,dub=old}
     else
-      if old and old.applied then self:fail('Cannot replace the saved baseline: the volume envelope changed outside Vocaligner. Undo that edit first.');return end
+      -- A replaced capture recovers its baseline and layers from the session cache.
       additions=additions+s.len-(old and old.snapshot.len or 0)
       local plan={snapshot=s,unchanged=true,volume_only=true,pos=s.pos,len=s.len,amount=0,
         markers={{t=0,target=s.pos},{t=s.len,target=s.pos+s.len}}}
@@ -180,6 +180,13 @@ function M:capture(preview_only)
     else self:analyze(true) end
   end
 end
+-- Настройки совпадают с теми, при которых сохранены результаты разбора (числовые и строковые параметры)
+local function same_cfg(saved,current)
+  for k,v in pairs(saved or {}) do
+    local t=type(v);if (t=='number' or t=='string' or t=='boolean') and current[k]~=v then return false end
+  end
+  return saved~=nil
+end
 function M:read_audio(d,job)
   local cfg=Config.copy(d.cfg);cfg.cleanup_only=true;local started=self.r.time_precise()
     if d.restore_value then
@@ -193,6 +200,14 @@ function M:read_audio(d,job)
       for key,value in pairs(pending_cfg or {}) do d.cfg[key]=value end
       d.want_apply=want;if d==self:current() then self.cfg=d.cfg end;cfg=Config.copy(d.cfg);cfg.cleanup_only=true
       d.cache_status=d.audio and 'restored from REAPER session cache' or 'restored settings; reading audio'
+      -- Разбор этой стадии уже есть в кэше и настройки не менялись: берём его, а не считаем заново
+      local saved_preview=d.audio and d.applied and not d.foreign and d.layers and d.layers[self.mode] and d.preview_store and d.preview_store[self.mode]
+      if saved_preview and same_cfg(saved_preview.cfg,d.cfg) and not next(pending_cfg or {}) then
+        d.detected,d.effect_regions,d.detector_levels=saved_preview.detected,saved_preview.regions,saved_preview.levels
+        d.preview,d.preview_layers,d.tool_preview=d.applied_cleanup,d.layers,d.layers and d.layers[self.mode]
+        d.preview_cfg=Config.copy(d.cfg);d.preview_valid=true;d.preview_changed=false
+        d.restored_preview=true;d.cache_status='restored from REAPER session cache (analysis reused)'
+      end
     end
     if not d.audio or d.audio.dynamics_only and not Dynamics.dynamic(self.mode) then
       local current=job:call(Audio.capture,self.r,self.project,d.snapshot.item,'cleanup')
@@ -296,6 +311,9 @@ end
 function M:accept_preview(d,out,revision)
   d.hf_features=out.hf_features;d.detector_levels=out.levels;d.detected=out.detected;d.preview_layers=out.layers;d.preview=out.combined;d.tool_preview=out.curve;d.effect_regions=out.regions
   d.preview_valid=true;d.preview_changed=out.changed;d.section_max_db=out.peak;d.preview_cfg=out.cfg;d.preview_revision=revision
+  -- Результаты разбора по стадиям сохраняются в сессии REAPER: после перезапуска скрипта не пересчитываются
+  d.preview_store=d.preview_store or {}
+  d.preview_store[self.mode]={cfg=Config.copy(out.cfg or d.cfg),detected=out.detected,regions=out.regions,levels=out.levels}
 end
 function M:preview()
   local d=self:current();if not d or not d.audio or d.stale then return end
@@ -338,7 +356,7 @@ function M:apply(remove,live)
       d.apply_ms=(self.r.time_precise()-started)*1000
       return count,why
     end)
-    d.next_layers=nil
+    d.next_layers=nil;d.next_bypassed=nil
     if not n then error(err,0) end
     d.processed_modes=d.processed_modes or {};d.processed_modes[mode]=not remove
     d.save_pending=true
@@ -347,6 +365,42 @@ function M:apply(remove,live)
       (remove and 'removed ' or 'applied ')..mode,d.envelope_points or 0,d.apply_ms)) end
   end,cfg.frame_budget)
   self.job.kind='apply';self.job.dub=d;self.job.mode=mode;self.job.remove=remove;self.job.live=transaction~=nil;self.job.revision=revision;self.error=nil
+end
+-- Bypass removes one stage from the written envelope and keeps its layer
+-- (recipes, ranges) in d.bypassed. Undo, Redo and the session cache keep it.
+function M:bypassed(d,mode)
+  d=d or self:current();return d~=nil and d.bypassed~=nil and d.bypassed[mode or self.mode]~=nil
+end
+function M:can_bypass(d)
+  d=d or self:current()
+  return d~=nil and not d.stale and (d.layers~=nil and d.layers[self.mode]~=nil or self:bypassed(d))
+end
+function M:set_bypass(on)
+  local d=self:current()
+  if not d or d.stale or not d.audio or self.app.job or self.job and (self.job.kind=='apply' or self.job.kind=='batch' or self.job.kind=='read') then return end
+  if self.job then self:cancel() end
+  self.pending=nil;self.error=nil
+  local mode=self.mode;local group=self.targets and #self.targets>1
+  local targets=group and self.targets or {d}
+  if on then
+    local any=false
+    for _,t in ipairs(targets)do if t.layers and t.layers[mode] and not t.stale then
+      local bypassed={};for k,v in pairs(t.bypassed or {})do bypassed[k]=v end
+      bypassed[mode]=t.layers[mode];t.next_bypassed=bypassed;any=true
+    end end
+    if any then self:apply(true) end
+    if not self.job then for _,t in ipairs(targets)do t.next_bypassed=nil end end
+    return
+  end
+  local any=false
+  for _,t in ipairs(targets)do if t.bypassed and t.bypassed[mode] and not t.stale then
+    local layers={};for k,v in pairs(t.layers or {})do layers[k]=v end;layers[mode]=t.bypassed[mode];t.layers=layers
+    local bypassed={};for k,v in pairs(t.bypassed)do if k~=mode then bypassed[k]=v end end
+    t.bypassed=next(bypassed) and bypassed or nil;t.want_apply=true;t.preview_valid=false;any=true
+  end end
+  if not any then return end
+  self.edit_transaction=self.edit_transaction or {}
+  if group then self.revision=self.revision+1;Batch.start(self,true) else self:request(true) end
 end
 function M:selection_key()
   local r=self.r;local ids={}
@@ -429,10 +483,11 @@ function M:tick()
     if job.done then
       self.job=nil;d=job.dub
       if job.error then
-        d.want_apply=false;self.pending=nil;self.operation=nil;
-        for _,target in ipairs(self.targets or {})do target.want_apply=false end
+        d.want_apply=false;d.next_bypassed=nil;self.pending=nil;self.operation=nil;
+        for _,target in ipairs(self.targets or {})do target.want_apply=false;target.next_bypassed=nil end
         self.last_selection_key=self:selection_key();Apply.finish(self.r,self.edit_transaction);self.edit_transaction=nil;self:fail(job.error)
-      elseif job.kind=='read' then self:request(false)
+      elseif job.kind=='read' then
+        if d.restored_preview and d.preview_valid then d.restored_preview=nil;d.want_apply=false else d.restored_preview=nil;self:request(false) end
       elseif job.kind=='learn' then self:request(true)
       elseif job.kind=='preview' then
         d.max_step_ms=job.max_step_ms;d.preview_ticks=job.steps;d.preview_work_ms=job.work_ms
@@ -501,6 +556,8 @@ function M:diagnostics()
     lines[#lines+1]=string.format('  chain %s | detector cache reuses %d | PCM %.1f MiB / %d blocks',
       d.cfg.chain_order or '',d.follower_reuses or 0,d.pcm and d.pcm.bytes/1048576 or 0,d.pcm and #d.pcm.blocks or 0)
     lines[#lines+1]='  unchanged stage reuses '..tostring(d.stage_reuses or 0)
+    local bypassed={};for mode in pairs(d.bypassed or {})do bypassed[#bypassed+1]=mode end;table.sort(bypassed)
+    lines[#lines+1]=string.format('  bypassed %s | kept baselines %d',#bypassed>0 and table.concat(bypassed,',') or 'none',#(d.baselines or {}))
     local stats=d.audio and d.audio.analysis_stats
     if stats then lines[#lines+1]=string.format('  DSP %s | accessor %.1f ms | validation %.1f ms | features %.1f ms | EEL kernel %.1f ms',
       stats.backend,stats.read_ms,stats.validation_ms,stats.feature_ms,stats.kernel_ms) end

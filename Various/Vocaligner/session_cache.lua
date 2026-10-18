@@ -19,6 +19,12 @@ local function unpack_layers(layers,job)
       if job and #curve.points%256==0 then job:checkpoint() end
     end
     curve.packed=nil
+    local shapes={}
+    for _,shape in ipairs(type(curve.shapes)=='table' and curve.shapes or {})do
+      if type(shape)=='table' and type(shape.a)=='number' and type(shape.b)=='number' and type(shape.tension)=='number'
+        and shape.b>shape.a and math.abs(shape.tension)<=1 then shapes[#shapes+1]=shape end
+    end
+    curve.shapes=#shapes>0 and shapes or nil
     if curve.frozen then unpack_layers({curve.frozen},job) end
   end end
   return layers
@@ -26,6 +32,10 @@ end
 local function hydrate(value,job)
   for _,s in ipairs({value.snapshot,table.unpack(value.outputs or {})}) do
     if s.volume_packed then s.volume_points=Pack.read_points(s.volume_packed,job);s.volume_packed=nil end
+    if s.baseline_packed then s.baseline_points=Pack.read_points(s.baseline_packed,job);s.baseline_packed=nil end
+  end
+  for _,b in ipairs(value.baselines or {})do
+    if b.volume_packed then b.volume_points=Pack.read_points(b.volume_packed,job);b.volume_packed=nil end
   end
 end
 local function hash(s)
@@ -36,6 +46,24 @@ local function state(s,job)
   local out={};for k,v in pairs(s) do
     if k~='item' and k~='take' and k~='source' and k~='project' and k~='volume_points' then out[k]=v end
   end;out.volume_packed=Pack.points(s.volume_points,job);return out
+end
+-- Копия данных для кэша: только числа/строки/булевы/таблицы, бесконечности и NaN приводятся к конечным
+-- (Codec отвергает нечисла), глубина ограничена. Результаты разбора стадий могут содержать -inf dB на тишине.
+local function finite_copy(v,depth)
+  local t=type(v)
+  if t=='number' then
+    if v~=v then return 0 end
+    if v==math.huge then return 1e9 elseif v==-math.huge then return -1e9 end
+    return v
+  elseif t=='table' and depth<12 then
+    local out={}
+    for k,x in pairs(v) do
+      local kt,xt=type(k),type(x)
+      if (kt=='string' or kt=='number') and (xt=='number' or xt=='string' or xt=='boolean' or xt=='table') then out[k]=finite_copy(x,depth+1) end
+    end
+    return out
+  end
+  return v
 end
 function M.new(r,project)
   if not (r.GetExtState and r.SetExtState and r.GetResourcePath and r.RecursiveCreateDirectory) then return nil end
@@ -74,13 +102,21 @@ function M:save(d,job)
     self:write(id,'audio',audio,job);d.audio_file=id;d.audio_dirty=nil
   end
   local value={snapshot=state(d.snapshot,job),stamp=self.r.time_precise(),cfg=Config.copy(d.cfg),range=d.range,selected=d.selected,view=d.view,
-    exclusions=d.exclusions,breath_profile=d.breath_profile,audio_file=d.audio_file,processed_modes=d.processed_modes,outputs={}}
+    exclusions=d.exclusions,breath_profile=d.breath_profile,audio_file=d.audio_file,processed_modes=d.processed_modes,outputs={},
+    bypassed=pack_layers(d.bypassed,job),baselines={},previews=d.preview_store and finite_copy(d.preview_store,0) or nil}
+  for i,b in ipairs(d.baselines or {})do value.baselines[i]={volume_envelope=b.volume_envelope,volume_packed=Pack.points(b.volume_points,job)} end
   local n=0;local ordered={}
   for _,out in pairs(d.outputs or {}) do if type(out)=='table' and out.volume_envelope then ordered[#ordered+1]=out end end
   table.sort(ordered,function(a,b) return (a.sequence or 0)>(b.sequence or 0) end)
   for _,out in ipairs(ordered) do
-    n=n+1;if n<=12 then value.outputs[#value.outputs+1]={volume_envelope=out.volume_envelope,volume_packed=Pack.points(out.volume_points,job),layers=pack_layers(out.layers,job),cfg=out.cfg,
-      envelope_points=out.envelope_points,sequence=out.sequence} end
+    n=n+1;if n<=12 then
+      local saved={volume_envelope=out.volume_envelope,volume_packed=Pack.points(out.volume_points,job),layers=pack_layers(out.layers,job),cfg=out.cfg,
+        envelope_points=out.envelope_points,sequence=out.sequence,bypassed=out.bypassed and pack_layers(out.bypassed,job) or nil}
+      -- Most outputs share the snapshot baseline; store only a kept manual edit.
+      if out.baseline and out.baseline.volume_envelope==d.snapshot.volume_envelope then saved.baseline_kind='snapshot'
+      elseif out.baseline then saved.baseline_kind='own';saved.baseline_envelope=out.baseline.volume_envelope;saved.baseline_packed=Pack.points(out.baseline.volume_points,job) end
+      value.outputs[#value.outputs+1]=saved
+    end
   end
   self:write(id,'meta',value,job);self.entries[id]=true
   local header={stamp=value.stamp};for _,k in ipairs({'guid','source_key','render_key','offset','len','rate'}) do header[k]=d.snapshot[k] end
@@ -136,13 +172,25 @@ end
 function M:attach(v,s,job)
   hydrate(v,job)
   local old=v.snapshot;old.item=s.item;old.take=s.take;old.source=s.source;old.project=s.project
+  -- A record of another take (same source file) may lend its layers only when
+  -- the envelope proves it, e.g. a split child. State.check reads this flag.
+  local foreign=old.guid~=s.guid
   old.guid=s.guid
   local merged=Config.copy(Config.defaults);for k,val in pairs(v.cfg)do merged[k]=val end
   local d={snapshot=old,enabled=true,cfg=merged,range=v.range or {0,old.len},selected=v.selected,
     view=v.view,exclusions=v.exclusions or {},breath_profile=v.breath_profile,audio_file=v.audio_file,
-    processed_modes=v.processed_modes,outputs=v.outputs or {},plan=import('cleanup_state').plan(old)}
+    processed_modes=v.processed_modes,outputs=v.outputs or {},plan=import('cleanup_state').plan(old),foreign=foreign or nil,
+    preview_store=type(v.previews)=='table' and v.previews or nil}
   for _,out in pairs(d.outputs) do
     d.output_sequence=math.max(d.output_sequence or 0,out.sequence or 0);out.layers=unpack_layers(out.layers,job);out.cleanup=out
+    if out.bypassed then out.bypassed=unpack_layers(out.bypassed,job) end
+    if out.baseline_kind=='snapshot' then out.baseline={volume_envelope=old.volume_envelope,volume_points=old.volume_points}
+    elseif out.baseline_kind=='own' then out.baseline={volume_envelope=out.baseline_envelope,volume_points=out.baseline_points} end
+    out.baseline_kind=nil;out.baseline_envelope=nil;out.baseline_points=nil
+  end
+  if type(v.bypassed)=='table' and next(v.bypassed) then d.bypassed=unpack_layers(v.bypassed,job) end
+  if type(v.baselines)=='table' and #v.baselines>0 then
+    d.baselines={};for i,b in ipairs(v.baselines)do d.baselines[i]={volume_envelope=b.volume_envelope,volume_points=b.volume_points} end
   end
   if v.audio_file then
     local audio=self:read(v.audio_file,'audio',job)

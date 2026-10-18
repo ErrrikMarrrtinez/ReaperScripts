@@ -23,17 +23,29 @@ function M.draw(im,ctx,app)
   if visible then
     app.gesture=false;app.cleaner.gesture=false
     -- A separate header child reserves a real rectangle for the fixed report button.
-    local w=im.GetContentRegionAvail(ctx);local report_w=im.CalcTextSize(ctx,'Report...')+18
+    local w=im.GetContentRegionAvail(ctx);local report_w=im.CalcTextSize(ctx,'Report')+18
+    local settings_w=im.CalcTextSize(ctx,'Settings')+18
     local header_h=im.GetFrameHeight(ctx)+4
     im.PushStyleVar(ctx,im.StyleVar_WindowPadding,0,0)
-    if im.BeginChild(ctx,'##tool_tabs',math.max(100,w-report_w-8),header_h,0,
+    if im.BeginChild(ctx,'##tool_tabs',math.max(100,w-report_w-settings_w-16),header_h,0,
       im.WindowFlags_NoScrollbar|im.WindowFlags_NoScrollWithMouse) then
       import('compressor/ui').tabs(im,ctx,app)
       im.EndChild(ctx)
     end
     im.PopStyleVar(ctx)
     im.SameLine(ctx)
-    if im.Button(ctx,'Report...',report_w) then im.OpenPopup(ctx,'Vocaligner report') end
+    if im.Button(ctx,'Settings',settings_w) then im.OpenPopup(ctx,'Settings##vocaligner') end
+    if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Shared settings for the Dynamics tabs: De-ess, Breaths, Compressor and Gate.') end
+    if im.BeginPopupModal(ctx,'Settings##vocaligner',true,im.WindowFlags_AlwaysAutoResize) then
+      im.TextDisabled(ctx,'Dynamics')
+      im.Separator(ctx)
+      import('compressor/ui').settings(im,ctx,app)
+      im.Spacing(ctx)
+      if im.Button(ctx,'Close') or im.IsKeyPressed(ctx,im.Key_Escape,false) then im.CloseCurrentPopup(ctx) end
+      im.EndPopup(ctx)
+    end
+    im.SameLine(ctx)
+    if im.Button(ctx,'Report',report_w) then im.OpenPopup(ctx,'Vocaligner report') end
     if im.BeginPopup(ctx,'Vocaligner report') then
       if im.Selectable(ctx,'Copy report') then
         local report=app:diagnostics();im.SetClipboardText(ctx,report);app.r.ShowConsoleMsg(report..'\n')
@@ -66,7 +78,7 @@ function M.draw(im,ctx,app)
     end
     if im.IsWindowFocused(ctx,im.FocusedFlags_RootAndChildWindows) then
       if im.IsKeyPressed(ctx,im.Key_Space,false) and not im.IsAnyItemActive(ctx) then app.r.Main_OnCommandEx(40044,0,app.r.EnumProjects(-1)) end
-      if im.IsKeyPressed(ctx,im.Key_Escape,false) then
+      if im.IsKeyPressed(ctx,im.Key_Escape,false) and not im.IsPopupOpen(ctx,'Settings##vocaligner') then
         if app.tab=='pitch' then app.pitch:cancel() else app.cleaner:clear_range() end
       end
     end

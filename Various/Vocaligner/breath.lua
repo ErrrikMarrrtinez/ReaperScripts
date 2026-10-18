@@ -1,8 +1,12 @@
 -- @noindex
 local import=...;local DSP=import('dsp');local Features=import('breath_features')
 local Engine=import('breath_engine');local Model=import('breath_model');local Profile=import('breath_profile')
-local Regions=import('breath_regions')
+local Regions=import('breath_regions');local UI=import('config').dynamics_ui
 local M={};local clamp=DSP.clamp
+-- REAPER Bezier tension signs for the fade into and out of a breath. Both are
+-- meant to bow toward full attenuation: drop early, return late. Flip one sign
+-- here if REAPER draws that side the other way.
+M.tension_in=-1;M.tension_out=1
 local function step(job,i) if job and i%128==0 then job:checkpoint() end end
 function M.threshold(sensitivity)
   local logit=math.log(Model.threshold/(1-Model.threshold))+(50-(sensitivity or 50))*.05
@@ -72,6 +76,62 @@ function M.calibrate(data,profile,range,current,job,engine)
   local sensitivity=50+(math.log(Model.threshold/(1-Model.threshold))-logit)/.05
   return math.floor(clamp(sensitivity,5,95)*10+.5)/10
 end
+-- Depth of one event. Target level lowers the breath toward the target only;
+-- the hidden Max cut replaces Reduction while Target level is forced on.
+function M.depth(cfg,e)
+  local target=UI.breath_target_only or (cfg.breath_mode or 0)>=.5
+  local depth=UI.breath_target_only and UI.breath_max_cut_db or cfg.breath_db or 4
+  if target then depth=math.min(depth,math.max(0,(e.level_db or -120)-(cfg.breath_target or -34))) end
+  return depth
+end
+-- Quadratic Bezier from (0,0) to (1,1). k>0 rises early, k<0 late, 0 is linear.
+-- It models the native Bezier fade for the preview and the following stages.
+function M.bend(u,k)
+  u=clamp(u,0,1);if math.abs(k)<1e-6 then return u end
+  local c=.5-.5*k;local s=(-2*c+math.sqrt(4*c*c+4*k*u))/(2*k)
+  return 2*s*(1-s)*(1-c)+s*s
+end
+local function fades(data,cfg,e)
+  local duration=e.finish-e.start
+  return math.min(duration/2,math.max(data.hop,(cfg.breath_pre_ms or 10)/1000)),
+    math.min(duration/2,math.max(data.hop,(cfg.breath_release_ms or 20)/1000))
+end
+-- One gain per event and two fades inside it, written as exact points. With
+-- isolated events each fade becomes one native Bezier segment (curve.shapes).
+local function bezier(data,cfg,events,job)
+  local k=clamp((cfg.breath_curve or 50)/100,0,1);local active={}
+  for _,e in ipairs(events)do if not e.excluded and e.reduction>0 then active[#active+1]=e end end
+  table.sort(active,function(a,b)return a.start<b.start end)
+  local function at(e,t)
+    local fadein,fadeout=fades(data,cfg,e)
+    if t<=e.start or t>=e.finish then return 0 end
+    if t<e.start+fadein then return e.reduction*M.bend((t-e.start)/fadein,k) end
+    if t>e.finish-fadeout then return e.reduction*(1-M.bend((t-e.finish+fadeout)/fadeout,-k)) end
+    return e.reduction
+  end
+  local times={0,data.len};local shapes={}
+  for j,e in ipairs(active)do
+    local fadein,fadeout=fades(data,cfg,e)
+    for _,ramp in ipairs({{e.start,fadein},{e.finish-fadeout,fadeout}})do
+      local n=k>.01 and math.max(2,math.ceil(ramp[2]/.005)) or 1
+      for i=0,n do times[#times+1]=ramp[1]+ramp[2]*i/n end
+    end
+    local isolated=(not active[j-1] or active[j-1].finish<=e.start+1e-9) and (not active[j+1] or active[j+1].start>=e.finish-1e-9)
+    if isolated and k>.01 then
+      shapes[#shapes+1]={a=e.start,b=e.start+fadein,tension=M.tension_in*k}
+      shapes[#shapes+1]={a=e.finish-fadeout,b=e.finish,tension=M.tension_out*k}
+    end
+    step(job,j)
+  end
+  table.sort(times)
+  local points,peak,previous={},0,-1
+  for i,t in ipairs(times)do if t>=0 and t<=data.len and t>previous+1e-9 then
+    local db=0;for _,e in ipairs(active)do if e.start<t and e.finish>t then db=math.max(db,at(e,t)) end end
+    points[#points+1]={t=t,db=db};peak=math.max(peak,db);previous=t
+    step(job,i)
+  end end
+  return points,peak,shapes
+end
 function M.build(data,cfg,job,exclusions,engine,profile)
   local templates,scores=detect(data,cfg,profile,job,engine);local events,values={},{}
   for i=1,#data.frames do values[i]=0;step(job,i) end
@@ -81,14 +141,11 @@ function M.build(data,cfg,job,exclusions,engine,profile)
     for _,excluded in ipairs(exclusions or {}) do
       if excluded.kind=='breath' and excluded.start<e.finish and excluded.finish>e.start then out.excluded=true;break end
     end
-    local depth=cfg.breath_db or 4
-    if (cfg.breath_mode or 0)>=.5 then depth=math.min(depth,math.max(0,e.level_db-(cfg.breath_target or -34))) end
+    local depth=M.depth(cfg,e)
     out.reduction=out.excluded and 0 or depth
     -- One constant gain per event. Fades stay INSIDE its boundaries: no pre-open
     -- across the previous word and no release tail over the next consonant.
-    local duration=e.finish-e.start
-    local fadein=math.min(duration/2,math.max(data.hop,(cfg.breath_pre_ms or 10)/1000))
-    local fadeout=math.min(duration/2,math.max(data.hop,(cfg.breath_release_ms or 20)/1000))
+    local fadein,fadeout=fades(data,cfg,e)
     if not out.excluded and depth>0 then
       for i=e.first,e.last do
         local t=data.frames[i].t
@@ -100,6 +157,11 @@ function M.build(data,cfg,job,exclusions,engine,profile)
   values[1]=0
   local out={sibilants={},sib_score={},sib_db={},breaths=events,breath_score=scores,breath_db=values,
     points={{t=0,db=0}},max_db=0,hop=data.hop,model=Model.version,threshold=M.threshold(cfg.breath_sensitivity)}
+  if UI.breath_bezier then
+    out.points,out.max_db,out.shapes=bezier(data,cfg,events,job)
+    return out
+  end
+  -- Envelope detail path (sampled raised-cosine fades), kept for rollback.
   for i=2,#data.frames do
     out.points[#out.points+1]={t=data.frames[i].t,db=values[i]};out.max_db=math.max(out.max_db,values[i]);step(job,i)
   end

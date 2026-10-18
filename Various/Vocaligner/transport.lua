@@ -1,5 +1,5 @@
 -- @noindex
-local M={}
+local M={last_t=0,fade=0}
 local function clamp(x,a,b)return math.max(a,math.min(b,x))end
 function M.read(r,project)
   if not project or r.EnumProjects and r.EnumProjects(-1)~=project then return {} end
@@ -33,6 +33,27 @@ function M.draw(im,dl,state,tx,left,right,top,bottom)
     local xx=tx(t);if xx>=left and xx<=right then im.DrawList_AddLine(dl,xx,top,xx,bottom,color,weight) end
   end
   line(state.edit,0xC3CAD48C,1)
-  line(state.play,0x91DFCDFF,1.6)
+  -- Плей-курсор: тонкая оранжевая линия, мягкое многослойное свечение и прозрачный хвост слева; всё плавно проявляется
+  -- при старте воспроизведения и слабо «дышит» во время игры
+  if state.play~=nil then
+    local xx=tx(state.play)
+    if xx>=left and xx<=right then
+      local now=(reaper and reaper.time_precise and reaper.time_precise()) or 0
+      local dt=math.max(0,math.min(.1,now-M.last_t));M.last_t=now
+      M.fade=M.fade+((state.running and 1 or 0)-M.fade)*math.min(1,dt*5) -- плавное появление/затухание хвоста и пульса
+      local fade=M.fade
+      local pulse=fade*(0.5+0.5*math.sin(now*3.2))
+      local tail=math.min(64,xx-left)
+      if fade>0.01 and tail>2 and im.DrawList_AddRectFilledMultiColor then
+        local a=math.floor(0x16*fade)
+        im.DrawList_AddRectFilledMultiColor(dl,xx-tail,top,xx,bottom,0xF29A5A00,0xF29A5A00|a,0xF29A5A00|a,0xF29A5A00)
+      end
+      local g=0.7+0.3*fade -- в паузе свечение слабее
+      im.DrawList_AddLine(dl,xx,top,xx,bottom,0xF29A5A00|math.floor((5+4*pulse)*g),11)
+      im.DrawList_AddLine(dl,xx,top,xx,bottom,0xF29A5A00|math.floor((9+5*pulse)*g),7)
+      im.DrawList_AddLine(dl,xx,top,xx,bottom,0xF29A5A00|math.floor((18+7*pulse)*g),3.6)
+      im.DrawList_AddLine(dl,xx,top,xx,bottom,0xFFB878E6,1.0)
+    end
+  end
 end
 return M

@@ -11,6 +11,14 @@ M.scales={
   {'Minor pentatonic',{0,3,5,7,10}}, {'Blues',{0,3,5,6,7,10}},
   {'Whole tone',{0,2,4,6,8,10}},
 }
+-- Короткие имена ладов и бемольная запись: бемоли, если мажорный аналог тональности — бемольный (F, Bb, Eb, Ab, Db).
+M.short={'Chrom','Maj','Min','Harm min','Mel min','Dor','Phryg','Lyd','Mixo','Locr','Maj pent','Min pent','Blues','Whole'}
+local FLAT_NAMES={'C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'}
+local TO_MAJOR={0,0,3,3,3,-2,-4,-5,-7,-11,0,3,3,0} -- смещение от тоники лада к тонике относительного мажора
+local FLAT_MAJOR={[1]=true,[3]=true,[5]=true,[8]=true,[10]=true}
+function M.flat(root,scale) return FLAT_MAJOR[((root or 0)+(TO_MAJOR[scale or 1] or 0))%12]==true end
+function M.root_name(root,scale) root=(root or 0)%12;return (M.flat(root,scale) and FLAT_NAMES or M.roots)[root+1] end
+function M.label(root,scale) return M.root_name(root,scale)..' '..(M.short[scale or 1] or M.scales[scale or 1][1]) end
 function M.contains(p,root,scale)
   local pc=(math.floor(p+.5)-(root or 0))%12
   for _,v in ipairs((M.scales[scale or 1] or M.scales[1])[2]) do if pc==v then return true end end

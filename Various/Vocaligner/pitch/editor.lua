@@ -95,7 +95,7 @@ function M:refresh(force)
       self.data=nil;self.notes={};self.state={version=1,notes=self.notes,geometry=Store.geometry(s)}
       self.message=s.name
     end
-    if self.state.scale then self.root=self.state.scale.root;self.scale=self.state.scale.mode;self.snap=false end
+    if self.state.scale then self.root=self.state.scale.root;self.scale=self.state.scale.mode;self.snap=self.state.scale.snap==true end
     self.algorithm_error=nil
     if self.state.fx_guid then
       local fx=FX.find(r,take,self.state.fx_guid)
@@ -122,7 +122,7 @@ function M:analyze(mode,items)
   return import('pitch/batch').start(self,mode,items or Workspace.targets(self))
 end
 function M:activate(item)return Workspace.activate(self,item) end
-function M:reset_all(items)
+function M:reset_all(items,clear)
   if self:busy() or self.gesture or self.no_selection then return end
   local r=self.r;local project=r.EnumProjects(-1);items=items or {self.item}
   self.job=Job.new(r,function(job)
@@ -135,7 +135,7 @@ function M:reset_all(items)
         local success,why=xpcall(function()
           FX.remove(r,s,state)
           for _,n in ipairs(state.notes)do Expression.reset(n);n.formant=0 end
-          Store.write(r,s.take,state)
+          Store.write(r,s.take,not clear and state or nil) -- clear: полный сброс, анализ item забывается
         end,debug.traceback)
         if not success then why=restore_after_failure(r,item,chunk,why)end
         r.PreventUIRefresh(-1);r.Undo_EndBlock2(project,'Vocaligner: reset pitch corrections',-1);r.UpdateArrange();assert(success,why)
@@ -143,7 +143,7 @@ function M:reset_all(items)
       job:checkpoint(i/#items,'Reset pitch corrections')
     end
   end,.008)
-  self.job.kind='reset';self.prepared_cache=nil;self.error=nil
+  self.job.kind='reset';self.prepared_cache=nil;self.error=nil;if clear then self.view=nil;self.fit_pending=true end
 end
 function M:begin_edit(keep_version)
   if self:busy() or self.stale or not self.data or self.no_selection then return nil end
@@ -376,10 +376,11 @@ function M:diagnostics()
 end
 function M:set_scale(root,mode,snap)
   if self:busy() or self.gesture then return end
-  self.root,self.scale,self.snap=root,mode,false
+  if snap==nil then snap=self.snap end;snap=snap==true
+  self.root,self.scale,self.snap=root,mode,snap
   if not self.data or self.stale or self.no_selection then return end
   local before=Notes.copy(self.state)
-  self.state.scale={root=root,mode=mode,snap=false}
+  self.state.scale={root=root,mode=mode,snap=snap}
   self:commit(before,'set pitch scale','metadata')
 end
 function M:parameter(field,value,alt,before)

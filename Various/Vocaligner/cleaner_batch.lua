@@ -61,6 +61,7 @@ function M.start(c,explicit,remove)
         local n,why=Apply.run(c.r,c.project,nil,changed,cfg,transaction)
         c.job.apply_ms=(c.r.time_precise()-started)*1000
         for _,d in ipairs(changed)do d.next_layers=nil end
+        for _,d in ipairs(targets)do d.next_bypassed=nil end
         if not n then
           for _,d in ipairs(changed)do d.cleanup=before[d].cleanup;d.cleanup_cfg=before[d].cfg end
           error(why,0)

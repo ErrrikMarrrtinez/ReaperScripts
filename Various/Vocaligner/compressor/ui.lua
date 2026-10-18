@@ -13,6 +13,24 @@ local function meter(im,ctx,c,lo,hi)
  local draw=im.GetWindowDrawList(ctx)
  im.DrawList_AddRectFilled(draw,x+2,yy-4,x+2+(xx-x-4)*value,yy-1,0x78C8ADCC)
 end
+-- Shared Dynamics options, drawn in the Settings window (ui.lua).
+M.options={
+ {'dynamics_rt','RT Update','Off: calculate after releasing a control. On: update while dragging, with coalesced background jobs. Cached PCM is shared by Gate and Compressor.'},
+ {'chain_active','Envelope active','Off writes the take volume envelope bypassed (ACT 0), so it can be compared by ear.'},
+ {'chain_visible','Show envelope','Show or hide the written take volume envelope lane in REAPER.'},
+}
+function M.settings(im,ctx,app)
+ local c=app.cleaner
+ local changed,auto=im.Checkbox(ctx,'Auto',c.auto)
+ if changed then c:set_auto(auto) end
+ if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Select one or several audio items in REAPER to analyze and apply the open Dynamics tab. Off: capture with Get.') end
+ for _,entry in ipairs(M.options) do
+  local changed,on=im.Checkbox(ctx,entry[2],(c.cfg[entry[1]] or 0)>=.5)
+  if changed then c.cfg[entry[1]]=on and 1 or 0;c:settings_changed(entry[1]);c:control_released() end
+  if im.IsItemHovered(ctx) then im.SetTooltip(ctx,entry[3]) end
+ end
+ im.TextDisabled(ctx,'Drag the Dynamics tabs to change the processing order.')
+end
 function M.controls(im,ctx,c)
  local entries=Settings[c.mode];local e=entries[1]
  im.TextDisabled(ctx,e[2]);im.SetNextItemWidth(ctx,-1)
@@ -24,12 +42,7 @@ function M.controls(im,ctx,c)
  if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Green bar: cached detector level at the play/edit cursor, including earlier cleanup stages. Detector HP/LP do not EQ the audio.') end
  local knobs={};for i=2,#entries do knobs[#knobs+1]=entries[i] end
  Controls.grid(im,ctx,c,'##dynamics_controls',knobs,3)
- for i,entry in ipairs({{'dynamics_rt','RT Update'},{'chain_active','Envelope active'},{'chain_visible','Show envelope'}}) do
-  if i>1 then im.SameLine(ctx) end
-  local changed,on=im.Checkbox(ctx,entry[2],c.cfg[entry[1]]>=.5)
-  if changed then c.cfg[entry[1]]=on and 1 or 0;c:settings_changed(entry[1]);c:control_released() end
-  if i==1 and im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Off: calculate after releasing a control. On: update while dragging, with coalesced background jobs. Cached PCM is shared by Gate and Compressor.') end
- end
+ -- RT Update, Envelope active and Show envelope moved to Settings.
  local d=c:current()
  if d and d.compute_ms then im.TextDisabled(ctx,string.format('Update %.1f ms · drag tabs to change processing order',d.compute_ms)) end
 end

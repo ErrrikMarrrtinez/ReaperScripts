@@ -91,7 +91,10 @@ function M.read(r,take)
 end
 function M.write(r,take,value)
   local text=value and M.encode(value) or ''
-  local ok=r.GetSetMediaItemTakeInfo_String(take,M.key,text,true);assert(ok,'Could not save Pitch item state')
+  local ok=r.GetSetMediaItemTakeInfo_String(take,M.key,text,true)
+  -- REAPER может вернуть false при очистке ключа пустой строкой: проверяем по факту, что значение пропало
+  if not ok and value==nil then local _,now=r.GetSetMediaItemTakeInfo_String(take,M.key,'',false);ok=now=='' or now==nil end
+  assert(ok,'Could not save Pitch item state')
   return text
 end
 function M.geometry(s)

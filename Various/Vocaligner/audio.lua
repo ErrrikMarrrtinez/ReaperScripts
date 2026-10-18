@@ -209,12 +209,21 @@ end
 function M.source_time(s,t)
   if s.composite then local part,local_t=M.part_at(s,t);return M.source_time(part,local_t)end
   local p=t*s.rate
-  if #s.markers==0 then return s.offset+p end
+  if #s.markers<2 then return s.offset+p end
   local a,b=s.markers[1],s.markers[#s.markers]
   local lo,hi=1,#s.markers
   while hi-lo>1 do local mid=(lo+hi)//2;if s.markers[mid].pos<=p then lo=mid else hi=mid end end
   a,b=s.markers[lo],s.markers[hi]
   return a.src+(b.src-a.src)*(p-a.pos)/(b.pos-a.pos)
+end
+-- Inverse of source_time: heard item time of a source media position.
+function M.item_time(s,src)
+  if #s.markers<2 then return (src-s.offset)/s.rate end
+  local m=s.markers;local lo,hi=1,#m
+  for i=2,#m do if m[i].src<=m[i-1].src then return (src-s.offset)/s.rate end end
+  while hi-lo>1 do local mid=(lo+hi)//2;if m[mid].src<=src then lo=mid else hi=mid end end
+  local a,b=m[lo],m[hi]
+  return (a.pos+(b.pos-a.pos)*(src-a.src)/(b.src-a.src))/s.rate
 end
 -- Item gain is outside our source analysis. A gain-only edit may invalidate the
 -- native accessor without changing its source/timing; accept only that case.
@@ -419,5 +428,29 @@ function M.peaks(r,s)
     values[i]={lo,hi};peak=math.max(peak,hi,-lo)
   end
   return {pos=s.pos,len=s.len,hop=s.len/n,peak=peak,peaks={{hop=s.len/n,values=values}},quick=true}
+end
+-- Пики только на видимое окно [t0,t1] (секунды от начала item) с нужной плотностью: для детализации при зуме.
+-- Возвращает уровень {t0,t1,hop,values}; nil для составных (group) захватов или если пики недоступны.
+function M.window_peaks(r,s,t0,t1,count)
+  if not r.GetMediaItemTake_Peaks or s.composite or t1<=t0 then return nil end
+  local channels=s.channels or r.GetMediaSourceNumChannels(s.source)
+  if type(channels)~='number' or channels<1 or channels>8 then return nil end
+  count=math.max(16,math.min(16384,math.floor(count)))
+  local buffer=r.new_array(count*channels*2)
+  local ok,status=pcall(r.GetMediaItemTake_Peaks,s.take,count/(t1-t0),s.pos+t0,channels,count,0,buffer)
+  if not ok or type(status)~='number' or status<0 or status%1~=0 then return nil end
+  local got=math.min(count,status&0xfffff)
+  if got==0 then return nil end
+  local values={}
+  for i=1,got do
+    local lo,hi=0,0
+    for c=1,channels do
+      local k=(i-1)*channels+c
+      hi=math.max(hi,buffer[k]);lo=math.min(lo,buffer[count*channels+k])
+    end
+    values[i]={lo,hi}
+  end
+  local hop=(t1-t0)/count
+  return {t0=t0,t1=t0+got*hop,hop=hop,values=values}
 end
 return M

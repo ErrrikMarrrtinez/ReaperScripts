@@ -110,6 +110,35 @@ function M.restore(r,s,chunk)
   assert(after==s.guid,'Writing the volume envelope changed the active take.')
   assert((r.GetTakeEnvelopeByName(take,'Volume')~=nil)==(chunk~=nil),'REAPER did not accept the volume envelope state.')
 end
+-- Simplify in the envelope's interpolation domain; bound absolute/relative
+-- gain error instead of storing thousands of identical unity points.
+-- Indices already in keep split the work and always survive.
+function M.simplify(samples,keep)
+  keep[1]=true;keep[#samples]=true
+  local stack={};local boundary=1
+  for i=2,#samples do if keep[i] then stack[#stack+1]={boundary,i};boundary=i end end
+  while #stack>0 do
+    local range=table.remove(stack);local a,b=samples[range[1]],samples[range[2]];local best,index=1,nil
+    for i=range[1]+1,range[2]-1 do local p=samples[i]
+      local v=a.value+(b.value-a.value)*(p.time-a.time)/(b.time-a.time)
+      local error=math.abs(p.value-v)/p.epsilon
+      if error>best then best,index=error,i end
+    end
+    if index then keep[index]=true;stack[#stack+1]={range[1],index};stack[#stack+1]={index,range[2]} end
+  end
+  return keep
+end
+-- Bezier fades of the cleanup curve that can be written natively: no original
+-- envelope point inside. Returns segments in item time, sorted.
+local function native_shapes(cleanup,originals,rate,len)
+  local out={}
+  for _,shape in ipairs(cleanup and cleanup.shapes or {})do
+    local clean=shape.a>=0 and shape.b<=len and shape.b-shape.a>1e-4
+    for _,p in ipairs(originals)do if clean and p.time>shape.a*rate+1e-9 and p.time<shape.b*rate-1e-9 then clean=false end end
+    if clean and (#out==0 or shape.a>=out[#out].b-1e-9) then out[#out+1]=shape end
+  end
+  return out
+end
 -- Called inside the apply transaction with the captured envelope restored. Sample
 -- its native curves BEFORE changing markers; then map both envelope and reduction
 -- through the same timing plan. Repeated Apply never multiplies an earlier result.
@@ -144,7 +173,18 @@ function M.prepare(r,s,plan,cleanup,cfg)
   for i=1,math.ceil(s.len/.01)-1 do times[#times+1]=i*.01 end
   for _,m in ipairs(plan.markers) do if m.t and m.t>0 and m.t<s.len then times[#times+1]=m.t end end
   for _,p in ipairs(cleanup and cleanup.points or {})do if p.t>0 and p.t<s.len then times[#times+1]=p.t end end
+  local shapes=native_shapes(cleanup,originals,s.rate,s.len)
+  for _,shape in ipairs(shapes)do times[#times+1]=shape.a;times[#times+1]=shape.b end
   table.sort(times)
+  -- A native Bezier fade replaces the samples inside it: keep only its ends.
+  if #shapes>0 then
+    local kept,k={},1
+    for _,t in ipairs(times)do
+      while shapes[k] and t>=shapes[k].b-1e-9 do k=k+1 end
+      if not (shapes[k] and t>shapes[k].a+1e-9 and t<shapes[k].b-1e-9) then kept[#kept+1]=t end
+    end
+    times=kept
+  end
   local samples={};local previous=-1
   local precision=cfg and (cfg.envelope_detail or cfg.deess_detail) and 10^(-1.5-(cfg.envelope_detail or cfg.deess_detail)*.025) or .001
   for _,t in ipairs(times) do if t>previous+1e-9 then
@@ -156,27 +196,24 @@ function M.prepare(r,s,plan,cleanup,cfg)
     end
     local reduction=Cleanup.value(cleanup,t)
     value=r.ScaleToEnvelopeMode(mode,value*10^(-reduction/20))
-    samples[#samples+1]={time=(Warp.target(plan,t)-plan.pos)*s.rate,value=value,
+    samples[#samples+1]={t=t,time=(Warp.target(plan,t)-plan.pos)*s.rate,value=value,
       active=math.abs(reduction)>.01,epsilon=math.max(.0001,math.abs(value)*(math.abs(reduction)>.01 and precision or .001))}
     previous=t
   end end
-  -- Simplify in the envelope's interpolation domain; bound absolute/relative
-  -- gain error instead of storing thousands of identical unity points.
-  local keep={[1]=true,[#samples]=true}
+  local keep={}
   -- Independent dips split RDP into short sections. A whole-item RDP repeatedly
   -- scans the same silent spans when many similar sibilants share the same peak.
   for i=2,#samples do if samples[i].active~=samples[i-1].active then keep[i-1]=true;keep[i]=true end end
-  local stack={};local boundary=1
-  for i=2,#samples do if keep[i] then stack[#stack+1]={boundary,i};boundary=i end end
-  while #stack>0 do
-    local range=table.remove(stack);local a,b=samples[range[1]],samples[range[2]];local best,index=1,nil
-    for i=range[1]+1,range[2]-1 do local p=samples[i]
-      local v=a.value+(b.value-a.value)*(p.time-a.time)/(b.time-a.time)
-      local error=math.abs(p.value-v)/p.epsilon
-      if error>best then best,index=error,i end
+  -- Shape 5 is Bezier; the start point carries the segment's tension.
+  local at=1
+  for _,shape in ipairs(shapes)do
+    while samples[at] and samples[at].t<shape.a-1e-9 do at=at+1 end
+    local first,last=samples[at],samples[at+1]
+    if first and last and math.abs(first.t-shape.a)<=1e-9 and math.abs(last.t-shape.b)<=1e-9 then
+      keep[at]=true;keep[at+1]=true;first.shape=5;first.tension=math.max(-1,math.min(1,shape.tension))
     end
-    if index then keep[index]=true;stack[#stack+1]={range[1],index};stack[#stack+1]={index,range[2]} end
   end
+  M.simplify(samples,keep)
   local header={};for line in template:gmatch('[^\r\n]+') do
     if not line:match('^%s*PT%s') and not line:match('^%s*>%s*$') then
       if attenuation and line:match('^%s*ACT%s') then line=line:gsub('ACT%s+%d+','ACT '..tostring(cleanup.chain_active==0 and 0 or 1),1) end

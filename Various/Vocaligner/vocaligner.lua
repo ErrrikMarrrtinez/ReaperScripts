@@ -7,7 +7,7 @@ end
 local ImGui=dofile(reaper.ImGui_GetBuiltinPath()..'/imgui.lua')('0.9.3')
 local Vocaligner=dofile(root..'init.lua')
 local app=Vocaligner.new(reaper)
-local UI=Vocaligner.import('ui')
+local UI=Vocaligner.import('ui2')
 local ctx=ImGui.CreateContext('mrtnz Vocaligner')
 app.engine=Vocaligner.import('eel').new(ImGui,ctx,reaper)
 app.pitch.engine=Vocaligner.import('pitch/neural').new(ImGui,ctx,reaper)
@@ -19,7 +19,7 @@ local function loop()
   end,debug.traceback)
   if not ok then
     app:dispose()
-    reaper.ShowConsoleMsg('Vocaligner error:\n'..tostring(open)..'\n\n'..app:diagnostics()..'\n')
+    reaper.ShowConsoleMsg('Vocaligner error:\n'..tostring(open)..'\n')
     return
   end
   if open then reaper.defer(loop) else app:dispose() end
