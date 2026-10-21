@@ -66,7 +66,8 @@ function M.capture(r,project,item,is_dub)
   if s.B_MUTE~=0 and is_dub~='pitch' then error('Unmute '..s.name..' before capturing it.',0) end
   if is_dub and s.C_LOCK~=0 then error(s.name..' is locked.',0) end
   local length,is_qn=r.GetMediaSourceLength(s.source)
-  if is_qn or not length or length<=0 then error('This source does not expose audio in seconds.',0) end
+  if is_qn then error(s.name..': tempo-based (MIDI/QN) sources are not supported — only audio files measured in seconds.',0) end
+  if not length or length<=0 then error(s.name..': the source reports no length (offline or missing media file, or an empty item). Relink the file or remove the item.',0) end
   local source_rate=r.GetMediaSourceSampleRate and r.GetMediaSourceSampleRate(s.source) or 0
   local edge_tolerance=2/(source_rate>0 and source_rate or 44100)
   local source_end=#s.markers>0 and s.markers[#s.markers].src or s.offset+s.len*s.rate

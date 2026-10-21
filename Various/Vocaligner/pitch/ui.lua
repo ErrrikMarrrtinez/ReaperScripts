@@ -292,9 +292,12 @@ function M.canvas(im,ctx,e,w,h)
   local gap=3 -- зазор между холстом и нижней полосой
   local left,right,top,bottom=x+keyw,x+w-bar,y+ruler,y+h-overview-gap
   local width,height=math.max(1,right-left),math.max(1,bottom-top)
-  if e.data and not e.display then
+  if e.data and (not e.display or (e.vc_stale and not e.drag)) then
     local evaluate=Curve.evaluator(e.notes or {},'shift',e.state and e.state.curve_version or 1,e.data)
-    for _,n in ipairs(e.notes or {}) do if n.local_center then
+    -- во время перетаскивания пересчитываем центры только у нот рядом с видом; остальные — один раз после жеста
+    local pv=e.drag and e.view;local a0,a1
+    if pv then a0,a1=pv.start-pv.span,pv.start+pv.span*2;e.vc_stale=true else e.vc_stale=nil end
+    for _,n in ipairs(e.notes or {}) do if n.local_center and (not pv or (n.finish>=a0 and n.start<=a1)) then
       local center=Notes.visual_center(n,e.data,function(t)
         return (raw_at(e,t) or n.center)+evaluate(t)
       end)
@@ -340,14 +343,17 @@ function M.canvas(im,ctx,e,w,h)
   local lite=v.tgt~=nil or (e.drag~=nil and (e.drag.kind=='pan' or e.drag.kind=='overview' or e.drag.kind=='vertical')) -- пока вид едет
   -- Контуры строятся на окно в три экрана и переиспользуются, пока вид внутри окна и плотность близка.
   -- Пока вид едет, допуск по плотности шире: пересборка откладывается до остановки (тогда — один раз).
-  local c_lo,c_hi=lite and .35 or .7,lite and 2.8 or 1.45
+  -- пока вид едет: грубее, чем нужно, не больше чем в 1.6 раза (иначе кривая заметно «ломаная»); мельче — можно
+  local c_lo,c_hi=lite and .3 or .7,lite and 1.6 or 1.45
   local function contour_fits(d,s0,s1,dens,ppp)
     return d.start<=s0+1e-9 and d.start+d.span>=s1-1e-9
       and d.span/d.width>=dens*c_lo and d.span/d.width<=dens*c_hi
       and (d.pitch_per_pixel or 0)>=ppp*c_lo and (d.pitch_per_pixel or 0)<=ppp*c_hi
   end
   local function contour_window(a0,len)
-    local bs=math.max(0,a0-v.span);local be=math.min(len,a0+2*v.span)
+    -- в покое — три экрана (скролл почти не пересобирает); пока вид едет — экран с небольшим запасом, чтобы пересборка была дешёвой
+    local m=lite and .25 or 1
+    local bs=math.max(0,a0-v.span*m);local be=math.min(len,a0+v.span*(1+m))
     if be<=bs then bs,be=a0,a0+v.span end
     return bs,be-bs,width*(be-bs)/v.span
   end
@@ -434,7 +440,7 @@ function M.canvas(im,ctx,e,w,h)
     local gx1,gy1,gx2,gy2=x+2,y+2,x+keyw-3,y+22
     local gh=mx>=gx1 and mx<=gx2 and my>=gy1 and my<=gy2 and hovered
     e.ghost_hv=(e.ghost_hv or 0)+((gh and 1 or 0)-(e.ghost_hv or 0))*0.3
-    im.DrawList_AddRectFilled(dl,gx1,gy1,gx2,gy2,(e.ghost_open or gh) and 0x363636FF or 0x262626FF,5,im.DrawFlags_RoundCornersTopLeft)
+    im.DrawList_AddRectFilled(dl,gx1,gy1,gx2,gy2,(e.ghost_open or gh) and 0x363636FF or 0x262626FF,9,im.DrawFlags_RoundCornersTopLeft)
     if M.options.icon and M.options.ghost_icon then
       M.options.icon(dl,M.options.ghost_icon,(gx1+gx2)/2,(gy1+gy2)/2,15*(1+0.14*e.ghost_hv),(e.ghost_open or gh) and 0xFFFFFFFF or 0xA8A8B6FF)
     else
@@ -602,10 +608,17 @@ function M.canvas(im,ctx,e,w,h)
       end
     end
   else e.original_ghost=nil end
+  local anim_now=e.r.time_precise()
   e.glyphs=e.glyphs or {};local glyph_used={};local badge;local last_label_right=-1e9;local hi_y,lo_y
   local hit,index,transition,boundary,anchor_hit
   for k,n in ipairs(e.notes or {}) do if n.finish>=v.start and n.start<=v.start+v.span then
-    local ax,bx=tx(n.start),tx(n.finish);local inset=math.min(1.25,(bx-ax)*.1);ax,bx=ax+inset,bx-inset;local center=Scale.center(n)+(n.shift or 0);local yy=py(center);local half=clamp(height/v.rows*.332,5.8,30)
+    local ax,bx=tx(n.start),tx(n.finish);local inset=math.min(1.25,(bx-ax)*.1);ax,bx=ax+inset,bx-inset;local center=Scale.center(n)+(n.shift or 0)
+    local an=e.note_anim and e.note_anim[n.id]
+    if an then -- после разреза блок доезжает до своего места (~0.3 с, плавное замедление)
+      local q=(anim_now-an.t0)/0.3
+      if q>=1 then e.note_anim[n.id]=nil else q=1-(1-q)^3;center=an.from+(center-an.from)*q end
+    end
+    local yy=py(center);local half=clamp(height/v.rows*.332,5.8,30)
     local selected=e.selected[n.id];local col=Glyph.color(center,selected,bypassed and 80 or 255)
     local near=hovered and mx>=ax-3 and mx<=bx+3 and math.abs(my-yy)<math.max(9,half+4)
     if near then hit,index=n,k end
@@ -645,13 +658,14 @@ function M.canvas(im,ctx,e,w,h)
   -- Split: вертикальная линия разреза у курсора; после короткой паузы — призрак двух половинок с зазором
   if e.tool=='split' and hit and hovered and not e.drag and mx>=left and mx<right then
     local n=hit;local ax,bx=tx(n.start),tx(n.finish)
-    local yy=py(Scale.center(n)+(n.shift or 0));local half=clamp(height/v.rows*.332,5.8,30)
+    local c=Scale.center(n)+(n.shift or 0)
+    local yy=py(c);local half=clamp(height/v.rows*.332,5.8,30)
     local now=e.r.time_precise();local st=e.split_hover
-    if not st or st.note~=n.id or math.abs(mx-st.x)>2 then st={note=n.id,x=mx,t0=now};e.split_hover=st end
+    -- предпросмотр живёт, пока курсор в этом блоке: при движении половинки не появляются заново, а плавно едут к новым местам
+    if not st or st.note~=n.id then st={note=n.id,t0=now,pa=c,pb=c};e.split_hover=st end
     im.DrawList_AddLine(dl,mx,yy-half-9,mx,yy+half+9,colors.accent,2)
-    if mx>ax+3 and mx<bx-3 and now-st.t0>0.12 and data then
+    if mx>ax+3 and mx<bx-3 and data then
       local fade=clamp((now-st.t0-0.12)/0.16,0,1);local gap=3
-      local ease=fade*fade*(3-2*fade)
       -- где окажутся половинки после разреза: тот же расчёт, что в Notes.split (у каждой половинки свой локальный центр)
       local at=math.floor(mt/data.hop+.5)*data.hop
       local pv=st.preview
@@ -665,13 +679,18 @@ function M.canvas(im,ctx,e,w,h)
         pv.ya=Notes.visual_center(a,data,pitch_at);pv.yb=Notes.visual_center(b,data,pitch_at)
         st.preview=pv
       end
-      local ya=pv.ya and yy+(py(pv.ya)-yy)*ease or yy;local yb=pv.yb and yy+(py(pv.yb)-yy)*ease or yy
-      local fill=0x7FCCCB00|math.floor(46*fade);local line=0x7FCCCB00|math.floor(150*fade)
-      local lx=tx(at)
-      im.DrawList_AddRectFilled(dl,ax,ya-half,lx-gap,ya+half,fill,4);im.DrawList_AddRect(dl,ax,ya-half,lx-gap,ya+half,line,4,0,1.2)
-      im.DrawList_AddRectFilled(dl,lx+gap,yb-half,bx,yb+half,fill,4);im.DrawList_AddRect(dl,lx+gap,yb-half,bx,yb+half,line,4,0,1.2)
+      if fade>0 then
+        local k=1-math.exp(-(im.GetDeltaTime and im.GetDeltaTime(ctx) or 1/60)*14)
+        st.pa=st.pa+((pv.ya or c)-st.pa)*k;st.pb=st.pb+((pv.yb or c)-st.pb)*k
+        e.split_from={a=st.pa,b=st.pb} -- откуда стартует анимация, если сейчас разрезать
+        local ya,yb=py(st.pa),py(st.pb)
+        local fill=0x7FCCCB00|math.floor(46*fade);local line=0x7FCCCB00|math.floor(150*fade)
+        local lx=tx(at)
+        im.DrawList_AddRectFilled(dl,ax,ya-half,lx-gap,ya+half,fill,4);im.DrawList_AddRect(dl,ax,ya-half,lx-gap,ya+half,line,4,0,1.2)
+        im.DrawList_AddRectFilled(dl,lx+gap,yb-half,bx,yb+half,fill,4);im.DrawList_AddRect(dl,lx+gap,yb-half,bx,yb+half,line,4,0,1.2)
+      end
     end
-  else e.split_hover=nil end
+  else e.split_hover=nil;e.split_from=nil end
   local display=e.display
   -- Контур строится на окно в три экрана (экран слева и справа от вида) и переиспользуется, пока вид внутри окна
   -- и плотность близка: скролл почти не пересобирает его, зум — только при заметной смене масштаба.
@@ -680,7 +699,12 @@ function M.canvas(im,ctx,e,w,h)
   if data and (not display or display._data~=data or display._frames~=data.frames or display.frame_count~=#data.frames
     or not contour_fits(display,math.max(0,v.start),math.min(len,v.start+v.span),v.span/width,ppp)) then
     local began=e.r.time_precise()
-    local bs,bspan,bw=contour_window(v.start,len)
+    local bs,bspan,bw
+    if e.drag or e.gesture then
+      -- во время правки (перетаскивание, кривая, карандаш) контур пересобирается каждый кадр: строим только видимое окно
+      bs=math.max(0,v.start);local be=math.min(len,v.start+v.span);if be<=bs then be=bs+v.span end
+      bspan,bw=be-bs,width*(be-bs)/v.span
+    else bs,bspan,bw=contour_window(v.start,len) end
     display=Contour.build(data,e.notes or {},e.state and e.state.curve_version or 1,bs,bspan,bw,ppp,e.contour_cache);e.display=display;e.contour_cache=display
     if e.measure then e:measure('contour',began) end
   end
@@ -752,12 +776,17 @@ function M.canvas(im,ctx,e,w,h)
   -- allowing an orange control to appear responsible for the painted pitch.
   local has_paint=false
   if not bypassed then for _,n in ipairs(e.notes or {}) do if n.drawings and #n.drawings>0 then has_paint=true;break end end end
-  if has_paint then local prior
-    for _,p in ipairs(display or {})do
-      local owner=Draw.owner(e.notes or {},p.t);local drawn=false
-      if owner then for _,s in ipairs(owner.drawings or {})do if s.target and p.t>=s.points[1].t and p.t<=s.points[#s.points].t then drawn=true;break end end end
-      if drawn and prior and prior.drawn and p.run and p.run==prior.run then im.DrawList_AddLine(dl,tx(prior.t),py(prior.pitch),tx(p.t),py(p.pitch),0x7FCCCBFF,2.5) end
-      prior={t=p.t,pitch=p.pitch,run=p.run,drawn=drawn}
+  if has_paint and display then
+    -- только видимая часть контура (бинарный поиск начала), без таблицы на каждую точку
+    local lo,hi=1,#display;local t0=v.start-v.span*.02
+    while lo<hi do local mid=(lo+hi)//2;if display[mid].t<t0 then lo=mid+1 else hi=mid end end
+    local pt,pp,pr,pd;local t1=v.start+v.span*1.02;local notes=e.notes or {}
+    for i=math.max(1,lo-1),#display do
+      local p=display[i];if p.t>t1 then break end
+      local owner=Draw.owner(notes,p.t);local drawn=false
+      if owner and owner.drawings then for _,st in ipairs(owner.drawings)do if st.target and p.t>=st.points[1].t and p.t<=st.points[#st.points].t then drawn=true;break end end end
+      if drawn and pd and p.run and p.run==pr then im.DrawList_AddLine(dl,tx(pt),py(pp),tx(p.t),py(p.pitch),0x7FCCCBFF,2.5) end
+      pt,pp,pr,pd=p.t,p.pitch,p.run,drawn
     end
   end
   if e.tool=='curve' then for _,n in ipairs(e.notes or {}) do if e.selected[n.id] then for j,p in ipairs((e.state.curve_version==4 and n.target_anchors or n.anchors) or {}) do
@@ -798,7 +827,7 @@ function M.canvas(im,ctx,e,w,h)
   end
   -- Aim: кнопка в левом нижнем углу, под клавишами (рядом с нижней полосой)
   do
-    local ax1,ax2,ay1,ay2=x+2,left-3,bottom+gap,y+h-1
+    local ax1,ax2,ay1,ay2=x+1,left,bottom,y+h-1 -- на пиксель левее и вплотную к клавишам сверху и справа
     local ah=hovered and mx>=ax1 and mx<=ax2 and my>=ay1 and my<=ay2
     e.aim_hv=(e.aim_hv or 0)+((ah and 1 or 0)-(e.aim_hv or 0))*0.3
     local on=e.aim==true

@@ -4,7 +4,9 @@
 -- compressor/ui.lua (оригиналы не тронуты). Пресеты скрыты, Bypass — тоггл на плитке, полоса HF-порога
 -- De-ess под волной убрана (порог остаётся слайдером).
 local import=...;local Settings=import('compressor/settings');local W=import('ui2/widgets')
-local Canvas=import('ui2/canvas');local Progress=import('progress');local Knob=import('ui2/knob');local M={}
+local Canvas=import('ui2/canvas');local Progress=import('progress');local Knob=import('ui2/knob');local Strip=import('ui2/strip');local Comp2=import('ui2/comp2');local M={}
+-- Новая морда компрессора (ui2/comp2.lua). false — вернуть прежнюю страницу (кноб порога + сетка + волна + обзор).
+local COMP_V2=true
 local NAV=22 -- высота обзорной полосы, как у Breath
 
 local deess_knobs={
@@ -12,7 +14,7 @@ local deess_knobs={
   {'deess_hz','Detector frequency',2000,14000,'%.0f Hz','Weights cached frequency bands. Does not EQ the audio.'},
   {'deess_amount','Reduction',0,100,'%.0f%%','Depth of reduction above the threshold, not the number of envelope points.'},
   {'deess_max_db','Max cut',0,18,'-%.1f dB','Maximum attenuation. For example, -9 dB limits the deepest dip to 9 dB.'},
-  {'deess_pre_ms','Pre-open',0,30,'%.0f ms','Ramp before the detected sound. Zero adds no pre-open.'},
+  {'deess_pre_ms','Pre-open',0,75,'%.0f ms','Ramp before the detected sound. Zero adds no pre-open.'},
   {'deess_release_ms','Release',0,200,'%.0f ms','Time to return to original volume after the last detector frame. Analysis resolution: 10 ms.'},
   {'deess_detail','Envelope detail',0,100,'%.0f%%','More points / finer curve detail. Lower values keep the shape with fewer points.'},
 }
@@ -34,6 +36,12 @@ local TIP='Green bar: cached detector level at the play/edit cursor, including e
 local function dynamic_controls(im,ctx,c)
   local entries=Settings[c.mode];local e=entries[1]
   local knobs={};for i=2,#entries do knobs[#knobs+1]=entries[i] end
+  -- Ratio — пробная ручка-полоска на спрайте (логарифмическая шкала); нет спрайта -> обычный слайдер
+  if c.mode=='compressor' and Strip.available(im,ctx) then
+    for i,k in ipairs(knobs) do if k[1]=='compressor_ratio' then
+      knobs[i]={k[1],k[2],k[3],k[4],k[5],k[6],log=true,draw=function(im2,ctx2,owner,en) Strip.control(im2,ctx2,owner,en,im2.GetContentRegionAvail(ctx2)) end}
+    end end
+  end
   if Knob.available(im,ctx) then
     local used=Knob.control(im,ctx,c,{e[1],e[2],e[3],e[4],e[5]}, -- без тултипа
       function() return level(c,e[3],e[4]) end)
@@ -61,13 +69,24 @@ function M.draw(im,ctx,app,color,wave)
     im.EndDisabled(ctx)
   end
   d=c:current()
-  local knobs_busy=app.job~=nil or c.follow_due~=nil or (c.job and not c.job.live and c.job.kind~='preview' and c.job.kind~='read' and c.job.kind~='batch') or false
+  -- Ручки блокируются только когда правка невозможна (идёт анализ Align, ждём выбор айтемов, нет данных).
+  -- Фоновые задачи Cleanup (preview/apply/save) ручки не блокируют: settings_changed сам отменяет или переочередит работу.
+  local knobs_busy=app.job~=nil or c.follow_due~=nil or false
   -- A bypassed stage keeps its settings untouched until it is brought back.
-  im.BeginDisabled(ctx,knobs_busy or not d or (d and d.stale) or c:bypassed(d) or false)
+  local ctl_disabled=knobs_busy or not d or (d and d.stale) or c:bypassed(d) or false
+  if COMP_V2 and Comp2.supports(c.mode) and Comp2.available(im,ctx) then
+    local job=c.operation or (c.job and not c.job.live and c.job or nil)
+    im.Dummy(ctx,1,4)
+    Comp2.draw(im,ctx,c,color,ctl_disabled,job)
+    return
+  end
+  local ctl_x,ctl_y=im.GetCursorScreenPos(ctx)
+  im.BeginDisabled(ctx,ctl_disabled)
   -- (пресеты скрыты: import('compressor/preset_ui').draw(im,ctx,c) не вызывается)
   if Settings.dynamic(c.mode) then dynamic_controls(im,ctx,c)
   else W.grid(im,ctx,c,'##cleanup_controls',deess_knobs,3) end
   im.EndDisabled(ctx)
+  if ctl_disabled then local _,ey=im.GetCursorScreenPos(ctx);W.catch(im,ctx,ctl_x,ctl_y,im.GetContentRegionAvail(ctx),ey-ctl_y,'##ctl_catch') end
   -- Errors go to the REAPER console and Report, not above the waveform.
   local job=c.operation or (c.job and not c.job.live and (c.job.kind~='preview' or Settings.dynamic(c.mode)) and c.job or nil)
   -- Волна, прогресс-бар и обзорная полоса стоят вплотную друг к другу.

@@ -4,7 +4,7 @@
 --  * прогресс-бар (логика та же) стоит вплотную под волной, под ним обзорная полоса;
 --  * слайдеры рисуются через ui2/widgets.lua; «Show envelope» временно вернулась в ряд с Learn.
 local import=...;local Config=import('config');local Settings=import('compressor/settings')
-local W=import('ui2/widgets');local Canvas=import('ui2/canvas');local Progress=import('progress');local M={}
+local W=import('ui2/widgets');local Canvas=import('ui2/canvas');local Progress=import('progress');local Comp2=import('ui2/comp2');local M={}
 local UI=Config.dynamics_ui
 local NAV=22 -- высота обзорной полосы
 
@@ -68,12 +68,20 @@ function M.draw(im,ctx,app,color,wave)
     im.EndDisabled(ctx)
   end
   d=c:current()
-  local knobs_busy=app.job~=nil or c.follow_due~=nil or (c.job and not c.job.live and c.job.kind~='preview' and c.job.kind~='read' and c.job.kind~='batch') or false
+  -- Ручки блокируются только когда правка невозможна (идёт анализ Align, ждём выбор айтемов, нет данных).
+  -- Фоновые задачи Cleanup (preview/apply/save) ручки не блокируют: settings_changed сам отменяет или переочередит работу.
+  local knobs_busy=app.job~=nil or c.follow_due~=nil or false
   -- A bypassed stage keeps its settings untouched until it is brought back.
-  im.BeginDisabled(ctx,knobs_busy or not d or (d and d.stale) or c:bypassed(d) or false)
+  local ctl_disabled=knobs_busy or not d or (d and d.stale) or c:bypassed(d) or false
+  local ctl_x,ctl_y=im.GetCursorScreenPos(ctx)
+  im.BeginDisabled(ctx,ctl_disabled)
   -- (пресеты скрыты: import('compressor/preset_ui').draw(im,ctx,c) не вызывается)
   controls(im,ctx,c,d)
   im.EndDisabled(ctx)
+  do -- Hide/Show: огибающая громкости айтемов в REAPER (общая кнопка со страницами Dynamics)
+    local hx,hy=im.GetCursorScreenPos(ctx);Comp2.hide_button(im,ctx,c,hx,hy,88)
+  end
+  if ctl_disabled then local _,ey=im.GetCursorScreenPos(ctx);W.catch(im,ctx,ctl_x,ctl_y,im.GetContentRegionAvail(ctx),ey-ctl_y,'##ctl_catch') end
   -- Errors go to the REAPER console and Report, not above the waveform.
   local job=c.operation or (c.job and not c.job.live and (c.job.kind~='preview' or Settings.dynamic(c.mode)) and c.job or nil)
   -- Волна, прогресс-бар и обзорная полоса стоят вплотную друг к другу.

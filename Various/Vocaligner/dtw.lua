@@ -99,8 +99,10 @@ local function solve(ref,dub,cfg,job,guide,radius,stage)
     if i%16==0 then job:checkpoint(i/n,stage) end
   end
   if not endpoint then
-    return nil,string.format('%s: No reachable alignment within +/- %.2f s. Ref %.3f..%.3f s, dub %.3f..%.3f s.',
-      stage,cfg.search_s,ref0+r[1].t,ref0+r[m].t,dub0+d[1].t,dub0+d[n].t)
+    local gap=math.abs((ref0+r[1].t)-(dub0+d[1].t))
+    return nil,string.format('%s: No reachable alignment within +/- %.2f s. Ref %.3f..%.3f s, dub %.3f..%.3f s.%s',
+      stage,cfg.search_s,ref0+r[1].t,ref0+r[m].t,dub0+d[1].t,dub0+d[n].t,
+      gap>cfg.search_s and string.format(' The dub starts %.1f s away from the reference: move it next to the reference, or raise Search.',gap) or '')
   end
   local i,j=endpoint[1],endpoint[2];local rev={}
   while i>=1 and j>=1 do

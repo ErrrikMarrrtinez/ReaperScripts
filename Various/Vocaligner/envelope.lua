@@ -187,6 +187,8 @@ function M.prepare(r,s,plan,cleanup,cfg)
   end
   local samples={};local previous=-1
   local precision=cfg and (cfg.envelope_detail or cfg.deess_detail) and 10^(-1.5-(cfg.envelope_detail or cfg.deess_detail)*.025) or .001
+  -- Detail 85 давал точность ~0.002 dB: почти каждая точка оставалась, запись шла долго. 0.3% (≈0.03 dB) неслышно.
+  precision=math.max(precision,.003)
   for _,t in ipairs(times) do if t>previous+1e-9 then
     local value=1
     if env and (active or not attenuation) then

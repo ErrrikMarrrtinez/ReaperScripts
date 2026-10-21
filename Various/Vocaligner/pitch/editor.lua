@@ -48,6 +48,12 @@ function M:remember(project,id,cached)
     self.cache[entry.p][entry.key]=nil;count=count-#entry.value.data.frames
   end
 end
+-- Дешёвая подпись item/take: если она и сохранённый текст состояния не изменились, пересобирать нечего
+local function item_signature(r,item,take)
+  local g=r.GetMediaItemInfo_Value;local t=r.GetMediaItemTakeInfo_Value
+  return string.format('%.9f|%.9f|%.9f|%.9f|%s|%d|%d',g(item,'D_POSITION'),g(item,'D_LENGTH'),t(take,'D_STARTOFFS'),t(take,'D_PLAYRATE'),
+    tostring(r.GetMediaItemTake_Source(take)),r.GetTakeNumStretchMarkers(take),r.TakeFX_GetCount and r.TakeFX_GetCount(take) or 0)
+end
 function M:refresh(force)
   local r=self.r;local project=r.EnumProjects(-1)
   if not project then return end
@@ -67,6 +73,11 @@ function M:refresh(force)
   local count=r.GetProjectStateChangeCount(project)
   if not force and project==self.project and item==self.item and take==self.take and count==self.project_count then return end
   if self.gesture or self.job then return end
+  -- Проект менялся, но не этот item: не декодируем состояние заново (для нот с кривыми и карандашом это десятки мс)
+  if not force and project==self.project and item==self.item and take==self.take and self.snapshot and self.item_sig then
+    local _,raw=r.GetSetMediaItemTakeInfo_String(take,Store.key,'',false)
+    if raw==self.saved_text and item_signature(r,item,take)==self.item_sig then self.project_count=count;return end
+  end
   local refresh_started=r.time_precise()
   local ok,why=pcall(function()
     local s=Analysis.capture(r,project,item)
@@ -105,7 +116,7 @@ function M:refresh(force)
     if self.last_analysis_id~=self.state.analysis then
       self.last_analysis=Notes.copy(self.state.analysis_stats);self.last_analysis_id=self.state.analysis
     end
-    self.saved_text=text;self.peaks=Audio.peaks(r,s);self.display=nil
+    self.saved_text=text;self.item_sig=item_signature(r,item,take);self.peaks=Audio.peaks(r,s);self.display=nil
     self.last_reported_error=nil
     if changed then
       self.selected={};self.prepared_cache=nil;self.contour_cache=nil
@@ -257,9 +268,15 @@ function M:split(t)
     local raw=Expression.sample(self.data,at)
     return (raw or self.notes[index].center)+Curve.at(before.notes,at,'shift',before.curve_version or 1,self.data)
   end
+  local parent=self.notes[index];local from=Scale.center(parent)+(parent.shift or 0)
+  local preview=self.split_from;self.split_from=nil
   local ok,right=Notes.split(self.notes,index,t,self.data,target)
   if ok then
     self.selected={[right.id]=true}
+    -- половинки плавно едут на свои места: от того, где их показывал предпросмотр (или от центра исходной ноты)
+    local now=self.r.time_precise();self.note_anim=self.note_anim or {}
+    self.note_anim[parent.id]={from=preview and preview.a or from,t0=now}
+    self.note_anim[right.id]={from=preview and preview.b or from,t0=now}
     -- Identical children evaluate as their original parent; native FX points
     -- remain byte-for-byte unchanged. No legacy curve upgrade on plain Split.
     self:commit(before,'split pitch note','metadata')

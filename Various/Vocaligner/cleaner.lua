@@ -47,6 +47,31 @@ function M:save(d,job)
   if not ok then self.cache_error='Session cache could not be saved: '..tostring(why);self:fail(self.cache_error)
   else self.cache_error=nil end
 end
+-- Последняя измеренная задержка обновления (пересчёт превью + запись в проект), мс; nil — ещё не измерялась.
+function M:latency_ms()
+  local d=self:current();if not d or not d.apply_ms then return nil end
+  return (d.compute_ms or 0)+d.apply_ms
+end
+M.rt_max_ms=200 -- дольше — во время жеста не пишем, ждём отпускания
+-- Можно ли сейчас писать в проект. Пока держат ручку или только что отпустили (quiet), запись откладывается:
+-- тяжёлая запись в этот момент «подтормаживает» следующий захват ручки. RT Update разрешает писать и во время жеста,
+-- но только если измеренная задержка мала, и не чаще, чем она позволяет.
+function M:can_write_now()
+  local now=self.r.time_precise()
+  if not (self.gesture or now<(self.quiet_until or 0)) then return true end
+  -- «Лёгкие» параметры (порог, ratio, attack…) идут по живому пути и без включённого RT Update (live_until ставит ui2/widgets).
+  if (self.cfg.dynamics_rt or 0)<.5 and now>=(self.live_until or 0) then return false end
+  local lat=self:latency_ms()
+  if lat and lat>M.rt_max_ms then return false end -- слишком медленно: подождать отпускания
+  if now<(self.rt_next or 0) then return false end
+  self.rt_next=now+(lat and math.max(.03,lat*1.3/1000) or .05) -- темп записи = измеренная задержка (не чаще, чем она позволяет)
+  return true
+end
+-- Задержка до следующего живого обновления во время жеста: подстраивается под измеренную скорость, пока не измерена — короткая.
+function M:live_delay()
+  local lat=self:latency_ms()
+  return lat and math.max(.03,math.min(.25,lat*1.2/1000)) or .05
+end
 function M:request(auto)
   self.revision=self.revision+1
   local d=self:current();if not d then return end
@@ -54,6 +79,7 @@ function M:request(auto)
   if d.audio and not d.stale then self.pending=self.pending or self.r.time_precise()+.035 end
 end
 function M:settings_changed(key)
+  self.quiet_until=self.r.time_precise()+.15
   local d=self:current();if d then
     d.want_apply=true
     if d.restore_value then d.pending_cfg=d.pending_cfg or {};d.pending_cfg[key]=self.cfg[key] end
@@ -72,7 +98,21 @@ function M:settings_changed(key)
     for _,target in ipairs(self.targets or {d})do target.preview_valid=false;target.want_apply=false end
   else self:request(true) end
 end
+-- Сброс настроек текущей стадии (de-ess / breaths / compressor / gate) к умолчанию, без нового чтения и анализа аудио:
+-- остальные стадии и сам анализ не трогаются, пересчитывается только эта стадия, как при её включении/выключении.
+function M:reset_stage()
+  local d=self:current();if not d or d.stale then return end
+  local keys=Config[self.mode..'_keys'];if not keys then return end
+  local n=0
+  for _,key in ipairs(keys) do
+    local def=Config.defaults[key]
+    if def~=nil and self.cfg[key]~=def then self.cfg[key]=def;self:settings_changed(key);n=n+1 end
+  end
+  if n>0 then self:control_released() end
+end
 function M:control_released()
+  self.save_after=self.r.time_precise()+1.5
+  if self.approx_until then self.approx_until=nil;self:request(true) end -- после приближённых превью — точный пересчёт
   if self.deferred_controls then self.deferred_controls=nil;self:request(true) end
   local d=self:current();if not d or d.stale then return end
   d.want_apply=true
@@ -146,7 +186,7 @@ function M:capture(preview_only)
       local plan={snapshot=s,unchanged=true,volume_only=true,pos=s.pos,len=s.len,amount=0,
         markers={{t=0,target=s.pos},{t=s.len,target=s.pos+s.len}}}
       captured[#captured+1]={index=index,dub={snapshot=s,enabled=true,plan=plan,range={0,s.len},
-        exclusions={},cfg=Config.copy(old and old.cfg or self.app.cfg),want_apply=not preview_only,
+        exclusions={},edits={},cfg=Config.copy(old and old.cfg or self.app.cfg),want_apply=not preview_only,
         breath_profile=old and old.breath_profile or BreathProfile.load(r,project,s.guid),
         quick=Audio.peaks(r,s)}}
       local d=captured[#captured].dub
@@ -266,8 +306,56 @@ function M:seek(t)
   local d=self:current();if not d or self.r.EnumProjects(-1)~=self.project then return end
   self.r.SetEditCurPos2(self.project,d.snapshot.pos+math.max(0,math.min(d.snapshot.len,t)),false,false)
 end
+local function deep(t) if type(t)~='table' then return t end local o={};for k,v in pairs(t) do o[k]=deep(v) end;return o end
+-- Правки отдельных событий (вкл/выкл, множитель, границы, кривая): пересчёт сразу, без паузы перед превью,
+-- и запись по живому пути (как у кнобов) — не ждём отпускания мыши.
+function M:edits_changed(d)
+  d.edits_rev=(d.edits_rev or 0)+1
+  -- идущий пересчёт не выбрасываем (иначе при непрерывном перетаскивании результат не доходит до проекта):
+  -- он доедет, а следом сразу запустится свежий (pending)
+  if not (self.job and self.job.kind=='preview') then self.revision=self.revision+1 end
+  d.preview_valid=false;d.want_apply=true
+  local now=self.r.time_precise();self.live_until=now+.6;self.fast_until=now+.8
+  -- пока тянут: стадии после текущей (компрессор/гейт) не пересчитываем — берём прошлый результат; точный пересчёт на отпускании
+  if self.gesture then self.approx_until=now+1 end
+  self.save_after=now+1.5 -- кэш сессии (≈200 мс) пишем только после паузы в правках
+  if d.audio and not d.stale then self.pending=math.min(self.pending or now,now) end
+end
+-- Отмена/повтор правок событий (Ctrl+Z / Ctrl+Shift+Z в ручном режиме): снимок до каждого действия
+function M:edits_push(d)
+  d.edit_hist=d.edit_hist or {undo={},redo={}};local h=d.edit_hist
+  h.undo[#h.undo+1]={edits=deep(d.edits or {}),exclusions=deep(d.exclusions or {})}
+  if #h.undo>200 then table.remove(h.undo,1) end
+  h.redo={}
+end
+function M:edits_undo(d,redo)
+  local h=d and d.edit_hist;if not h then return false end
+  local from,to=redo and h.redo or h.undo,redo and h.undo or h.redo
+  local snap=table.remove(from);if not snap then return false end
+  to[#to+1]={edits=deep(d.edits or {}),exclusions=deep(d.exclusions or {})}
+  d.edits,d.exclusions=snap.edits,snap.exclusions
+  self:edits_changed(d);return true
+end
 function M:toggle_region(d,event)
-  Cleanup.toggle(d.exclusions,event);self:request(true)
+  Cleanup.toggle(d.exclusions,event);self:edits_changed(d)
+end
+-- Ручная правка события (De-ess): найти/создать запись в d.edits, изменить через fn(x) и пересчитать.
+-- fn может вернуть false — тогда запись удаляется (сброс правки).
+function M:edit_region(d,event,fn)
+  d.edits=d.edits or {}
+  local x=Cleanup.find_edit(d.edits,event.kind,event.start,event.finish)
+  if not x then x={kind=event.kind,start=event.start,finish=event.finish};d.edits[#d.edits+1]=x end
+  if fn(x)==false then for i,y in ipairs(d.edits) do if y==x then table.remove(d.edits,i);break end end end
+  self:edits_changed(d)
+end
+-- Нарисованная кривая без события (или поверх нескольких): отдельная запись на её отрезке
+function M:add_curve(d,kind,curve)
+  d.edits=d.edits or {}
+  local a,b=curve[1].t,curve[#curve].t
+  for i=#d.edits,1,-1 do local y=d.edits[i];if y.kind==kind and y.curve and y.curve[1].t<b and y.curve[#y.curve].t>a then table.remove(d.edits,i) end end
+  local x=Cleanup.find_edit(d.edits,kind,a,b)
+  if x then x.curve=curve else d.edits[#d.edits+1]={kind=kind,start=a,finish=b,curve=curve} end
+  self:edits_changed(d)
 end
 function M:learn_breath(kind)
   local d=self:current()
@@ -325,7 +413,7 @@ function M:preview()
     if d~=self:current() or mode~=self.mode or revision~=self.revision then return end
     self:accept_preview(d,out,revision)
     d.compute_ms=(self.r.time_precise()-started)*1000
-  end,.004)
+  end,started<(self.fast_until or 0) and .03 or .004) -- после ручной правки события считаем почти за кадр, а не кусочками по 4 мс
   self.job.kind='preview';self.job.dub=d
 end
 function M:apply(remove,live)
@@ -363,7 +451,7 @@ function M:apply(remove,live)
     d.effect_regions=regions
     if not self.gesture then self.app:report(string.format('%s: %s, %d envelope points, %.1f ms.',d.snapshot.name,
       (remove and 'removed ' or 'applied ')..mode,d.envelope_points or 0,d.apply_ms)) end
-  end,cfg.frame_budget)
+  end,self.r.time_precise()<(self.fast_until or 0) and math.max(.03,cfg.frame_budget or 0) or cfg.frame_budget)
   self.job.kind='apply';self.job.dub=d;self.job.mode=mode;self.job.remove=remove;self.job.live=transaction~=nil;self.job.revision=revision;self.error=nil
 end
 -- Bypass removes one stage from the written envelope and keeps its layer
@@ -491,7 +579,7 @@ function M:tick()
       elseif job.kind=='learn' then self:request(true)
       elseif job.kind=='preview' then
         d.max_step_ms=job.max_step_ms;d.preview_ticks=job.steps;d.preview_work_ms=job.work_ms
-        if d.want_apply and d.preview_valid and d.preview_changed then self:apply(false,true) end
+        if d.want_apply and d.preview_valid and d.preview_changed and self:can_write_now() then self:apply(false,true) end
       elseif job.kind=='apply' then
         self.project_state=self.r.GetProjectStateChangeCount(self.project)
         d.preview_valid=job.revision==self.revision;d.preview_changed=false;d.preview=d.cleanup;d.preview_layers=d.layers
@@ -511,11 +599,11 @@ function M:tick()
     if self.targets and #self.targets>1 then Batch.start(self,false) else self:preview() end
   elseif not self.pending then
     d=self:current()
-    if d and d.want_apply and d.preview_valid then
+    if d and d.want_apply and d.preview_valid and self:can_write_now() then
       if d.preview_changed then self:apply()
       else d.want_apply=false;d.processed_modes=d.processed_modes or {};d.processed_modes[self.mode]=true;d.save_pending=true end
     end
-    if d and d.save_pending and not self.job and not self.gesture then
+    if d and d.save_pending and not self.job and not self.gesture and self.r.time_precise()>=(self.save_after or 0) then
       local targets=self.targets or {d}
       self.job=Job.new(self.r,function(job)
         for _,target in ipairs(targets)do if target==d or target.save_pending then self:save(target,job);target.save_pending=nil end end

@@ -47,6 +47,54 @@ local function soften(values,hop,pre,release,job)
     step(job,i)
   end
 end
+-- Ручные правки De-ess (d.edits): {kind='sibilant',start,finish — где было найдено событие (для сопоставления после
+-- пересчёта), gain — множитель снижения, a/b — свои границы, с; curve={{t,db},...} — нарисованное снижение}.
+-- Сопоставление по перекрытию, как у исключений: смена порога/параметров не теряет правку, пока событие на месте.
+local function find_edit(edits,kind,a,b)
+  for _,x in ipairs(edits or {}) do if x.kind==kind and x.start<b and x.finish>a then return x end end
+end
+M.find_edit=find_edit
+-- до рамп (Pre-open / Release): свои границы и множитель
+local function apply_edits(events,mask,edits,kind,hop,n)
+  if not edits or #edits==0 then return end
+  for _,e in ipairs(events) do
+    local x=not e.excluded and find_edit(edits,kind,e.start,e.finish)
+    if x then
+      e.edit=x
+      local a,b=e.first,e.last
+      if x.a or x.b then
+        local na=x.a and clamp(math.floor(x.a/hop)+1,1,n) or a
+        local nb=x.b and clamp(math.floor(x.b/hop+.5),1,n) or b
+        if nb<na then nb=na end
+        local old={};for i=a,b do old[i]=mask[i];mask[i]=0 end
+        -- форма снижения растягивается на новые границы (как при смене rate): та же огибающая, другая длина
+        local on=b-a;local nn=nb-na
+        for i=na,nb do
+          local f=nn>0 and (i-na)/nn or 0;local src=a+f*on;local i0=math.floor(src);local fr=src-i0
+          local v0,v1=old[i0] or old[a] or 0,old[i0+1] or old[b] or old[i0] or 0
+          mask[i]=math.max(mask[i],v0+(v1-v0)*fr)
+        end
+        a,b=na,nb
+      end
+      if x.gain and x.gain~=1 then for i=a,b do mask[i]=math.min(36,mask[i]*x.gain) end end
+    end
+  end
+end
+-- после рамп: нарисованная кривая заменяет снижение на своём отрезке
+local function apply_curves(mask,frames,edits,kind,hop,n)
+  for _,x in ipairs(edits or {}) do
+    local c=x.kind==kind and x.curve
+    if c and #c>1 then
+      local i0=clamp(math.floor(c[1].t/hop)+1,1,n);local i1=clamp(math.floor(c[#c].t/hop)+1,1,n);local k=1
+      for i=i0,i1 do
+        local t=frames[i].t
+        while k<#c-1 and c[k+1].t<=t do k=k+1 end
+        local p,q=c[k],c[k+1];local f=q.t>p.t and clamp((t-p.t)/(q.t-p.t),0,1) or 0
+        mask[i]=math.max(0,p.db+(q.db-p.db)*f)
+      end
+    end
+  end
+end
 -- Cached bands are source-level power, not an audio high-pass filter. The cutoff
 -- changes the detector weighting; attenuation is broadband take volume.
 function M.features(data,cutoff,job,engine)
@@ -66,7 +114,7 @@ function M.features(data,cutoff,job,engine)
   data.detector_features=out
   return out
 end
-function M.build(data,cfg,job,exclusions,engine,mode,profile)
+function M.build(data,cfg,job,exclusions,engine,mode,profile,edits)
   if mode=='breath' then return import('breath').build(data,cfg,job,exclusions,engine and engine.breath,profile) end
   local frames=data.frames;local n=#frames;local hop=data.hop
   local sib,sd={},{}
@@ -79,7 +127,9 @@ function M.build(data,cfg,job,exclusions,engine,mode,profile)
   end
   local ss=regions(sib,hop,.02,nil,.20,job)
   local sc=mask_regions(ss,sd,exclusions,'sibilant',hop,n,job)
+  apply_edits(ss,sc,edits,'sibilant',hop,n)
   soften(sc,hop,cfg.deess_pre_ms/1000,cfg.deess_release_ms/1000,job)
+  apply_curves(sc,frames,edits,'sibilant',hop,n)
   -- An excluded candidate remains completely untouched, including release tails
   -- from its neighbours. Its visual region stays available for re-enabling.
   for _,e in ipairs(ss) do if e.excluded then

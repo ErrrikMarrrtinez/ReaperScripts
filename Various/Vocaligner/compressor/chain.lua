@@ -26,6 +26,7 @@ local function stage_key(layer,kind,upstream,d,gain,job)
  end
  -- Exclusions are edited in place; table identity alone cannot validate them.
  for _,e in ipairs(d.exclusions or {})do if e.kind==kind then parts[#parts+1]=string.pack('<dd',e.start,e.finish) end end
+ if kind=='deess' then parts[#parts+1]=string.pack('<d',d.edits_rev or 0) end -- ручные правки De-ess (d.edits) меняют ревизию
  return table.concat(parts)
 end
 local function features(d,kind,data,upstream,job)
@@ -96,6 +97,16 @@ function M.dynamic(c,d,cfg,mode,upstream,job)
   out.points=shifted
  end
  out.points[#out.points+1]={t=d.audio.len,db=out.points[#out.points] and out.points[#out.points].db or 0}
+ -- Где стадия ничего не делает (0 dB), точки не нужны: оставляем только края каждого участка работы.
+ -- Форма кривой та же (между нулевыми точками линейная интерполяция даёт 0), а точек в огибающей и время записи — в разы меньше.
+ do
+  local p=out.points;local kept={}
+  for i=1,#p do
+   local z=math.abs(p[i].db)<1e-6
+   if not z or i==1 or i==#p or math.abs(p[i-1].db)>=1e-6 or math.abs(p[i+1].db)>=1e-6 then kept[#kept+1]=p[i] end
+  end
+  out.points=kept
+ end
  for _,p in ipairs(out.points)do out.max_db=math.max(out.max_db,math.abs(p.db)) end
  return out
 end
@@ -119,7 +130,10 @@ function M.build(c,d,cfg,mode,range,job,remove)
     local profile=kind=='breath' and d.breath_profile or nil
     local revision=profile and profile.revision or 0
     local cached=d.stage_cache and d.stage_cache[kind]
-    if cached and cached.audio==d.audio and cached.key==key and cached.frozen==layer.frozen
+    -- во время ручной правки (c.approx_until) стадии после правимой берутся из прошлого результата без проверки входа:
+    -- их пересчёт на весь айтем в разы дороже самой правки; точный пересчёт идёт на отпускании (control_released)
+    local approx=c.approx_until and kind~=mode and Settings.dynamic(kind) and c.r.time_precise()<c.approx_until
+    if cached and cached.audio==d.audio and (approx or cached.key==key) and cached.frozen==layer.frozen
       and cached.profile==profile and cached.revision==revision then
      stage_cache[kind]=cached;resolved[kind]=cached.layer
      if kind==mode then detected=cached.current;current=cached.current;hf=cached.hf end
@@ -135,7 +149,7 @@ function M.build(c,d,cfg,mode,range,job,remove)
       assert(not d.audio.dynamics_only,'Spectral analysis is required for De-ess / Breaths')
       local input=features(d,kind,d.audio,upstream,job)
       stage_input=input
-      candidate=Cleanup.build(input,r.cfg,job,d.exclusions,c.app.engine,kind,d.breath_profile)
+      candidate=Cleanup.build(input,r.cfg,job,d.exclusions,c.app.engine,kind,d.breath_profile,d.edits)
       if kind=='deess' then stage_hf=input.detector_features end
      end
      stage_current=candidate

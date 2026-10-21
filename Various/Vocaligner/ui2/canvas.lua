@@ -24,6 +24,7 @@ local function detail(c,d,data,v,w)
   if built then built.at=now;data.detail=built elseif det then det.at=now end
 end
 
+M.detail=detail
 function M.draw(im,ctx,c,w,h,color,wave,opts)
   local d=c:current();local x,y=im.GetCursorScreenPos(ctx);local draw=im.GetWindowDrawList(ctx)
   local font=im.GetFontSize(ctx)
@@ -188,8 +189,9 @@ function M.navigator(im,ctx,d,w,h,r,project)
   end
   if im.IsItemHovered(ctx) and im.IsMouseDoubleClicked(ctx,0) then v.start=bpos;v.span=blen;a=x;b=x+w end
   if not im.IsMouseDown(ctx,0) then d.overview_grab=nil end
-  im.DrawList_AddRectFilled(draw,a,y+1,b,y+h-1,0xC6D4E51A,3)
-  im.DrawList_AddRect(draw,a,y+1,b,y+h-1,0xB6C7DC80,3)
+  -- рамка вида — тёплым акцентом, как выделение в топбаре навигации
+  im.DrawList_AddRectFilled(draw,a,y+1,b,y+h-1,0xCC7D361C,3)
+  im.DrawList_AddRect(draw,a,y+1,b,y+h-1,0xCC7D36A0,3)
   if r then Transport.draw(im,draw,Transport.read(r,project),function(t)return x+(t-bpos)/blen*w end,x,x+w,y,y+h) end
 end
 return M

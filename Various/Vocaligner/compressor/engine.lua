@@ -38,7 +38,7 @@ function filter(x,c,s) local(y) (
 );
 reset ? (
  memset(states,0,64);memset(ring,0,rms_size);rpos=0;sum=0;follower=0;opened=0;holdleft=0;gate_db=range;
- sample_index=0;next_emit=0;lo=0;hi=0;energy=0;energy_n=0;
+ sample_index=0;next_emit=0;lo=0;hi=0;energy=0;energy_n=0;acc=0;acc_n=0;
  coeff(lp,0,coef);coeff(hp,1,coef+8);
  ga=attack>0 ? exp(-1/(sr*attack)) : 0;gr=release>0 ? exp(-1/(sr*release)) : 0;
  threshold_amp=10^(threshold/20);close_amp=10^((threshold-hysteresis)/20);
@@ -83,8 +83,11 @@ mode==2 ? (
   target=opened ? 0 : range;
   gate_db=target+(target<gate_db ? ga : gr)*(gate_db-target);
  ) : follower=rms+(rms>follower ? ga : gr)*(follower-rms);
+ // окно Env interval: среднее огибающей за окно, а не мгновенное значение в точке выборки.
+ // Иначе выборка «попадает» в пульсацию огибающей с частотой основного тона, и мелкий сдвиг интервала резко меняет кривую.
+ acc+=mode ? rms : follower;acc_n+=1;
  sample_index>=next_emit ? (
-  level=20*log10(max(0.000000000001,mode ? rms : follower));
+  n_=max(1,acc_n);level=20*log10(max(0.000000000001,acc/n_));t=(sample_index-(n_-1)*.5)/sr;acc=0;acc_n=0; // время — середина окна
   mode ? db=gate_db : (
   db=0;
   ratio>1 ? (

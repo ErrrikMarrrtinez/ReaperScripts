@@ -65,6 +65,33 @@ local function finite_copy(v,depth)
   end
   return v
 end
+-- Результаты предпросмотра в кэше сессии: события и регионы маленькие, а «levels» (огибающая детектора на сетке 0.5–5 мс) —
+-- сотни тысяч точек на длинном item. Их сохранение/чтение занимало секунды (string.pack/unpack на каждом чтении и записи),
+-- а нужны они только для индикатора уровня. Кладём прореженную копию (не более MAX_LEVELS точек).
+local MAX_LEVELS=3000
+local function thin_levels(levels)
+  if type(levels)~='table' or #levels<=MAX_LEVELS then return levels end
+  local out={};local step=#levels/MAX_LEVELS
+  for i=0,MAX_LEVELS-1 do out[#out+1]=levels[math.floor(i*step)+1] end
+  out[#out+1]=levels[#levels]
+  return out
+end
+local function compact_previews(store)
+  if type(store)~='table' then return nil end
+  local out={}
+  for mode,p in pairs(store) do
+    if type(p)=='table' then
+      local c={};for k,v in pairs(p) do c[k]=v end
+      c.levels=thin_levels(c.levels)
+      if type(c.detected)=='table' then -- у стадий динамики detected — это ещё и плотные points/levels
+        local dd={};for k,v in pairs(c.detected) do dd[k]=v end
+        dd.levels=thin_levels(dd.levels);dd.points=thin_levels(dd.points);c.detected=dd
+      end
+      out[mode]=c
+    end
+  end
+  return finite_copy(out,0)
+end
 function M.new(r,project)
   if not (r.GetExtState and r.SetExtState and r.GetResourcePath and r.RecursiveCreateDirectory) then return nil end
   local token=r.GetExtState(section,'session')
@@ -102,8 +129,8 @@ function M:save(d,job)
     self:write(id,'audio',audio,job);d.audio_file=id;d.audio_dirty=nil
   end
   local value={snapshot=state(d.snapshot,job),stamp=self.r.time_precise(),cfg=Config.copy(d.cfg),range=d.range,selected=d.selected,view=d.view,
-    exclusions=d.exclusions,breath_profile=d.breath_profile,audio_file=d.audio_file,processed_modes=d.processed_modes,outputs={},
-    bypassed=pack_layers(d.bypassed,job),baselines={},previews=d.preview_store and finite_copy(d.preview_store,0) or nil}
+    exclusions=d.exclusions,edits=d.edits,edits_rev=d.edits_rev,breath_profile=d.breath_profile,audio_file=d.audio_file,processed_modes=d.processed_modes,outputs={},
+    bypassed=pack_layers(d.bypassed,job),baselines={},previews=compact_previews(d.preview_store)}
   for i,b in ipairs(d.baselines or {})do value.baselines[i]={volume_envelope=b.volume_envelope,volume_packed=Pack.points(b.volume_points,job)} end
   local n=0;local ordered={}
   for _,out in pairs(d.outputs or {}) do if type(out)=='table' and out.volume_envelope then ordered[#ordered+1]=out end end
@@ -178,9 +205,9 @@ function M:attach(v,s,job)
   old.guid=s.guid
   local merged=Config.copy(Config.defaults);for k,val in pairs(v.cfg)do merged[k]=val end
   local d={snapshot=old,enabled=true,cfg=merged,range=v.range or {0,old.len},selected=v.selected,
-    view=v.view,exclusions=v.exclusions or {},breath_profile=v.breath_profile,audio_file=v.audio_file,
+    view=v.view,exclusions=v.exclusions or {},edits=v.edits or {},edits_rev=v.edits_rev,breath_profile=v.breath_profile,audio_file=v.audio_file,
     processed_modes=v.processed_modes,outputs=v.outputs or {},plan=import('cleanup_state').plan(old),foreign=foreign or nil,
-    preview_store=type(v.previews)=='table' and v.previews or nil}
+    preview_store=type(v.previews)=='table' and compact_previews(v.previews) or nil}
   for _,out in pairs(d.outputs) do
     d.output_sequence=math.max(d.output_sequence or 0,out.sequence or 0);out.layers=unpack_layers(out.layers,job);out.cleanup=out
     if out.bypassed then out.bypassed=unpack_layers(out.bypassed,job) end

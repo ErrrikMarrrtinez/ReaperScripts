@@ -15,7 +15,7 @@ local function meter(im,ctx,c,lo,hi)
 end
 -- Shared Dynamics options, drawn in the Settings window (ui.lua).
 M.options={
- {'dynamics_rt','RT Update','Off: calculate after releasing a control. On: update while dragging, with coalesced background jobs. Cached PCM is shared by Gate and Compressor.'},
+ {'dynamics_rt','RT Update','Off: write the result after releasing a control. On: also write while dragging, but only when the measured update time (shown in brackets) is short: green — live, orange — slower, red — too slow, waits for release.'},
  {'chain_active','Envelope active','Off writes the take volume envelope bypassed (ACT 0), so it can be compared by ear.'},
  {'chain_visible','Show envelope','Show or hide the written take volume envelope lane in REAPER.'},
 }
@@ -25,7 +25,16 @@ function M.settings(im,ctx,app)
  if changed then c:set_auto(auto) end
  if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Select one or several audio items in REAPER to analyze and apply the open Dynamics tab. Off: capture with Get.') end
  for _,entry in ipairs(M.options) do
-  local changed,on=im.Checkbox(ctx,entry[2],(c.cfg[entry[1]] or 0)>=.5)
+  local label=entry[2];local col
+  if entry[1]=='dynamics_rt' then
+   -- как у Julian: в подписи видна задержка обновления; цвет — пойдёт ли RT во время жеста
+   local lat=c:latency_ms()
+   if lat then label=string.format('RT Update (%d ms)',math.floor(lat+.5))
+    col=(c.cfg.dynamics_rt or 0)<.5 and 0x9A9AA8FF or lat<=120 and 0x8BD17CFF or lat<=c.rt_max_ms and 0xE8B65AFF or 0xE0625AFF end
+  end
+  if col then im.PushStyleColor(ctx,im.Col_Text,col) end
+  local changed,on=im.Checkbox(ctx,label..'##'..entry[1],(c.cfg[entry[1]] or 0)>=.5)
+  if col then im.PopStyleColor(ctx) end
   if changed then c.cfg[entry[1]]=on and 1 or 0;c:settings_changed(entry[1]);c:control_released() end
   if im.IsItemHovered(ctx) then im.SetTooltip(ctx,entry[3]) end
  end

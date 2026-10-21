@@ -99,11 +99,12 @@ local ICON_PX=19 -- сторона ячейки иконки инструмен�
 function M.toolbar(host,im,ctx,app,x0,y0,w,h)
   local e=app.pitch;local dl=im.GetWindowDrawList(ctx)
   grow_anim=host.settings==nil or host.settings.anim~=false
-  local fh=math.min(h-8,im.GetFrameHeight(ctx)+2);local y=y0+(h-fh)/2
+  local G=host.gap or 7
+  local fh=math.min(h-2*G,im.GetFrameHeight(ctx)+2);local y=y0+(h-fh)/2
   local wx,ww=host.window[1],host.window[2]
   local function text_w(t) return (im.CalcTextSize(ctx,t)) end
   local function button_w(t) return text_w(t)+16 end
-  local x=x0+8
+  local x=x0+G
   local busy=e:busy()
   local TIP_DELAY=0.45
 
@@ -117,7 +118,7 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
   local gk=grow('back',bh);local bcx,bcy=x+fh/2,y+fh/2
   im.DrawList_AddLine(dl,bcx+3*gk,bcy-6*gk,bcx-3*gk,bcy,col,2);im.DrawList_AddLine(dl,bcx-3*gk,bcy,bcx+3*gk,bcy+6*gk,col,2)
   host.tooltip('pitch_back',bh,bcx,y+fh,'Back to tools','',wx,ww,0.35,0.2)
-  x=x+fh+8
+  x=x+fh+G
 
   -- Analyze: только пока item не проанализирован; полный сброс — в меню справа
   local now=e.r.time_precise()
@@ -133,11 +134,11 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
     if show_busy then im.EndDisabled(ctx) end
     host.tooltip('pitch_analyze',im.IsItemHovered(ctx),(im.GetItemRectMin(ctx)+im.GetItemRectMax(ctx))/2,y+fh,'',
       'Analyze selected audio items; with no item selection, analyze the active track. Reanalysis keeps editor corrections when their source geometry still matches.',wx,ww)
-    x=im.GetItemRectMax(ctx)+8
+    x=im.GetItemRectMax(ctx)+G
   end
   if e.job and not e.job.committed and e.job.kind=='analysis' then
     im.SetCursorScreenPos(ctx,x,y);if im.Button(ctx,'Cancel',0,fh) then e:cancel() end
-    x=im.GetItemRectMax(ctx)+8
+    x=im.GetItemRectMax(ctx)+G
   end
 
   -- Bypass редактора (иконка питания, как в глобальном BYPASS ALL): показывает оригинальные ноты и отключает ReaPitch
@@ -162,7 +163,7 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
     im.DrawList_PathLineTo(dl,gx,gy-6.6*k);im.DrawList_PathLineTo(dl,gx,gy-1.4*k);im.DrawList_PathStroke(dl,c,0,1.7)
   end
   host.tooltip('pitch_bypass',byh,x+fh/2,y+fh,'','Bypass',wx,ww,TIP_DELAY,0.2)
-  x=x+fh+8
+  x=x+fh+G
 
   -- Транспорт одной секцией: Play/Pause (по реальному состоянию) | Repeat (тёмно-оранжевый, когда включён)
   local proj=e.project or 0
@@ -190,7 +191,7 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
   im.DrawList_AddLine(dl,x+fh,y+6,x+fh,y+fh-6,0xFFFFFF10,0.5)
   local lk=grow('loop',lh)
   host.icon(dl,looping and SP.repeat_on or SP.repeat_off,x+fh*1.5-1.5,y+fh/2,(ICON_PX-1)*lk,looping and 0xFFFFFFFF or (lh and 0xE0E0EAFF or 0x9A9AA8FF))
-  x=x+2*fh+8
+  x=x+2*fh+G
   local left_end=x
 
   -- Правый блок считаем заранее и прижимаем к правому краю: Copy/Paste (Curve), тональность, меню
@@ -202,7 +203,7 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
   right[#right+1]={'scale',scale_w}
   local total=-6;for _,r in ipairs(right) do total=total+r[2]+6 end
   local count=#TOOLS+1;local cwid=count*BTN_W
-  local rx=x0+w-10-total
+  local rx=x0+w-G-total
   local cx0=math.max(x0+(w-cwid)/2,left_end+10)
   if cx0+cwid+12>rx then cx0=math.max(left_end+4,rx-cwid-12) end
 
@@ -275,7 +276,7 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
     elseif kind=='copy' then if im.Button(ctx,'Copy##pitch_copy',r[2],fh) then e:copy_shape() end
     elseif kind=='paste' then if im.Button(ctx,'Paste##pitch_paste',r[2],fh) then e:paste_shape((im.GetKeyMods(ctx)&im.Mod_Alt)~=0) end
     end
-    rx=rx+r[2]+6
+    rx=rx+r[2]+G
   end
 end
 

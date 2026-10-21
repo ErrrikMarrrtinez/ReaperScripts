@@ -144,6 +144,33 @@ function M:selected_roles(exclude_reference)
       role.items[#role.items+1]=item
     end
   end
+  -- Накладывающиеся друг на друга айтемы одного трека (дорожки-lanes, стопка дублей) — это не последовательная правка:
+  -- раскладываем их по отдельным ролям, а не падаем с ошибкой «overlap»; идущие подряд остаются одной ролью.
+  do
+    local split={}
+    for _,role in ipairs(roles) do
+      if role.track and #role.items>1 then
+        local list={}
+        for _,item in ipairs(role.items) do list[#list+1]={item=item,pos=r.GetMediaItemInfo_Value(item,'D_POSITION'),len=r.GetMediaItemInfo_Value(item,'D_LENGTH')} end
+        table.sort(list,function(a,b) if a.pos~=b.pos then return a.pos<b.pos end;return a.len>b.len end)
+        local lanes={}
+        for _,it in ipairs(list) do
+          local placed=false
+          for _,lane in ipairs(lanes) do
+            local last=lane[#lane];local reach=last.pos+last.len
+            local amount=math.max(0,reach-it.pos);local allowed=math.min(2,math.min(last.len,it.len)*.5)
+            if amount<=allowed+1e-9 then lane[#lane+1]=it;placed=true;break end
+          end
+          if not placed then lanes[#lanes+1]={it} end
+        end
+        for k,lane in ipairs(lanes) do
+          local items={};for i,it in ipairs(lane) do items[i]=it.item end
+          split[#split+1]={track=role.track,items=items,order=role.order+(k-1)*1e-3}
+        end
+      else split[#split+1]=role end
+    end
+    roles=split
+  end
   table.sort(roles,function(a,b)
     local ia=a.track and r.GetMediaTrackInfo_Value(a.track,'IP_TRACKNUMBER') or 0
     local ib=b.track and r.GetMediaTrackInfo_Value(b.track,'IP_TRACKNUMBER') or 0
@@ -165,6 +192,8 @@ function M:reference_selected()
   local ok,s=pcall(Audio.capture_group,r,project,roles[1].items,false)
   if not ok then
     self.loop_items=tostring(s):find('Looped source repetitions',1,true) and 'reference' or nil
+    -- у референса со своими stretch-маркерами без маркеров на краях тоже предлагаем «Add edge anchors» (раньше — только у дабов)
+    self.edge_items=tostring(s):find('explicit markers at both item edges',1,true) and 'reference' or nil
     self:fail('Reference: '..tostring(s));return
   end
   self.loop_items=nil
@@ -172,7 +201,7 @@ function M:reference_selected()
   for i=#self.groups,1,-1 do if not Audio.project_open(r,self.groups[i].project) then table.remove(self.groups,i) end end
   self.project=project;self.ref=s;self.ref_audio=nil;self.ref_quick=Audio.peaks(r,s)
   self.edge_items=nil
-  self.dubs={};self.view=nil;self.error=nil;self.analyzed=false;self.dirty=false
+  self.dubs={};self.view=nil;self.error=nil;self.analyzed=false;self.dirty=false;self.align_off=false
   self.replan=false;self.pending_apply=false
   self:report('Reference: '..s.name)
 end
@@ -185,14 +214,14 @@ function M:dubs_selected()
   for _,role in ipairs(self:selected_roles(true)) do
     local ok,s=pcall(Audio.capture_group,r,self.project,role.items,true)
     if not ok then
-      if tostring(s):find('explicit markers at both item edges',1,true) then self.edge_items=true else self.edge_items=nil end
+      if tostring(s):find('explicit markers at both item edges',1,true) then self.edge_items='dubs' else self.edge_items=nil end
       self.loop_items=tostring(s):find('Looped source repetitions',1,true) and 'dubs' or nil
       self:fail(s);return
     end
     dubs[#dubs+1]={snapshot=s,quick=Audio.peaks(r,s),enabled=true,status='Unprocessed'}
   end
   if #dubs==0 then self:fail('Select at least one dub other than the reference.');return end
-  self.edge_items=nil;self.loop_items=nil
+  self.edge_items=nil;self.loop_items=nil;self.align_off=false
   -- Reuse an existing group's baseline even if its dubs currently carry our markers.
   for index,g in ipairs(self.groups) do
     local same=g.project==self.project and g.ref.guid==self.ref.guid and #g.dubs==#dubs
@@ -234,11 +263,13 @@ function M:recapture_changed()
 end
 function M:add_edge_anchors()
   if self.job or self.cleaner.job or not self.edge_items then return end
-  local r=self.r;local project=r.EnumProjects(-1);if project~=self.project then return end
+  local role=self.edge_items -- 'reference' | 'dubs'
+  local r=self.r;local project=r.EnumProjects(-1);if role=='dubs' and project~=self.project then return end
   local batch={}
   for i=0,r.CountSelectedMediaItems(project)-1 do
     local item=r.GetSelectedMediaItem(project,i)
-    if not self:is_reference_item(item) then
+    -- для дабов референс не трогаем; при поиске референса его ещё нет — берём выбранные item
+    if role=='reference' or not self:is_reference_item(item) then
       local ok,s=pcall(Audio.state,r,project,item)
       if not ok then self:fail(s);return end
       if s.C_LOCK~=0 then self:fail(s.name..' is locked.');return end
@@ -270,7 +301,8 @@ function M:add_edge_anchors()
   if not ok then for _,entry in ipairs(batch)do if not r.SetItemStateChunk(entry.s.item,entry.chunk,false) then why=why..'\nRollback failed; use REAPER Undo.' end end end
   r.PreventUIRefresh(-1);r.Undo_EndBlock2(project,'Vocaligner: add stretch edge anchors',-1);r.UpdateArrange()
   if not ok then self:fail(why);return end
-  self.edge_items=nil;self:dubs_selected()
+  self.edge_items=nil
+  if role=='reference' then self:reference_selected() else self:dubs_selected() end
 end
 -- Items that play past the end of a looped source repeat the file start in
 -- their tail. Trim each such selected item to the end of its file (inside one
@@ -481,6 +513,7 @@ function M:apply(cfg,prepared,revision)
   if not ready then self.applied_revision=revision or self.revision or 0;self:save_group();return true end
   local n,why=Apply.run(self.r,self.project,self.ref,self.dubs,cfg or self.cfg,self.edit_transaction)
   if n then
+    self.align_off=false
     self.applied_revision=revision or self.revision or 0
     if not self.gesture then self:report('Applied timing to '..n..' dub(s).') end
   else self:fail(why);Apply.finish(self.r,self.edit_transaction);self.edit_transaction=nil end
@@ -492,8 +525,23 @@ function M:restore()
   if self.job or self.cleaner.job then return end
   Apply.finish(self.r,self.edit_transaction);self.edit_transaction=nil
   local n,why=Apply.restore(self.r,self.project,self.dubs)
-  if n then self.error=nil;self:report('Restored '..n..' original take(s).') else self:fail(why) end
+  if n then self.align_off=true;self.error=nil;self:report('Restored '..n..' original take(s).') else self:fail(why) end
   self:save_group()
+end
+-- Лёгкий тоггл «Align вкл/выкл» (кнопка плитки): выкл — возвращает исходные тейки (план остаётся в памяти),
+-- вкл — применяет сохранённый план заново, без пересчёта. Глобальный BYPASS (ui2/master.lua) работает отдельно:
+-- он подменяет chunk айтема целиком и от этого тоггла не зависит.
+function M:set_align_enabled(on)
+  if self.job or self.cleaner.job then return end
+  if on then
+    if self:apply() then self.align_off=false
+    else self.align_off=true;self:report('Align: nothing to re-apply — analyze the dubs again.') end
+  else
+    local applied=false
+    for _,d in ipairs(self.dubs) do if d.applied then applied=true end end
+    if not applied then return end
+    self:restore()
+  end
 end
 function M:remove_group()
   if self.job or self.cleaner.job or not self.group then return end

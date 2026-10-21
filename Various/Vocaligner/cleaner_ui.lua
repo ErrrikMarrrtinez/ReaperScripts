@@ -82,7 +82,7 @@ local deess_knobs={
   {'deess_hz','Detector frequency',2000,14000,'%.0f Hz','Weights cached frequency bands. Does not EQ the audio.'},
   {'deess_amount','Reduction',0,100,'%.0f%%','Depth of reduction above the threshold, not the number of envelope points.'},
   {'deess_max_db','Max cut',0,18,'-%.1f dB','Maximum attenuation. For example, -9 dB limits the deepest dip to 9 dB.'},
-  {'deess_pre_ms','Pre-open',0,30,'%.0f ms','Ramp before the detected sound. Zero adds no pre-open.'},
+  {'deess_pre_ms','Pre-open',0,75,'%.0f ms','Ramp before the detected sound. Zero adds no pre-open.'},
   {'deess_release_ms','Release',0,200,'%.0f ms','Time to return to original volume after the last detector frame. Analysis resolution: 10 ms.'},
   {'deess_detail','Envelope detail',0,100,'%.0f%%','More points / finer curve detail. Lower values keep the shape with fewer points.'},
 }

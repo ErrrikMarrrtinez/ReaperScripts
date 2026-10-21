@@ -15,7 +15,7 @@ M.compressor={
  {'compressor_gain','Out gain',-24,18,'%+.1f dB'},
  {'compressor_attack_ms','Attack',0,200,'%.1f ms'},
  {'compressor_release_ms','Release',0,500,'%.1f ms'},
- {'compressor_pre_ms','Pre-comp',0,1000,'%.1f ms'},
+ {'compressor_pre_ms','Pre-comp',0,285,'%.1f ms'},
  {'compressor_knee','Julian knee',0,24,'%.1f dB'},
  {'compressor_rms_ms','RMS size',0,2000,'%.1f ms'},
  {'compressor_interval_ms','Env interval',.5,100,'%.1f ms'},

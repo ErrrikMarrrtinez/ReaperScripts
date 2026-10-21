@@ -121,7 +121,7 @@ function M.draw(im,ctx,app,color,wave)
   if app.edge_items then
     Controls.disabled(im,ctx,busy,not hard_busy)
     if im.Button(ctx,'Add edge anchors') then app:add_edge_anchors() end
-    if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Add missing boundary markers to selected dubs using REAPER\'s current source map, then capture them. Undo restores the previous marker list.') end
+    if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Add missing boundary markers to the selected items (reference or dubs) using REAPER\'s current source map, then capture them again. Undo restores the previous marker list.') end
     im.EndDisabled(ctx)
   end
   if #app.groups>0 then

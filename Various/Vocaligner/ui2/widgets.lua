@@ -16,6 +16,14 @@ M.live={
 }
 -- Сообщить cleaner об изменении параметра: живой параметр во время жеста идёт по пути RT Update
 -- (подготовка превью и запись), но стартует не сразу, а через live_delay после последнего изменения.
+-- Недоступная область не должна «отдавать» клик окну (иначе оно начинает перетаскиваться): накрываем её невидимой кнопкой.
+-- Вызывается после EndDisabled, x,y — левый верхний угол области, курсор возвращается в конец.
+function M.catch(im,ctx,x,y,w,h,id)
+  local ex,ey=im.GetCursorScreenPos(ctx)
+  if h<=0 then return end
+  im.SetCursorScreenPos(ctx,x,y);im.InvisibleButton(ctx,id or '##disabled_catch',w,h)
+  im.SetCursorScreenPos(ctx,ex,ey)
+end
 function M.changed(owner,key)
   local rt=owner.cfg.dynamics_rt
   if M.live[key] and rt and rt<.5 and owner.gesture then
@@ -23,7 +31,10 @@ function M.changed(owner,key)
     local ok,err=pcall(owner.settings_changed,owner,key)
     owner.cfg.dynamics_rt=rt
     if not ok then error(err,0) end
-    if owner.pending then owner.pending=reaper.time_precise()+M.live_delay end
+    local now=reaper.time_precise()
+    owner.live_until=now+.5 -- пока крутят «лёгкий» параметр, запись идёт по темпу измеренной задержки
+    -- темп, а не «дебаунс»: ближайшее обновление не отодвигается при каждом движении слайдера, а стартует не позже live_delay
+    if owner.pending then owner.pending=math.min(owner.pending,now+(owner.live_delay and owner:live_delay() or M.live_delay)) end
   else owner:settings_changed(key) end
 end
 -- A short parameter commit still blocks conflicting actions, without making
@@ -53,7 +64,8 @@ function M.grid(im,ctx,owner,id,entries,max_columns)
   if im.BeginTable(ctx,id,columns,im.TableFlags_SizingStretchSame) then
     for _,e in ipairs(entries) do
       im.TableNextColumn(ctx)
-      M.slider(im,ctx,owner,e[1],e[2],e[3],e[4],e[5],-1,e[6])
+      if e.draw then e.draw(im,ctx,owner,e) -- свой виджет ячейки (например, ручка-полоска у Ratio)
+      else M.slider(im,ctx,owner,e[1],e[2],e[3],e[4],e[5],-1,e[6]) end
     end
     im.EndTable(ctx)
   end
