@@ -22,7 +22,7 @@ local function stage_key(layer,kind,upstream,d,gain,job)
  local parts={string.pack('<I4I4d',#upstream_key,#layer.recipes,gain or 1),upstream_key}
  for _,r in ipairs(layer.recipes)do
   parts[#parts+1]=string.pack('<dd',r.a,r.b)
-  for _,key in ipairs(Config[kind..'_keys'])do parts[#parts+1]=string.pack('<d',r.cfg[key]) end
+  for _,key in ipairs(Config[kind..'_keys'])do parts[#parts+1]=string.pack('<d',r.cfg[key] or Config.defaults[key] or 0) end
  end
  -- Exclusions are edited in place; table identity alone cannot validate them.
  for _,e in ipairs(d.exclusions or {})do if e.kind==kind then parts[#parts+1]=string.pack('<dd',e.start,e.finish) end end

@@ -48,6 +48,7 @@ function M.read(r,take)
   end
   assert(value.curve_version==nil or value.curve_version==1 or value.curve_version==2 or value.curve_version==3 or value.curve_version==4,'Unsupported correction version')
   if value.algorithm~=nil then assert(type(value.algorithm)=='number' and value.algorithm%1==0 and value.algorithm>=0 and value.algorithm<=0xffffffff,'Invalid Pitch algorithm') end
+  if value.auto~=nil then assert(type(value.auto)=='table' and (value.auto.mode==nil or value.auto.mode=='key' or value.auto.mode=='reference'),'Invalid Pitch auto') end
   if value.scale then assert(type(value.scale)=='table' and value.scale.root>=0 and value.scale.root<=11 and value.scale.mode>=1 and value.scale.mode<=14,'Invalid Pitch scale') end
   local limits={visual_offset={-150,150},modulation={0,2},drift={0,2},flatten={0,1},flat_offset={-48,48},vibrato_depth={0,2},vibrato_rate={.5,12},vibrato_onset={0,1},vibrato_release={.005,1},vibrato_growth={-1,1},transition_amount={0,1},transition_shape={.25,4},transition_bias={-.75,.75}}
   for _,n in ipairs(value.notes) do

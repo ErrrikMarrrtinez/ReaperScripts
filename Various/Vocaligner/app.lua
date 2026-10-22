@@ -422,7 +422,9 @@ function M:start(recover)
       part:checkpoint(1,'Matched '..i..' / '..#self.dubs)
     end
     self.analyzed=usable>0
-  end,cfg.frame_budget)
+    -- Анализ Align считается в основном потоке кусками; бюджет 8 мс на кадр превращал ~5 с работы в ~18 с ожидания.
+    -- 30 мс на кадр: тот же результат (порядок вычислений не меняется), окно остаётся отзывчивым (~30 к/с).
+  end,math.max(cfg.frame_budget or .008,.03))
   self.job.kind='analysis'
 end
 function M:settings_changed(key)

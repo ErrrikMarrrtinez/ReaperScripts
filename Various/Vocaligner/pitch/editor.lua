@@ -1,6 +1,6 @@
 -- @noindex
 local import=...;local Audio=import('audio');local Analysis=import('pitch/analysis');local Store=import('pitch/store');local Algorithm=import('pitch/algorithm');local Workspace=import('pitch/workspace')
-local Expression=import('pitch/expression');local Scale=import('pitch/scale');local Notes=import('pitch/notes');local Curve=import('pitch/curve');local FX=import('pitch/fx');local Job=import('job');local M={};M.__index=M
+local Expression=import('pitch/expression');local Scale=import('pitch/scale');local Auto=import('pitch/auto');local Notes=import('pitch/notes');local Curve=import('pitch/curve');local FX=import('pitch/fx');local Job=import('job');local M={};M.__index=M
 local function restore_after_failure(r,item,chunk,why)
   -- Rollback may itself raise (for example, a pointer invalidated by a host
   -- callback). Keep that error inside the UI/Undo cleanup path too.
@@ -117,6 +117,7 @@ function M:refresh(force)
       self.last_analysis=Notes.copy(self.state.analysis_stats);self.last_analysis_id=self.state.analysis
     end
     self.saved_text=text;self.item_sig=item_signature(r,item,take);self.peaks=Audio.peaks(r,s);self.display=nil
+    self:auto_rebuild() -- Auto-слой: из кеша, если параметры и анализ те же
     self.last_reported_error=nil
     if changed then
       self.selected={};self.prepared_cache=nil;self.contour_cache=nil
@@ -222,7 +223,9 @@ function M:export_case()
   local Export=import('pitch/case_export')
   self.job=Job.new(self.r,function(job)
     local case,chunk=job:call(Export.capture,self)
-    local suffix=os.date('%Y%m%d-%H%M%S')..'-'..Store.hash(case.source.guid..tostring(self.r.time_precise()))
+    local a=self.state and self.state.auto
+    local tag=self.state and self.state.bypassed and 'bypass' or (a and a.on and ('auto-'..(a.mode or 'key'))) or 'manual'
+    local suffix=os.date('%Y%m%d-%H%M%S')..'-'..tag..'-'..Store.hash(case.source.guid..tostring(self.r.time_precise()))
     local folder=self.r.GetResourcePath()..'/Data/VocalignerPitchCases/'..suffix
     job:call(self.r.RecursiveCreateDirectory,folder,0)
     local path=Export.write(self,folder,case,chunk,job)
@@ -370,6 +373,12 @@ function M:diagnostics()
     end end
     lines[#lines+1]=string.format('Pitch visible measured frames: %d | outside note blocks: %d (display and segmentation use different rules)',visible,outside)
   end
+  if self.state and self.state.auto then
+    local a=Auto.config(self.state);local L=self.auto_layer;local st=L and L.stats or {}
+    lines[#lines+1]=string.format('Auto: %s | mode %s | speed %.0f | transitions %.0f ms | amount %.0f%% | ref %s | octave %s | frames %d | mean |corr| %.3f st | switches %d | build %.1f ms%s',
+      a.on and 'on' or 'off',a.mode,a.speed,a.transitions,a.amount,tostring(a.ref_track),tostring(st.octave or a.octave),st.frames or 0,st.mean_abs or 0,st.switches or 0,L and L.build_ms or 0,
+      self.auto_note and (' | '..self.auto_note) or '')
+  end
   if self.state then lines[#lines+1]='Correction curve: '..tostring(self.state.curve_version or 1)..' | scale '..Scale.roots[(self.root or 0)+1]..' '..Scale.scales[self.scale or 1][1]..' | snap '..tostring(self.snap) end
   local expression_v2,link_v7=0,0
   for _,n in ipairs(self.notes or {})do
@@ -390,6 +399,59 @@ function M:diagnostics()
   for _,n in ipairs(self.notes or {}) do lines[#lines+1]=string.format('note %d: %.3f..%.3f | center %.3f | shift %.3f | formant %.3f | transition %.3f',n.id,n.start,n.finish,n.center,n.shift,n.formant,n.transition)..string.format(' | modulation %.3f | drift %.3f | flat %.3f | vibrato %.3f/%.3f | edge %.3f/%.3f | anchors %d',n.modulation or 1,n.drift or 1,n.flatten or 0,n.vibrato_depth or 0,n.vibrato_rate or 5.5,n.transition_amount or 0,n.transition_shape or 1,#(n.anchors or {})) end
   if self.error then lines[#lines+1]=self.error end
   return table.concat(lines,'\n')
+end
+-- ===== Auto (pitch/auto.lua) =====
+-- Слой живёт в редакторе (self.auto_layer) и подключается к текущему self.data как data._auto; ключ пересчёта —
+-- параметры + анализ/геометрия айтема (не сам объект data: он пересоздаётся после каждого применения).
+function M:auto_rebuild(force)
+  local data=self.data;if not data then return end
+  local a=Auto.config(self.state)
+  self.auto_note=nil
+  if not a.on then data._auto=nil;data._auto_key=nil;return end
+  if a.mode~='reference' and (self.scale or 1)==1 then
+    data._auto=nil;data._auto_key=nil;self.auto_note='Choose a key (not Chromatic) for Auto';return
+  end
+  local s=self.snapshot
+  local key=Auto.key(self,a)
+  key=key..string.format('|%.6f|%.6f|%.6f|%.6f',s.pos,s.len,s.offset,s.rate)
+  local layer=self.auto_layer
+  if force or not layer or layer.build_key~=key then
+    local began=self.r.time_precise()
+    layer=Auto.build(self,a) or {hop=.008,n=0,c={},stats={}}
+    layer.build_key=key;layer.build_ms=(self.r.time_precise()-began)*1000
+    self.auto_layer=layer;self.display=nil;self.contour_cache=nil
+    if layer.stats and layer.stats.error then self.auto_note=layer.stats.error end
+  end
+  local amount=math.max(0,math.min(1,(a.amount or 100)/100))
+  local akey=key..string.format('|%.4f',amount)
+  if data._auto~=layer or data._auto_key~=akey then self.display=nil;self.contour_cache=nil end
+  layer.amount=amount;data._auto=layer;data._auto_key=akey
+end
+-- Изменение параметра Auto: первое изменение открывает правку, final — применить (одно действие Undo)
+function M:set_auto(field,value,final)
+  if self.no_selection or self.stale or not self.data or not self.state then return end
+  if not self.auto_before then
+    if self:busy() then return end
+    self.auto_before=self:begin_edit();if not self.auto_before then return end
+  end
+  self.state.auto=Auto.config(self.state);self.state.auto[field]=value
+  self:auto_rebuild();self.display=nil
+  if final then local b=self.auto_before;self.auto_before=nil;self:commit(b,'auto pitch') end
+end
+-- Pitch Meter (JSFX «Vocaligner Pitch Meter») на айтеме: вкл — добавить, если нет, и включить; выкл — отключить FX
+function M:set_meter(on)
+  self.check_on=on==true;self.check=nil
+  local s=self.snapshot;if not s or not s.take then return end
+  local r=self.r;local idx=-1
+  for i=0,r.TakeFX_GetCount(s.take)-1 do local ok,name=r.TakeFX_GetFXName(s.take,i,'');if ok and name:find('Vocaligner Pitch Meter',1,true) then idx=i;break end end
+  if on and idx<0 then
+    r.Undo_BeginBlock2(self.project)
+    idx=r.TakeFX_AddByName(s.take,'JS:Vocaligner/Vocaligner Pitch Meter.jsfx',-1)
+    if idx<0 then idx=r.TakeFX_AddByName(s.take,'Vocaligner Pitch Meter',-1) end
+    r.Undo_EndBlock2(self.project,'Vocaligner: add Pitch Meter',-1)
+    if idx<0 then self.check_on=false;self:fail('Pitch Meter JSFX not found. Install it with ReaPack (Effects/Vocaligner).');return end
+  end
+  if idx>=0 and r.TakeFX_GetEnabled(s.take,idx)~=(on==true) then r.TakeFX_SetEnabled(s.take,idx,on==true) end
 end
 function M:set_scale(root,mode,snap)
   if self:busy() or self.gesture then return end

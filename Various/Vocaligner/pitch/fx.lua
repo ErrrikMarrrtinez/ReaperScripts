@@ -81,11 +81,29 @@ function M.rebind(r,s,state)
   end
   return nil,'Pitch automation changed outside the editor. Reanalyze to rebuild it, or Reset corrections.'
 end
+-- Точный отпечаток не совпал: настройки (без наших огибающих) сверяются отдельно, а огибающие Shift/Formant —
+-- по звучащей кривой, как при rebind. Совпало по сути — отпечаток обновляется; нет — причина для сообщения.
+function M.recheck(r,s,state,fx)
+  if not state.fx_static or M.fingerprint(r,s.take,fx,true)~=state.fx_static then return false,'its settings, bypass or other automation changed' end
+  local current=M.envelopes(r,s.take,fx);local names={[3]='Shift',[7]='Formant'}
+  for _,p in ipairs({3,7}) do
+    local a,b=state.fx_envelopes and state.fx_envelopes[p],current[p]
+    if not a or not b then return false,names[p]..' envelope was '..(b and 'added' or 'removed') end
+    if not Envelope.equivalent(a.chunk,b.chunk,s.len*s.rate,a.points,b.points) then
+      return false,string.format('%s envelope: %d points saved, %d now',names[p],#a.points,#b.points)
+    end
+  end
+  state.fx_fingerprint=M.fingerprint(r,s.take,fx);state.fx_envelopes=current
+  return true
+end
 function M.ensure(r,s,state)
   local fx=M.find(r,s.take,state.fx_guid)
   if state.fx_guid then
     assert(fx,'The editor ReaPitch was removed. Analyze again or Reset before editing.')
-    if state.fx_fingerprint then assert(M.fingerprint(r,s.take,fx)==state.fx_fingerprint,'ReaPitch was edited outside Pitch. Undo that change before applying.') end
+    if state.fx_fingerprint and M.fingerprint(r,s.take,fx)~=state.fx_fingerprint then
+      local ok,why=M.recheck(r,s,state,fx)
+      assert(ok,'ReaPitch was edited outside Pitch ('..why..'). Undo that change before applying.')
+    end
     local info,why=Algorithm.read(r,s.take,fx)
     if state.algorithm~=nil then assert(info,why);assert(info.value==state.algorithm,'ReaPitch algorithm was changed outside Pitch') end
     if info then state.algorithm=info.value end
@@ -114,13 +132,21 @@ function M.ensure(r,s,state)
   state.fx_guid=r.TakeFX_GetFXGUID(s.take,fx)
   return fx
 end
+-- ReaPitch (élastique Soloist) применяет значение огибающей к звуку примерно на 45 мс позже его позиции:
+-- замер Pitch Meter по двум кейсам Auto (лучшее совпадение выхода с целью — при сдвиге поправки +45 мс,
+-- звук без сдвига). Поэтому точки пишутся на LEAD раньше; кривые и предсказание остаются во времени звука.
+M.LEAD=.045
 local function envelope(r,s,fx,param,points,map)
   local env=r.TakeFX_GetEnvelope(s.take,fx,param,true);assert(env,'Cannot create the ReaPitch take envelope')
   local expected,old={},{}
   for _,p in ipairs(points) do
     local normalized=(p.value-map.lo)/(map.hi-map.lo)
     assert(normalized>=0 and normalized<=1,'Pitch correction is outside the ReaPitch range')
-    expected[#expected+1]={t=p.t*s.rate,v=normalized,shape=0,tension=0}
+    local t=(p.t-M.LEAD)*s.rate
+    -- до начала тейка остаётся одна точка (последняя из ушедших за ноль), поставленная в 0
+    if t<0 then
+      if expected[1] and expected[1].t==0 then expected[1].v=normalized else expected[1]={t=0,v=normalized,shape=0,tension=0} end
+    else expected[#expected+1]={t=t,v=normalized,shape=0,tension=0} end
   end
   for i=0,r.CountEnvelopePoints(env)-1 do
     local ok,t,v,shape,tension=r.GetEnvelopePoint(env,i);assert(ok,'Cannot inspect owned pitch automation')

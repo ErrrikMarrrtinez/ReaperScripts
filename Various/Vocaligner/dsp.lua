@@ -50,6 +50,22 @@ function M.analyzer(cfg,r)
   local fft=r and r.new_array(n*2) or nil
   local fft_input={}
   local obj={previous=nil,n=n,nb=nb,sr=sr}
+  -- Постоянные для каждого бина и полосы считаются один раз (те же выражения, тот же порядок суммирования):
+  -- результат кадра бит-в-бит как раньше, без пересчёта log/частот на каждом кадре.
+  local half=n//2
+  local fidx,fwt,fcount={},{},{}
+  for b=1,nb do
+    local fi,fw={},{};for q,f in ipairs(filters[b]) do fi[q]=f[1];fw[q]=f[2] end
+    fidx[b],fwt[b],fcount[b]=fi,fw,#fi
+  end
+  local nbands=math.ceil(sr/1000)
+  local bin_band,bin_noise,bin_breath,bin_low,bin_high,bin_pc={},{},{},{},{},{}
+  for k=2,half do
+    local f=(k-1)*sr/n
+    bin_band[k]=math.min(nbands,math.floor(f/500)+1)
+    bin_noise[k]=f>=1500;bin_breath[k]=f>=80 and f<8000;bin_low[k]=f<350;bin_high[k]=f>3500
+    if f>=80 and f<=4000 then bin_pc[k]=math.floor(69+12*log(f/440)/log(2)+.5)%12+1 else bin_pc[k]=false end
+  end
   function obj:frame(samples,offset,channels,count)
     local power={};for k=1,n//2+1 do power[k]=0 end
     local energy,minv,maxv,zc=0,0,0,0
@@ -58,7 +74,7 @@ function M.analyzer(cfg,r)
       for i=1,n do
         local s=0;local index=offset+i-1
         if index>=0 and index<count then s=samples[index*channels+ch] or 0 end
-        energy=energy+s*s;minv=math.min(minv,s);maxv=math.max(maxv,s)
+        energy=energy+s*s;if s<minv then minv=s end;if s>maxv then maxv=s end -- = math.min/math.max
         if i>1 and (s>=0)~=(prev>=0) then zc=zc+1 end;prev=s
         if fft then fft_input[2*i-1]=s*win[i];fft_input[2*i]=0 else re[i]=s*win[i];im[i]=0 end
       end
@@ -76,7 +92,7 @@ function M.analyzer(cfg,r)
     local spectral,chroma={},{}
     if not cfg.cleanup_only then
     for b=1,nb do
-      local e=0;for _,f in ipairs(filters[b]) do e=e+power[f[1]]*f[2] end
+      local e=0;local fi,fw=fidx[b],fwt[b];for q=1,fcount[b] do e=e+power[fi[q]]*fw[q] end
       bands[b]=log(e+1e-12);mean=mean+bands[b]
       if self.previous then flux=flux+math.max(0,bands[b]-self.previous[b]) end
     end
@@ -90,22 +106,22 @@ function M.analyzer(cfg,r)
     local low,high,total,logs=0,0,0,0
     -- Fixed 500 Hz bands retain detector energy above the alignment feature range.
     -- One FFT serves both matching and cleanup; moving the detector cutoff needs no reread.
-    local noise_bands={};for k=1,math.ceil(sr/1000) do noise_bands[k]=0 end
+    local noise_bands={};for k=1,nbands do noise_bands[k]=0 end
     local noise_log,noise_sum,noise_count=0,0,0
     local breath_log,breath_sum,breath_count,breath_peak=0,0,0,0
-    for k=2,n//2 do
-      local e=power[k];local f=(k-1)*sr/n;local le=log(e+1e-14);total=total+e;logs=logs+le
-      local band=math.min(#noise_bands,math.floor(f/500)+1)
+    local align=not cfg.cleanup_only
+    for k=2,half do
+      local e=power[k];local le=log(e+1e-14);total=total+e;logs=logs+le
+      local band=bin_band[k]
       noise_bands[band]=noise_bands[band]+e*2/.375
-      if f>=1500 then noise_sum=noise_sum+e;noise_log=noise_log+le;noise_count=noise_count+1 end
-      if f>=80 and f<8000 then
+      if bin_noise[k] then noise_sum=noise_sum+e;noise_log=noise_log+le;noise_count=noise_count+1 end
+      if bin_breath[k] then
         breath_log=breath_log+le;breath_sum=breath_sum+e
-        breath_count=breath_count+1;breath_peak=math.max(breath_peak,e)
+        breath_count=breath_count+1;if e>breath_peak then breath_peak=e end -- = math.max
       end
-      if f<350 then low=low+e end;if f>3500 then high=high+e end
-      if not cfg.cleanup_only and f>=80 and f<=4000 then
-        local pc=math.floor(69+12*log(f/440)/log(2)+.5)%12+1;chroma[pc]=chroma[pc]+sqrt(e)
-      end
+      if bin_low[k] then low=low+e end;if bin_high[k] then high=high+e end
+      local pc=align and bin_pc[k]
+      if pc then chroma[pc]=chroma[pc]+sqrt(e) end
     end
     if not cfg.cleanup_only then
       local cn=0;for k=1,12 do cn=cn+chroma[k]^2 end;cn=sqrt(cn)+1e-9
@@ -182,15 +198,23 @@ function M.normalize(data,cfg,job)
   return data
 end
 -- Group-normalized costs: changing the number of MFCCs does not silently change its weight.
+-- Та же формула и тот же порядок операций, без вызовов math.min/max и повторных обращений к полям
+-- (min(4,x) = x<4 and x or 4, max(0,y) = y>0 and y or 0 — как у math.min/max, включая NaN).
 function M.distance(a,b,profile)
   if not a.active and not b.active then return .015 end
   if a.active~=b.active then return 1.15+.25*abs(a.energy-b.energy) end
   local ce,sp,de,ch=0,0,0,0
-  for k=1,12 do ce=ce+math.min(4,(a.cep[k]-b.cep[k])^2);ch=ch+a.chroma[k]*b.chroma[k] end
-  for k=1,#a.spec do sp=sp+a.spec[k]*b.spec[k] end
-  for k=1,6 do de=de+math.min(4,(a.delta[k]-b.delta[k])^2) end
+  local ac,bc,ah,bh=a.cep,b.cep,a.chroma,b.chroma
+  for k=1,12 do local x=(ac[k]-bc[k])^2;if not (x<4) then x=4 end;ce=ce+x;ch=ch+ah[k]*bh[k] end
+  local as,bs=a.spec,b.spec
+  for k=1,#as do sp=sp+as[k]*bs[k] end
+  local ad,bd=a.delta,b.delta
+  for k=1,6 do local x=(ad[k]-bd[k])^2;if not (x<4) then x=4 end;de=de+x end
   local cw=profile=='Harmony / different voice' and 0 or (profile=='Speech' and .02 or .08)
-  return .38*ce/12+.22*math.max(0,1-sp)+.12*de/6+cw*math.max(0,1-ch)
-    +.18*math.min(2,abs(a.onset-b.onset))+.08*abs(a.energy-b.energy)
+  local m1=1-sp;if not (m1>0) then m1=0 end
+  local m2=1-ch;if not (m2>0) then m2=0 end
+  local m3=abs(a.onset-b.onset);if not (m3<2) then m3=2 end
+  return .38*ce/12+.22*m1+.12*de/6+cw*m2
+    +.18*m3+.08*abs(a.energy-b.energy)
 end
 return M

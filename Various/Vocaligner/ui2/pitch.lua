@@ -200,6 +200,7 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
   local scale_w=root_w+mode_w+snap_w
   local right={}
   if e.tool=='curve' then right[#right+1]={'copy',button_w('Copy')};right[#right+1]={'paste',button_w('Paste')} end
+  right[#right+1]={'auto',button_w('Auto')}
   right[#right+1]={'scale',scale_w}
   local total=-6;for _,r in ipairs(right) do total=total+r[2]+6 end
   local count=#TOOLS+1;local cwid=count*BTN_W
@@ -273,6 +274,18 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
       end
       if snap_click and not locked then e:set_scale(e.root or 0,e.scale or 1,not e.snap) end
       host.tooltip('pitch_scale',snap_hov,c+snap_w/2,y+fh,'','Snap to the key',wx,ww,0.35,0.2)
+    elseif kind=='auto' then
+      -- Auto: подгонка высоты под тональность / референс; открывает облачко с параметрами (ui2.lua)
+      local a=import('pitch/auto').config(e.state)
+      im.SetCursorScreenPos(ctx,rx,y);im.InvisibleButton(ctx,'##pitch_auto',r[2],fh)
+      local hv=im.IsItemHovered(ctx)
+      if hv then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
+      im.DrawList_AddRectFilled(dl,rx,y,rx+r[2],y+fh,a.on and (hv and SEL_HOVER or SEL_FILL) or (hv and host.pill_hover or host.pill),8)
+      local tw,th=im.CalcTextSize(ctx,'Auto')
+      im.DrawList_AddText(dl,math.floor(rx+(r[2]-tw)/2),math.floor(y+(fh-th)/2),a.on and 0xFFFFFFFF or 0xE6E6F0FF,'Auto')
+      e.auto_btn={x=rx,y=y,w=r[2],h=fh}
+      if im.IsItemClicked(ctx,0) then e.auto_toggle=true end
+      host.tooltip('pitch_auto',hv,rx+r[2]/2,y+fh,'','Auto pitch: key or reference',wx,ww,TIP_DELAY,0.2)
     elseif kind=='copy' then if im.Button(ctx,'Copy##pitch_copy',r[2],fh) then e:copy_shape() end
     elseif kind=='paste' then if im.Button(ctx,'Paste##pitch_paste',r[2],fh) then e:paste_shape((im.GetKeyMods(ctx)&im.Mod_Alt)~=0) end
     end
@@ -290,6 +303,9 @@ function M.menu_items(im,ctx,app)
     {sep=true},
     {label='Copy report',action=function() im.SetClipboardText(ctx,e:diagnostics()) end},
     {label='Export case',disabled=not can,action=function() e:export_case() end},
+    {sep=true},
+    -- Pitch Meter (JSFX на айтеме): сравнить измеренную высоту выхода с целевой кривой
+    {label='Pitch Meter (Check)',checked=e.check_on==true,disabled=e.no_selection or not e.snapshot,action=function() e:set_meter(not e.check_on) end},
   }
 end
 
@@ -368,6 +384,67 @@ function M.ghost_rows(im,ctx,app,dropdown)
   return count
 end
 -- Размер содержимого окна ghost (без полей): те же формулы, что в ghost_rows; вызывать с тем же шрифтом и FramePadding
+-- ===== окно Auto (подгонка высоты): рисуется оболочкой ui2.lua в облачке, как Ghost =====
+local AUTO_W=268
+local function auto_lines(e)
+  local a=import('pitch/auto').config(e.state)
+  return 6+(a.mode=='reference' and 2 or 1)+(e.auto_note and 1 or 0)
+end
+function M.auto_size(im,ctx,app,spacing)
+  local e=app.pitch;local fh=im.GetFrameHeight(ctx);local n=auto_lines(e)
+  return AUTO_W,n*fh+(n-1)*spacing
+end
+function M.auto_rows(im,ctx,app,dropdown)
+  local e=app.pitch;local Auto=import('pitch/auto');local a=Auto.config(e.state)
+  local can=e.data~=nil and not e.stale and not e.no_selection
+  if not can then im.BeginDisabled(ctx,true) end
+  -- вкл/выкл и режим
+  local ch,on=im.Checkbox(ctx,'Auto pitch##auto_on',a.on==true)
+  if ch then e:set_auto('on',on,true) end
+  im.SameLine(ctx,0,14)
+  if im.RadioButton(ctx,'Key##auto_key',a.mode~='reference') and a.mode=='reference' then e:set_auto('mode','key',true) end
+  im.SameLine(ctx)
+  if im.RadioButton(ctx,'Reference##auto_ref',a.mode=='reference') and a.mode~='reference' then e:set_auto('mode','reference',true) end
+  if a.mode=='reference' then
+    -- опорный трек: проанализированные дорожки, кроме текущей
+    local rows={};local current
+    for _,row in ipairs(e.workspace and e.workspace.tracks or {}) do
+      if (row.analyzed or 0)>0 and row~=e.track_row then rows[#rows+1]=row;if row.guid==a.ref_track then current=row end end
+    end
+    local label=current and current.name or (#rows>0 and 'Choose track…' or 'No other analysed track')
+    if im.Button(ctx,'Reference: '..label..'##auto_reftrack',AUTO_W,0) and #rows>0 then
+      local mx,my=im.GetItemRectMin(ctx);local _,yy=im.GetItemRectMax(ctx)
+      local items={}
+      for _,row in ipairs(rows) do items[#items+1]={label=row.name,checked=row.guid==a.ref_track,action=function() e:set_auto('ref_track',row.guid,true) end} end
+      dropdown('auto_ref',mx+AUTO_W/2,yy,items)
+    end
+    local oct=a.octave;local olabel=oct==nil and 'Octave: auto' or string.format('Octave: %+d',oct)
+    if im.Button(ctx,olabel..'##auto_oct',AUTO_W,0) then
+      local mx,_=im.GetItemRectMin(ctx);local _,yy=im.GetItemRectMax(ctx)
+      local items={{label='Auto (keep the singer\'s octave)',checked=oct==nil,action=function() e:set_auto('octave',nil,true) end}}
+      for o=-2,2 do items[#items+1]={label=string.format('%+d octave',o),checked=oct==o,action=function() e:set_auto('octave',o,true) end} end
+      dropdown('auto_oct',mx+AUTO_W/2,yy,items)
+    end
+  else
+    local Scale=import('pitch/scale')
+    im.TextDisabled(ctx,'Key: '..Scale.root_name(e.root,e.scale)..' '..Scale.scales[e.scale or 1][1])
+  end
+  -- три параметра: во время перетаскивания — предпросмотр, на отпускании — запись (одно Undo)
+  local function slider(field,label,lo,hi,fmt)
+    im.SetNextItemWidth(ctx,AUTO_W-96)
+    local changed,v=im.SliderDouble(ctx,label..'##auto_'..field,a[field] or Auto.defaults[field],lo,hi,fmt)
+    if changed then e:set_auto(field,v,false) end
+    if im.IsItemDeactivatedAfterEdit(ctx) then e:set_auto(field,import('pitch/auto').config(e.state)[field],true) end
+  end
+  slider('speed','Speed',0,400,'%.0f ms') -- как у автотюнов: 0 — мгновенно
+  slider('transitions','Transitions',0,250,'%.0f ms')
+  slider('amount','Amount',0,100,'%.0f%%')
+  local mch,mon=im.Checkbox(ctx,'Pitch Meter on the item##auto_meter',e.check_on==true)
+  if mch then e:set_meter(mon) end
+  if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Adds JS: Vocaligner Pitch Meter after ReaPitch and draws its measured pitch (yellow) beside the target. Off disables it.') end
+  if not can then im.EndDisabled(ctx) end
+  if e.auto_note then im.TextColored(ctx,0xE8B65AFF,e.auto_note) end
+end
 function M.ghost_size(im,ctx,app,spacing)
   local e=app.pitch;local fh=im.GetFrameHeight(ctx);local sel_w=(im.CalcTextSize(ctx,'Source'));local n=0
   if e.workspace then

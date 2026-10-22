@@ -490,6 +490,17 @@ function M:set_bypass(on)
   self.edit_transaction=self.edit_transaction or {}
   if group then self.revision=self.revision+1;Batch.start(self,true) else self:request(true) end
 end
+-- Bypass стадии, которая не открыта во вкладке: режим cleaner подменяется только на время синхронного вызова
+-- (apply захватывает mode при создании задачи), вкладка и анализ не трогаются. false — сейчас нельзя (идёт запись/анализ).
+function M:set_bypass_stage(mode,on)
+  local d=self:current()
+  if not d or d.stale or not d.audio or self.app.job or self.job and (self.job.kind=='apply' or self.job.kind=='batch' or self.job.kind=='read') then return false end
+  local old=self.mode;self.mode=mode
+  local ok,err=pcall(function() if self:can_bypass(d) then self:set_bypass(on) end end)
+  self.mode=old
+  if not ok then error(err,0) end
+  return true
+end
 function M:selection_key()
   local r=self.r;local ids={}
   for i=0,r.CountSelectedMediaItems(0)-1 do

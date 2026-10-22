@@ -62,6 +62,10 @@ local function solve(ref,dub,cfg,job,guide,radius,stage)
   local dub_is_query=n<=m
   local endpoint,best=nil,inf;local cells=0
   local function rowget(row,j) return row[j] or inf end
+  -- Сырые расстояния кадров кешируются на строку: соседние шаги (j-1 в этой строке, i-1 в прошлой) берут уже
+  -- посчитанное значение вместо повторного DSP.distance с теми же аргументами — результат бит-в-бит тот же.
+  local dist,profile=DSP.distance,cfg.profile
+  local prevD={}
   for i=1,n do
     local absdub=dub0+d[i].t
     local center=guide and interpolate(guide,d[i].t) or absdub
@@ -69,8 +73,9 @@ local function solve(ref,dub,cfg,job,guide,radius,stage)
     local high=math.min(ref0+r[m].t,absdub+cfg.search_s,center+radius)
     local jmin,jmax=frame_range(r,low-ref0,high-ref0)
     local cur,bytes={},{};starts[i]=jmin
+    local curD={};local di,dprev=d[i],d[i-1]
     for j=jmin,jmax do
-      local cost=DSP.distance(d[i],r[j],cfg.profile)
+      local cost=dist(di,r[j],profile);curD[j]=cost
       local prior=.018*math.abs(ref0+r[j].t-absdub)/cfg.search_s
       cost=cost+prior
       local v,dir=inf,0
@@ -79,11 +84,13 @@ local function solve(ref,dub,cfg,job,guide,radius,stage)
       if diag<v then v,dir=diag,1 end
       -- Symmetric compound steps include intermediate cost, preventing skipped attacks.
       if j>1 then
-        local x=rowget(prev,j-2)+cost+2*DSP.distance(d[i],r[j-1],cfg.profile)+.11
+        local dj=curD[j-1];if dj==nil then dj=dist(di,r[j-1],profile) end
+        local x=rowget(prev,j-2)+cost+2*dj+.11
         if x<v then v,dir=x,2 end
       end
       if i>1 then
-        local x=rowget(prev2,j-1)+cost+2*DSP.distance(d[i-1],r[j],cfg.profile)+.11
+        local dp=prevD[j];if dp==nil then dp=dist(dprev,r[j],profile) end
+        local x=rowget(prev2,j-1)+cost+2*dp+.11
         if x<v then v,dir=x,3 end
       end
       cur[j]=v;bytes[#bytes+1]=string.char(dir)
@@ -95,7 +102,7 @@ local function solve(ref,dub,cfg,job,guide,radius,stage)
       if cells>cfg.max_cells then return nil,'Search exceeded the memory/work limit. Reduce the search range or capture shorter phrases.' end
       if cells%2048==0 then job:checkpoint(i/n,stage) end
     end
-    directions[i]=table.concat(bytes);prev2,prev=prev,cur
+    directions[i]=table.concat(bytes);prev2,prev=prev,cur;prevD=curD
     if i%16==0 then job:checkpoint(i/n,stage) end
   end
   if not endpoint then

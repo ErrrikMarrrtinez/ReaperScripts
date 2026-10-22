@@ -10,7 +10,15 @@ end
 local function inventory(r,project,known)
   local found={}
   for i=0,r.CountMediaItems(project)-1 do local item=r.GetMediaItem(project,i);local id=guid(r,item)
-    if known[id]then assert(not found[id],'Duplicate owned item GUID; capture again');found[id]=read(r,item)end
+    if known[id]then
+      -- Два айтема с одним GUID (копия/вставка с сохранением GUID, сломанная отмена): берём тот, что захватывали
+      -- (known[id] хранит его указатель); второго не трогаем. Раньше любая такая пара была ошибкой.
+      local want=known[id]~=true and known[id] or nil
+      if found[id] then
+        if want and item==want then found[id]=read(r,item)
+        elseif not (want and found[id].item==want) then assert(false,'Duplicate owned item GUID; capture again') end
+      else found[id]=read(r,item) end
+    end
   end
   return found
 end
@@ -63,7 +71,7 @@ local function initialize(r,d)
     -- Split duplicates take FX state. Stateful processing can change at every
     -- seam, so this renderer requires FX to stay on the track or be rendered.
     assert(r.TakeFX_GetCount(s.take)==0,'Hybrid requires takes without take FX. Render them first or keep using Stretch.')
-    local v=read(r,s.item);owner.initial[v.guid]=v;owner.known[v.guid]=true;owner.part_ids[s]=v.guid
+    local v=read(r,s.item);owner.initial[v.guid]=v;owner.known[v.guid]=v.item;owner.part_ids[s]=v.guid
   end
   remember(owner,owner.initial,nil);d.hybrid_owner=owner;return owner
 end
@@ -135,7 +143,7 @@ local function render(r,d,cfg,pitchmode)
     -- Split on the immutable source timeline before moving any fragment.
     for i=1,#pieces-1 do
       local child=assert(r.SplitMediaItem(current,s.pos+pieces[i].split_b),'Could not split a Hybrid pause')
-      local id=guid(r,child);owner.known[id]=true;items[#items+1]=child;current=child
+      local id=guid(r,child);owner.known[id]=child;items[#items+1]=child;current=child
     end
     for i,p in ipairs(pieces)do write_piece(r,d,items[i],p,cfg,pitchmode)end
   end

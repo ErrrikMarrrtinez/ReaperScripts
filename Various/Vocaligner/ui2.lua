@@ -74,6 +74,7 @@ local pitch_page,pbar,HOST='tools',0,nil -- страница Pitch: 'tools' | 'm
 local lockv,locked=0,false -- затемнение и блокировка плиток при включённом bypass
 local pop={open=false,t=0,ax=0,ay=0}
 local ghost={open=false,t=0}
+local autobox={open=false,t=0} -- облачко Auto (подгонка высоты) в редакторе нот
 local pending,quit
 local tips,TIP,wrapc={}, {}, {}
 local phv={menu=0,close=0,report=0,master=0}
@@ -157,7 +158,8 @@ local function toggle(id)
     if app.tab==n.mode and c.mode==n.mode then
       if c:can_bypass(c:current()) then c:set_bypass(bypass) end
     else
-      pending={mode=n.mode,bypass=bypass,t=reaper.time_precise()};go(id)
+      -- Другая стадия, чем открытая вкладка: вкладку не трогаем. Если сейчас занято (запись/анализ) — повторяем в apply_pending
+      if not c:set_bypass_stage(n.mode,bypass) then pending={mode=n.mode,bypass=bypass,t=reaper.time_precise()} end
     end
   elseif id=='declick' then Declick.toggle()
   elseif id=='align' then if not Master.is_off() then app:set_align_enabled(not is_on(id)) end
@@ -167,10 +169,7 @@ local function apply_pending()
   if not pending then return end
   local c=app.cleaner
   if reaper.time_precise()-pending.t>2 then pending=nil;return end
-  if c.mode==pending.mode then
-    if c:can_bypass(c:current()) then c:set_bypass(pending.bypass) end
-    pending=nil
-  end
+  if c:set_bypass_stage(pending.mode,pending.bypass) then pending=nil end
 end
 local function sync() -- первая синхронизация и внешняя смена app.tab
   if cur and N[cur] and N[cur].tab==app.tab then return end
@@ -268,7 +267,7 @@ local function tile(id,x,y,a,sz,clip,canDrag,lab)
     act=ImGui.IsItemActivated(ctx)
     local tx,ty=tpos(id,x,y,sz)
     local k0=n.child and TGK or 1
-    local onTg=not n.kids and not drag and hv[id]>0.3 and ImGui.IsMouseHoveringRect(ctx,tx-8*k0,ty-8*k0,tx+8*k0,ty+8*k0)
+    local onTg=not n.kids and not drag and hov and ImGui.IsMouseHoveringRect(ctx,tx-8*k0,ty-8*k0,tx+8*k0,ty+8*k0)
     tg[id]=ap(tg[id],onTg and 1 or 0,0.3)
     if act and onTg then toggle(id);act=false end
     if canDrag and active and not drag and ImGui.IsMouseDragging(ctx,0,4) then
@@ -556,6 +555,33 @@ local function ghost_modal()
     end})
 end
 
+-- облачко Auto: параметры подгонки высоты (содержимое — ui2/pitch.lua auto_rows)
+local function auto_modal()
+  local e=app.pitch
+  if e.auto_toggle then e.auto_toggle=nil;autobox.open=not autobox.open end
+  if app.tab~='pitch' then autobox.open=false end
+  local b=e.auto_btn
+  if not b then return end
+  local PADX,PADY=10,10
+  ImGui.PushFont(ctx,R.F_TILE);ImGui.PushStyleVar(ctx,ImGui.StyleVar_FramePadding,4,2)
+  local gw,gh=Pitch2.auto_size(ImGui,ctx,app,6)
+  ImGui.PopStyleVar(ctx);ImGui.PopFont(ctx)
+  modal(autobox,'auto',{ax=b.x+b.w/2,ay=b.y+b.h,W=gw+2*PADX,H=gh+2*PADY,anchor=0.7,dim=false,keep=function() return dd.open or dd.t>0.01 or ImGui.IsAnyItemActive(ctx) end,
+    content=function(dl,L,T,Rr,B,e_,ca,L1)
+      if ca>0.02 then
+        ImGui.PushFont(ctx,R.F_TILE)
+        ImGui.PushStyleVar(ctx,ImGui.StyleVar_Alpha,ca);ImGui.PushStyleVar(ctx,ImGui.StyleVar_ItemSpacing,6,6)
+        ImGui.PushStyleVar(ctx,ImGui.StyleVar_FramePadding,4,2);ImGui.PushStyleVar(ctx,ImGui.StyleVar_FrameRounding,4)
+        ImGui.PushStyleColor(ctx,ImGui.Col_FrameBg,0x2C2C2CFF);ImGui.PushStyleColor(ctx,ImGui.Col_FrameBgHovered,0x383838FF)
+        ImGui.PushStyleColor(ctx,ImGui.Col_FrameBgActive,0x444444FF);ImGui.PushStyleColor(ctx,ImGui.Col_CheckMark,0xF29A5AFF)
+        ImGui.PushStyleColor(ctx,ImGui.Col_SliderGrab,0xC8783AFF);ImGui.PushStyleColor(ctx,ImGui.Col_SliderGrabActive,0xF29A5AFF)
+        ImGui.SetCursorScreenPos(ctx,L1+PADX,T+PADY)
+        ImGui.BeginGroup(ctx);Pitch2.auto_rows(ImGui,ctx,app,open_dropdown);ImGui.EndGroup(ctx)
+        ImGui.PopStyleColor(ctx,6);ImGui.PopStyleVar(ctx,4);ImGui.PopFont(ctx)
+      end
+    end})
+end
+
 -- пункты меню Report (кнопка справа в топбаре): отчёт, экспорт кейса, сброс текущей стадии
 local function report_items()
   local items={{label='Copy report',action=function()
@@ -682,7 +708,7 @@ local function body(bx,by,bw,bh,flat)
     local wave=function(a,b,c,d,e,f,g,h,i,j,k,l,m) Wave.draw(a,b,c,d,e,f,g,h,i,j,k,l,m,app.legacy_wave) end
     if app.tab=='declick' then Declick.draw(ImGui,ctx,app,color)
     elseif Settings.is_tool(app.tab) then
-      app.cleaner:set_mode(app.tab);apply_pending()
+      app.cleaner:set_mode(app.tab)
       if app.tab=='breath' then Breath.draw(ImGui,ctx,app,color,wave)
       else Dynamics.draw(ImGui,ctx,app,color,wave) end -- De-ess / Compressor / Gate
     elseif app.tab=='pitch' then Pitch2.body(HOST,ImGui,ctx,app)
@@ -927,11 +953,12 @@ function M.draw(im,c,a)
     local tbh_t=editor_want and (math.floor(ImGui.GetFrameHeight(ctx)+2)+2*G) or (PH+2*G) -- и в обычном топбаре, и в редакторе Pitch: высота кнопки + G сверху и снизу; меняется плавно
     TBH=apm(TBH,tbh_t,0.34,1.2)
     tb_in=apm(tb_in,(editor_want and pbar>=0.7) and 1 or 0,0.32,0.05)
+    if pending then apply_pending() end
     titlebar()
     bar()
     if blocked then ImGui.EndDisabled(ctx) end
     settings_modal()
-    if app.tab=='pitch' then ghost_modal() else ghost.open=false;ghost.t=0 end
+    if app.tab=='pitch' then ghost_modal();auto_modal() else ghost.open=false;ghost.t=0;autobox.open=false;autobox.t=0 end
     dropdown_modal()
     do -- запоминание размера текущего раздела (см. выше)
       local ww2,wh2=ImGui.GetWindowSize(ctx);ww2,wh2=math.floor(ww2+.5),math.floor(wh2+.5)

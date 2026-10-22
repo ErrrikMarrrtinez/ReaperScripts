@@ -7,7 +7,7 @@ M.defaults = {
   hybrid = 0, hybrid_preset = 2, hybrid_compression = 45,
   deess_hz = 6500, deess_threshold = -32, deess_amount = 65,
   deess_max_db = 9, deess_pre_ms = 10, deess_release_ms = 60,
-  deess_detail = 70,
+  deess_detail = 70, deess_rms_ms = 0,
   breath_sensitivity = 50, breath_db = 6, breath_min_ms = 80,
   breath_pre_ms = 10, breath_release_ms = 20, breath_detail = 70,
   breath_mode = 1, breath_target = -34, breath_curve = 50,
@@ -27,7 +27,7 @@ local bounds = {strength={0,100}, tolerance_ms={0,80}, search_s={0.05,5},
   max_ratio={1.05,2.5}, detail_ms={40,250}, fade_ms={2.5,30},smooth_ms={0,180},group_items={0,1},
   deess_hz={2000,14000},deess_threshold={-60,-6},deess_amount={0,100},deess_max_db={0,18},
   deess_pre_ms={0,75},deess_release_ms={0,200},
-  deess_detail={0,100},marker_density={0,100},
+  deess_detail={0,100},deess_rms_ms={0,100},marker_density={0,100},
   breath_sensitivity={0,100},breath_db={0,18},breath_min_ms={40,500},
   breath_pre_ms={0,100},breath_release_ms={0,300},breath_detail={0,100},breath_mode={0,1},breath_target={-80,-12},
   breath_join_ms={0,300},breath_edge_ms={0,250},breath_curve={0,100}}
@@ -37,7 +37,7 @@ for _,mode in ipairs({'compressor','gate'})do
   for _,e in ipairs(Dynamics[mode])do bounds[e[1]]={e[3],e[4]};M[mode..'_keys'][#M[mode..'_keys']+1]=e[1] end
 end
 for _,k in ipairs({'dynamics_rt','chain_active','chain_visible'})do bounds[k]={0,1}end
-M.deess_keys={'deess_hz','deess_threshold','deess_amount','deess_max_db','deess_pre_ms','deess_release_ms','deess_detail'}
+M.deess_keys={'deess_hz','deess_threshold','deess_amount','deess_max_db','deess_pre_ms','deess_release_ms','deess_detail','deess_rms_ms'}
 M.breath_keys={'breath_sensitivity','breath_db','breath_min_ms','breath_pre_ms','breath_release_ms','breath_detail','breath_mode','breath_target','breath_join_ms','breath_edge_ms','breath_curve'}
 -- Dynamics controls that are hidden for now. Every switch keeps the old code
 -- path: set it back to restore the previous control and behaviour.

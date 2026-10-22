@@ -79,7 +79,7 @@ function M.draw(im,ctx,app,color,wave)
   controls(im,ctx,c,d)
   im.EndDisabled(ctx)
   do -- Hide/Show: огибающая громкости айтемов в REAPER (общая кнопка со страницами Dynamics)
-    local hx,hy=im.GetCursorScreenPos(ctx);Comp2.hide_button(im,ctx,c,hx,hy,88)
+    local hx,hy=im.GetCursorScreenPos(ctx);Comp2.hide_button(im,ctx,c,hx,hy)
   end
   if ctl_disabled then local _,ey=im.GetCursorScreenPos(ctx);W.catch(im,ctx,ctl_x,ctl_y,im.GetContentRegionAvail(ctx),ey-ctl_y,'##ctl_catch') end
   -- Errors go to the REAPER console and Report, not above the waveform.

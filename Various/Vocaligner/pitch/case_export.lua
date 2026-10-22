@@ -16,7 +16,8 @@ function M.range(r,s,project)
   local first,last=0,s.len
   if selected then
     first=math.max(0,a-s.pos);last=math.min(s.len,b-s.pos)
-    assert(last>first,'Time selection does not overlap the analyzed item.')
+    -- выделение времени где-то в другом месте проекта — не ошибка: берём весь айтем
+    if last<=first then selected=false;first,last=0,s.len end
   end
   return {kind=selected and 'time_selection' or 'whole_item',item_start_s=first,item_end_s=last,
     project_start_s=s.pos+first,project_end_s=s.pos+last,duration_s=last-first,
@@ -100,7 +101,9 @@ function M.capture(e)
     analysis_model=e.data.model,hop=e.data.hop,frame_count=#e.data.frames,export_range=range,
     target_semantics='Predicted source F0 plus requested correction; not measured ReaPitch output.',
     target_support='Trace v3: blank source/target in unsupported audio; trust column is the voiced edge gate. CSV rows are limited to export_range; times remain item-relative.',
-    stale=e.stale==true,editor_error=e.error,source_audio_copied=false,meter=meter},chunk
+    stale=e.stale==true,editor_error=e.error,source_audio_copied=false,meter=meter,
+    auto=e.state and e.state.auto and {config=Notes.copy(e.state.auto),stats=e.auto_layer and Notes.copy(e.auto_layer.stats),amount=e.auto_layer and e.auto_layer.amount,
+      build_ms=e.auto_layer and e.auto_layer.build_ms,note=e.auto_note,root=e.root,scale=e.scale} or nil},chunk
 end
 local function number(v) return v~=nil and string.format('%.12g',v) or '' end
 function M.write(e,folder,case,chunk,job)
@@ -123,14 +126,16 @@ function M.write(e,folder,case,chunk,job)
     end
     if i%256==0 then job:checkpoint(nil,'Saving Pitch analysis') end
   end;close(raw)
-  local target=file('target.csv');assert(target:write('time_s,source_midi,target_midi,correction_st,trust\n'))
+  local target=file('target.csv');assert(target:write('time_s,source_midi,target_midi,correction_st,trust,auto_st\n'))
+  local Auto=import('pitch/auto');local layer=e.data and e.data._auto
   local at=Curve.evaluator(case.state.notes,'shift',case.state.curve_version or 1,e.data)
   case.analysis_frames_written=analysis_count
   local count=math.ceil((last-first)/.005-1e-9)
   for i=0,count do
     local t=math.min(first+i*.005,last);local source=Trace.sample(e.data,t);local _,trust=Trace.support(e.data,t)
     local correction=at(t)
-    assert(target:write(table.concat({number(t),number(source),number(source and source+correction),number(correction),number(trust)},',')..'\n'))
+    local auto=layer and Auto.value(layer,t)*(layer.amount or 1) or nil -- Auto до учёта ручных приоритетов (они уже в correction_st)
+    assert(target:write(table.concat({number(t),number(source),number(source and source+correction),number(correction),number(trust),number(auto)},',')..'\n'))
     if i%128==0 then job:checkpoint(nil,'Saving Pitch target') end
   end;close(target)
   -- measured.csv: the meter's frames beside the prediction and the source at the same times.

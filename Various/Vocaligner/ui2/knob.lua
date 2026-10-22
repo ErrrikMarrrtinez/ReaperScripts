@@ -122,8 +122,8 @@ function M.control(im,ctx,owner,e,meter,o)
   local ring=meter and sprite(im,ctx,o.ring or M.ring) or nil
   local key,label,lo,hi,fmt,tip=e[1],e[2],e[3],e[4],e[5],e[6]
   local c={min=lo,max=hi,scaling=o.scaling or CFG.scaling,log=o.log or e.log}
-  local default=Settings.defaults[key];if default==nil then default=lo end
-  local value=owner.cfg[key]
+  local default=Settings.defaults[key];if default==nil then default=import('config').defaults[key] end;if default==nil then default=lo end -- De-ess/Breath: умолчания в config.lua
+  local value=owner.cfg[key];if value==nil then value=default end -- новый параметр у старых настроек
   local scale=o.scale or M.scale
   local w,h=o.size or 0,o.size or 0
   if sp then w,h=math.floor(sp.fw*scale+.5),math.floor(sp.fh*scale+.5) end
@@ -211,8 +211,13 @@ function M.control(im,ctx,owner,e,meter,o)
   if ring then
     local level=meter()
     if level then
-      local k=M.ring_scale;local dw,dh=w*k,h*k;local ox,oy=kx+(w-dw)/2,ky+(h-dh)/2
-      frame(im,dl,ring,clamp(level,0,1)*(ring.frames-1)+.5,ox,oy,ox+dw,oy+dh,0xFFFFFF00|math.floor(255*M.ring_alpha))
+      -- плавное движение: быстро вверх, чуть медленнее вниз; ставится по времени, а не по кадрам
+      local now_=r.time_precise();local rdt=clamp(now_-(st.rt or now_),0,.1);st.rt=now_
+      local tgt=clamp(level,0,1)
+      if st.rv==nil then st.rv=tgt else st.rv=st.rv+(tgt-st.rv)*math.min(1,rdt*(tgt>st.rv and 16 or 9)) end
+      -- кольцо увеличивается вместе с кнобом при наведении (gw/gh — приращение размера кноба)
+      local k=M.ring_scale;local dw,dh=(w+gw*2)*k,(h+gh*2)*k;local ox,oy=kx+w/2-dw/2,ky+h/2-dh/2
+      frame(im,dl,ring,st.rv*(ring.frames-1)+.5,ox,oy,ox+dw,oy+dh,0xFFFFFF00|math.floor(255*(o.ring_alpha or M.ring_alpha)))
     end
   end
   if tip and hovered and not active then im.SetTooltip(ctx,tip) end

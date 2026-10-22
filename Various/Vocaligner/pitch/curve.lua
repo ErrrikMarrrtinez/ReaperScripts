@@ -1,5 +1,5 @@
 -- @noindex
-local import=...;local Notes=import('pitch/notes');local Expression=import('pitch/expression');local Draw=import('pitch/draw');local Link=import('pitch/link');local Trace=import('pitch/trace');local M={}
+local import=...;local Notes=import('pitch/notes');local Expression=import('pitch/expression');local Draw=import('pitch/draw');local Link=import('pitch/link');local Trace=import('pitch/trace');local Auto=import('pitch/auto');local M={}
 local function clamp(x,a,b) return math.max(a,math.min(b,x)) end
 function M.ease(x) x=clamp(x,0,1);return x*x*x*(x*(x*6-15)+10) end
 function M.anchor(note,t)
@@ -254,6 +254,8 @@ function M.at(notes,t,field,version,data,context,unclamped)
   local result=(version==1 and evaluate or current)(notes,t,field,(version or 1)>=3 and data or nil,version==4 and (context or {}) or nil)
   if version==4 and field=='shift' and data then result=new_links(notes,t,data,result,context) end
   if version==4 and field=='shift' and data and context.manual then result=manual(notes,t,data,result,context) end
+  -- Auto (подгонка под тональность / референс): поверх, уступает ручным целям (см. pitch/auto.lua)
+  if field=='shift' and data and data._auto then result=result+Auto.at(data._auto,notes,t) end
   return unclamped and result or clamp(result,-24,24)
 end
 function M.evaluator(notes,field,version,data)

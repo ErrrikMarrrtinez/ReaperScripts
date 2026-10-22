@@ -9,7 +9,7 @@ local function keys(mode)
 end
 local limits={
  deess_hz={2000,14000},deess_threshold={-60,-6},deess_amount={0,100},deess_max_db={0,18},
- deess_pre_ms={0,75},deess_release_ms={0,200},deess_detail={0,100},
+ deess_pre_ms={0,75},deess_release_ms={0,200},deess_detail={0,100},deess_rms_ms={0,100},
  breath_sensitivity={0,100},breath_db={0,18},breath_min_ms={40,500},breath_pre_ms={0,100},breath_release_ms={0,300},
  breath_detail={0,100},breath_mode={0,1},breath_target={-80,-12},breath_join_ms={0,300},breath_edge_ms={0,250},breath_curve={0,100},
  compressor_detail={0,100},gate_detail={0,100}}

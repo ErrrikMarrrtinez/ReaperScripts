@@ -9,8 +9,10 @@ local function source(data)
 end
 function M.run(notes,len,job,version,data,previous)
   local resolved=Notes.resolve(notes);local original,offset=source(data)
-  local cache={notes=Notes.copy(resolved),len=len,version=version,source=original,offset=offset,cells={}}
-  local valid=previous and previous.len==len and previous.version==version and previous.source==original and previous.offset==offset
+  local auto=data and data._auto_key or ''
+  local cache={notes=Notes.copy(resolved),len=len,version=version,source=original,offset=offset,cells={},auto=auto}
+  -- Auto-слой меняет поправку везде: другой ключ — пересобрать все ячейки
+  local valid=previous and previous.len==len and previous.version==version and previous.source==original and previous.offset==offset and previous.auto==auto
   local dirty={};local count=math.ceil(len)
   if valid then
     for _,range in ipairs(Notes.changed_ranges(previous.notes,resolved))do

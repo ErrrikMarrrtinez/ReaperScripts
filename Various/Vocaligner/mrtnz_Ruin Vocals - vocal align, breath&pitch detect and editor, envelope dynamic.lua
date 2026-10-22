@@ -1,6 +1,6 @@
 -- @description Ruin Vocals: vocal align, breath&pitch detect and editor, envelope dynamic
 -- @author mrtnz
--- @version 0.15.0
+-- @version 0.16.0
 -- @link Documentation https://github.com/ErrrikMarrrtinez/ReaperScripts/tree/master/Various/Vocaligner
 -- @about
 --   Vocal timing, take-volume cleanup and a vocal pitch editor in one ReaImGui window.
@@ -14,12 +14,10 @@
 --   installed together. Internal modules are not separate REAPER actions.
 --   For embedding, load init.lua with dofile.
 -- @changelog
---   New Compressor, Gate and De-ess pages: live waveform with the real transfer curve, level meter, threshold you can drag on the waveform.
---   De-ess manual edit (pencil button): drag a sibilant up/down to weaken or strengthen it, drag its edges, right-click to switch it off, Ctrl+drag to draw its reduction. Ctrl+Z / Ctrl+Shift+Z undo these edits.
---   Hide/Show button for the item volume envelope under the knobs (also in Breaths).
---   Warmer accent colors in the navigation bar, even spacing everywhere, smoother Pitch editor open/close.
---   The window size is remembered per section (Pitch, Align, everything else).
---   Pre-open up to 75 ms, Space works while a knob is held, smooth zoom in samplers, fewer slow recalculations while editing.
+--   Pitch editor: new Auto button — tunes the voice to the chosen key or to another track's melody (Speed in ms, Transitions, Amount, optional Pitch Meter on the item). Manual edits stay in charge.
+--   Pitch corrections now land on time: the delay of ReaPitch is compensated, so the sound follows the drawn curve.
+--   Classic Align analysis is faster with identical results.
+--   Pitch export case works with a time selection outside the item; Hybrid no longer stops on duplicated item GUIDs; applying pitch edits is more tolerant to harmless changes in ReaPitch.
 -- @provides
 --   [main=main] .
 --   [nomain] align_ui.lua
