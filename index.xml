@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperScripts" commit="c6055e45ab7148c941918d25a00b2125918b7758">
+<index version="1" name="ReaperScripts" commit="3118a8de879fedc724d7aab639ddc545d0cb13b2">
   <category name="Item Editing">
     <reapack name="mrtnz_change fade in and fade out(gui).lua" type="script" desc="Change fade in and fade out or crop(gui)">
       <metadata>
@@ -1843,6 +1843,160 @@ Pre-open up to 75 ms, Space works while a knob is held, smooth zoom in samplers,
         <source file="ui2/assets/knobs/Sp_48.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6055e45ab7148c941918d25a00b2125918b7758/Various/Vocaligner/ui2/assets/knobs/Sp_48.png</source>
         <source file="ui2/assets/knobs/Sp_58.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6055e45ab7148c941918d25a00b2125918b7758/Various/Vocaligner/ui2/assets/knobs/Sp_58.png</source>
         <source file="ui2/assets/knobs/ratio_strip.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/c6055e45ab7148c941918d25a00b2125918b7758/Various/Vocaligner/ui2/assets/knobs/ratio_strip.png</source>
+      </version>
+      <version name="0.16.0" author="mrtnz" time="2026-10-22T19:39:12Z">
+        <changelog><![CDATA[Pitch editor: new Auto button — tunes the voice to the chosen key or to another track's melody (Speed in ms, Transitions, Amount, optional Pitch Meter on the item). Manual edits stay in charge.
+Pitch corrections now land on time: the delay of ReaPitch is compensated, so the sound follows the drawn curve.
+Classic Align analysis is faster with identical results.
+Pitch export case works with a time selection outside the item; Hybrid no longer stops on duplicated item GUIDs; applying pitch edits is more tolerant to harmless changes in ReaPitch.]]></changelog>
+        <source main="main">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/mrtnz_Ruin%20Vocals%20-%20vocal%20align,%20breath&amp;pitch%20detect%20and%20editor,%20envelope%20dynamic.lua</source>
+        <source file="align_ui.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align_ui.lua</source>
+        <source file="app.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/app.lua</source>
+        <source file="apply.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/apply.lua</source>
+        <source file="audio.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/audio.lua</source>
+        <source file="breath.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/breath.lua</source>
+        <source file="breath_engine.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/breath_engine.lua</source>
+        <source file="breath_features.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/breath_features.lua</source>
+        <source file="breath_model.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/breath_model.lua</source>
+        <source file="breath_profile.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/breath_profile.lua</source>
+        <source file="breath_regions.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/breath_regions.lua</source>
+        <source file="cache_packing.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/cache_packing.lua</source>
+        <source file="cleaner.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/cleaner.lua</source>
+        <source file="cleaner_batch.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/cleaner_batch.lua</source>
+        <source file="cleaner_ui.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/cleaner_ui.lua</source>
+        <source file="cleanup.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/cleanup.lua</source>
+        <source file="cleanup_dsp.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/cleanup_dsp.lua</source>
+        <source file="cleanup_state.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/cleanup_state.lua</source>
+        <source file="cleanup_ui.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/cleanup_ui.lua</source>
+        <source file="codec.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/codec.lua</source>
+        <source file="config.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/config.lua</source>
+        <source file="controls.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/controls.lua</source>
+        <source file="curves.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/curves.lua</source>
+        <source file="dsp.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/dsp.lua</source>
+        <source file="dtw.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/dtw.lua</source>
+        <source file="eel.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/eel.lua</source>
+        <source file="envelope.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/envelope.lua</source>
+        <source file="init.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/init.lua</source>
+        <source file="job.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/job.lua</source>
+        <source file="navigator.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/navigator.lua</source>
+        <source file="progress.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/progress.lua</source>
+        <source file="session_cache.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/session_cache.lua</source>
+        <source file="THIRD_PARTY_NOTICES.txt">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/THIRD_PARTY_NOTICES.txt</source>
+        <source file="timing.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/timing.lua</source>
+        <source file="transport.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/transport.lua</source>
+        <source file="ui2.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2.lua</source>
+        <source file="version.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/version.lua</source>
+        <source file="vocaligner.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/vocaligner.lua</source>
+        <source file="warp.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/warp.lua</source>
+        <source file="waveform.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/waveform.lua</source>
+        <source type="effect" file="Vocaligner/Vocaligner Pitch Meter.jsfx">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/jsfx/Vocaligner%20Pitch%20Meter.jsfx</source>
+        <source main="main" file="mrtnz_Ruin Vocals - Export Pitch Meter.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/mrtnz_Ruin%20Vocals%20-%20Export%20Pitch%20Meter.lua</source>
+        <source file="align/cleanup_bridge.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/cleanup_bridge.lua</source>
+        <source file="align/controller.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/controller.lua</source>
+        <source file="align/export.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/export.lua</source>
+        <source file="align/legacy_adapter.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/legacy_adapter.lua</source>
+        <source file="align/ownership.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/ownership.lua</source>
+        <source file="align/preferences.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/preferences.lua</source>
+        <source file="align/reader.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/reader.lua</source>
+        <source file="align/registry.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/registry.lua</source>
+        <source file="align/session.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/session.lua</source>
+        <source file="align/ui.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/ui.lua</source>
+        <source file="align/util.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/util.lua</source>
+        <source file="align/advanced/candidates.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/advanced/candidates.lua</source>
+        <source file="align/advanced/confidence.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/advanced/confidence.lua</source>
+        <source file="align/advanced/constraints.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/advanced/constraints.lua</source>
+        <source file="align/advanced/defaults.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/advanced/defaults.lua</source>
+        <source file="align/advanced/distance.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/advanced/distance.lua</source>
+        <source file="align/advanced/features.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/advanced/features.lua</source>
+        <source file="align/advanced/guided.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/advanced/guided.lua</source>
+        <source file="align/advanced/match.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/advanced/match.lua</source>
+        <source file="align/advanced/native.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/advanced/native.lua</source>
+        <source file="align/advanced/native_code.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/advanced/native_code.lua</source>
+        <source file="align/advanced/phrases.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/advanced/phrases.lua</source>
+        <source file="align/advanced/pitch.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/advanced/pitch.lua</source>
+        <source file="align/advanced/plan.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/advanced/plan.lua</source>
+        <source file="align/advanced/reduce.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/advanced/reduce.lua</source>
+        <source file="align/advanced/regularize.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/advanced/regularize.lua</source>
+        <source file="align/advanced/solver.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/advanced/solver.lua</source>
+        <source file="align/advanced/validate.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/advanced/validate.lua</source>
+        <source file="align/hybrid/plan.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/hybrid/plan.lua</source>
+        <source file="align/hybrid/render.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/hybrid/render.lua</source>
+        <source file="align/hybrid/ui.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/hybrid/ui.lua</source>
+        <source file="align/renderers/stretch.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/align/renderers/stretch.lua</source>
+        <source file="click/controller.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/click/controller.lua</source>
+        <source file="click/detector.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/click/detector.lua</source>
+        <source file="click/diagnostics.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/click/diagnostics.lua</source>
+        <source file="click/engine.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/click/engine.lua</source>
+        <source file="click/repair.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/click/repair.lua</source>
+        <source file="click/sample_edits.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/click/sample_edits.lua</source>
+        <source file="click/session.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/click/session.lua</source>
+        <source file="click/settings.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/click/settings.lua</source>
+        <source file="click/spectral.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/click/spectral.lua</source>
+        <source file="click/wave.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/click/wave.lua</source>
+        <source file="compressor/audio.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/compressor/audio.lua</source>
+        <source file="compressor/chain.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/compressor/chain.lua</source>
+        <source file="compressor/curves.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/compressor/curves.lua</source>
+        <source file="compressor/engine.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/compressor/engine.lua</source>
+        <source file="compressor/preset_ui.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/compressor/preset_ui.lua</source>
+        <source file="compressor/presets.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/compressor/presets.lua</source>
+        <source file="compressor/settings.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/compressor/settings.lua</source>
+        <source file="compressor/ui.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/compressor/ui.lua</source>
+        <source file="compressor/NOTICE.md">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/compressor/NOTICE.md</source>
+        <source file="compressor/LICENSE_GPL3.txt">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/compressor/LICENSE_GPL3.txt</source>
+        <source file="jsfx/Vocaligner Pitch Meter - Export.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/jsfx/Vocaligner%20Pitch%20Meter%20-%20Export.lua</source>
+        <source file="pitch/algorithm.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/algorithm.lua</source>
+        <source file="pitch/analysis.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/analysis.lua</source>
+        <source file="pitch/auto.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/auto.lua</source>
+        <source file="pitch/batch.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/batch.lua</source>
+        <source file="pitch/case_export.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/case_export.lua</source>
+        <source file="pitch/check.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/check.lua</source>
+        <source file="pitch/contour.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/contour.lua</source>
+        <source file="pitch/curve.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/curve.lua</source>
+        <source file="pitch/draw.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/draw.lua</source>
+        <source file="pitch/editor.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/editor.lua</source>
+        <source file="pitch/expression.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/expression.lua</source>
+        <source file="pitch/features.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/features.lua</source>
+        <source file="pitch/fx.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/fx.lua</source>
+        <source file="pitch/glyph.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/glyph.lua</source>
+        <source file="pitch/group.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/group.lua</source>
+        <source file="pitch/link.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/link.lua</source>
+        <source file="pitch/model.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/model.lua</source>
+        <source file="pitch/neural.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/neural.lua</source>
+        <source file="pitch/neural_dot.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/neural_dot.lua</source>
+        <source file="pitch/notes.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/notes.lua</source>
+        <source file="pitch/polyline.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/polyline.lua</source>
+        <source file="pitch/prepare.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/prepare.lua</source>
+        <source file="pitch/psola.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/psola.lua</source>
+        <source file="pitch/scale.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/scale.lua</source>
+        <source file="pitch/store.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/store.lua</source>
+        <source file="pitch/trace.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/trace.lua</source>
+        <source file="pitch/ui.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/ui.lua</source>
+        <source file="pitch/vocal_render.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/vocal_render.lua</source>
+        <source file="pitch/waveform.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/waveform.lua</source>
+        <source file="pitch/workspace.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/workspace.lua</source>
+        <source file="pitch/LICENSE_SWIFTF0.txt">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/pitch/LICENSE_SWIFTF0.txt</source>
+        <source file="ui2/breath.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/breath.lua</source>
+        <source file="ui2/canvas.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/canvas.lua</source>
+        <source file="ui2/comp2.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/comp2.lua</source>
+        <source file="ui2/declick.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/declick.lua</source>
+        <source file="ui2/dynamics.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/dynamics.lua</source>
+        <source file="ui2/knob.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/knob.lua</source>
+        <source file="ui2/master.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/master.lua</source>
+        <source file="ui2/pitch.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/pitch.lua</source>
+        <source file="ui2/sampler.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/sampler.lua</source>
+        <source file="ui2/snapshot.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/snapshot.lua</source>
+        <source file="ui2/strip.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/strip.lua</source>
+        <source file="ui2/widgets.lua">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/widgets.lua</source>
+        <source file="ui2/assets/eye.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/assets/eye.png</source>
+        <source file="ui2/assets/icons.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/assets/icons.png</source>
+        <source file="ui2/assets/pitch.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/assets/pitch.png</source>
+        <source file="ui2/assets/ui.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/assets/ui.png</source>
+        <source file="ui2/assets/knobs/BigBlue_ring.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/assets/knobs/BigBlue_ring.png</source>
+        <source file="ui2/assets/knobs/BigGreen.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/assets/knobs/BigGreen.png</source>
+        <source file="ui2/assets/knobs/Sp_40.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/assets/knobs/Sp_40.png</source>
+        <source file="ui2/assets/knobs/Sp_48.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/assets/knobs/Sp_48.png</source>
+        <source file="ui2/assets/knobs/Sp_58.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/assets/knobs/Sp_58.png</source>
+        <source file="ui2/assets/knobs/ratio_strip.png">https://github.com/ErrrikMarrrtinez/ReaperScripts/raw/3118a8de879fedc724d7aab639ddc545d0cb13b2/Various/Vocaligner/ui2/assets/knobs/ratio_strip.png</source>
       </version>
     </reapack>
   </category>
