@@ -1,2 +1,2 @@
 -- @noindex
-return {version='0.18.0'}
+return {version='0.18.1'}

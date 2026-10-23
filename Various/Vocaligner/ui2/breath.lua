@@ -41,20 +41,25 @@ local function controls(im,ctx,c,d)
   end
   W.grid(im,ctx,c,'##breath_controls',entries,3)
   local length=d and d.range[2]-d.range[1] or 0
-  im.BeginDisabled(ctx,not d or not d.audio or not d.selected or length<.04 or length>2)
+  local need=not d or not d.audio or not d.selected or length<.04 or length>2
+  local why=(not d or not d.audio) and 'Select an audio item first.' or (not d.selected and 'Drag on the time ruler over one breath first (40 ms to 2 s).')
+    or (length<.04 and 'The selection is shorter than 40 ms.') or (length>2 and 'The selection is longer than 2 s.') or nil
+  im.BeginDisabled(ctx,need)
   if im.Button(ctx,'Learn breath') then c:learn_breath(1) end
-  if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Select one clear breath on the time ruler (40 ms to 2 s). Learn its sound for this take. Escape clears the processing selection; Get then updates the whole item.') end
+  if im.IsItemHovered(ctx,im.HoveredFlags_AllowWhenDisabled) then im.SetTooltip(ctx,why or 'Select one clear breath on the time ruler (40 ms to 2 s). Learn its sound for this take. Escape clears the processing selection; Get then updates the whole item.') end
   im.SameLine(ctx)
   if im.Button(ctx,'Keep sound') then c:learn_breath(-1) end
-  if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Learn a selected consonant or noise that should not be treated as a breath. Applies to similar sounds in this take.') end
+  if im.IsItemHovered(ctx,im.HoveredFlags_AllowWhenDisabled) then im.SetTooltip(ctx,why or 'Learn a selected consonant or noise that should not be treated as a breath. Applies to similar sounds in this take.') end
   im.EndDisabled(ctx);im.SameLine(ctx)
   W.disabled(im,ctx,c.job~=nil or c.pending~=nil or not d or not d.breath_profile or #d.breath_profile.examples==0,
     d and d.breath_profile and #d.breath_profile.examples>0 and (not c.job or c.job.live or c.job.kind=='preview'))
   if im.Button(ctx,'Reset learning') then c:reset_breath_learning() end
   im.EndDisabled(ctx)
-  -- Временно возвращена из Settings (там же остаётся): показать/скрыть огибающую громкости в REAPER.
-  im.SameLine(ctx)
-  W.toggle(im,ctx,c,'chain_visible','Show envelope','Show or hide the written take volume envelope lane in REAPER.')
+  -- Кнопки неактивны без выделения на линейке: подсказка работает и на неактивной кнопке, чтобы было ясно, чего не хватает.
+  -- (Кнопка «Show envelope» убрана: её роль выполняет значок-глаз под ручками.)
+  if im.IsItemHovered(ctx,im.HoveredFlags_AllowWhenDisabled) and not (d and d.breath_profile and #d.breath_profile.examples>0) then
+    im.SetTooltip(ctx,'Nothing learned yet. Use Learn breath or Keep sound first.')
+  end
 end
 
 function M.draw(im,ctx,app,color,wave)

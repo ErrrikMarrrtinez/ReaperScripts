@@ -1,6 +1,6 @@
 -- @description Ruin Vocals: vocal align, breath&pitch detect and editor, envelope dynamic
 -- @author mrtnz
--- @version 0.18.0
+-- @version 0.18.1
 -- @link Documentation https://github.com/ErrrikMarrrtinez/ReaperScripts/tree/master/Various/Vocaligner
 -- @about
 --   Vocal timing, take-volume cleanup and a vocal pitch editor in one ReaImGui window.
@@ -14,11 +14,7 @@
 --   installed together. Internal modules are not separate REAPER actions.
 --   For embedding, load init.lua with dofile.
 -- @changelog
---   ATune: new compact window in the Pitch editor (note and tuning indicator, Speed, Transitions, Humanize, Flex Tune, Amount, Vibrato, Key or reference, Pitch Meter). Click a note to switch it on or off for one session.
---   Auto pitch reacts to manual edits: it finishes the already edited pitch to the note or reference.
---   Pitch: link copies of an item (copied chorus) with the Sync button; much faster saving, Bypass and Snap.
---   Align and Dynamics: no more false 'Captured audio changed' errors after volume-envelope edits; Restore works after manual edits.
---   Align: redundant 1x stretch markers are hidden; console messages are off by default (Settings).
+--   Breath: Target at -12 now resets the curves to zero, fewer envelope points, Show envelope duplicate removed (use the eye icon), Learn breath / Keep sound / Reset learning explain why they are disabled.
 -- @provides
 --   [main=main] .
 --   [nomain] align_ui.lua

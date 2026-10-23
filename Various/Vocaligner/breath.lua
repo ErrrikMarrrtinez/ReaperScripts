@@ -81,7 +81,13 @@ end
 function M.depth(cfg,e)
   local target=UI.breath_target_only or (cfg.breath_mode or 0)>=.5
   local depth=UI.breath_target_only and UI.breath_max_cut_db or cfg.breath_db or 4
-  if target then depth=math.min(depth,math.max(0,(e.level_db or -120)-(cfg.breath_target or -34))) end
+  if target then
+    -- Target на максимуме (−12 dBFS) — «ничего не снижать»: кривые обнуляются полностью
+    if (cfg.breath_target or -34)>=-12+1e-6 then return 0 end
+    depth=math.min(depth,math.max(0,(e.level_db or -120)-(cfg.breath_target or -34)))
+  end
+  -- ослабление меньше 0.05 дБ неслышно: не рисуем ради него отдельные участки и точки
+  if depth<.05 then return 0 end
   return depth
 end
 -- Quadratic Bezier from (0,0) to (1,1). k>0 rises early, k<0 late, 0 is linear.
@@ -113,7 +119,8 @@ local function bezier(data,cfg,events,job)
   for j,e in ipairs(active)do
     local fadein,fadeout=fades(data,cfg,e)
     for _,ramp in ipairs({{e.start,fadein},{e.finish-fadeout,fadeout}})do
-      local n=k>.01 and math.max(2,math.ceil(ramp[2]/.005)) or 1
+      -- точки по кривой Безье: не чаще, чем раз в 15 мс и не больше 8 на фейд (раньше каждые 5 мс — цепочки лишних точек)
+      local n=k>.01 and math.min(8,math.max(3,math.ceil(ramp[2]/.015))) or 1
       for i=0,n do times[#times+1]=ramp[1]+ramp[2]*i/n end
     end
     local isolated=(not active[j-1] or active[j-1].finish<=e.start+1e-9) and (not active[j+1] or active[j+1].start>=e.finish-1e-9)
