@@ -452,6 +452,14 @@ local function settings_modal()
           _,v=ImGui.SliderDouble(ctx,'Tooltip delay',S.delay,0,1,'%.2f s');S.delay=v
           _,v=ImGui.Checkbox(ctx,'Animations (interface)',S.anim);S.anim=v
           ImGui.Spacing(ctx)
+          ImGui.TextDisabled(ctx,'Align')
+          local cfg=app.cfg
+          local ch,on=ImGui.Checkbox(ctx,'Hide redundant 1x markers',(cfg.hide_1x or 1)~=0)
+          if ImGui.IsItemHovered(ctx) then ImGui.SetTooltip(ctx,'Removes stretch markers inside stretches that stay at 1x speed. Item edges and original markers are always kept; timing is identical.') end
+          if ch then cfg.hide_1x=on and 1 or 0;if app.align_engine=='legacy_v012' then app:settings_changed('hide_1x');app:control_released() else app:preferences_changed() end end
+          ch,on=ImGui.Checkbox(ctx,'Show messages in the REAPER console',(cfg.console_log or 0)~=0)
+          if ch then cfg.console_log=on and 1 or 0;app:preferences_changed() end
+          ImGui.Spacing(ctx)
           ImGui.TextDisabled(ctx,'Pitch editor')
           _,v=ImGui.Checkbox(ctx,'Smooth scroll and zoom',S.smooth);S.smooth=v
           _,v=ImGui.Checkbox(ctx,'Auto-scroll (with Aim)',S.autoscroll);S.autoscroll=v

@@ -4,6 +4,7 @@ M.defaults = {
   strength = 90, tolerance_ms = 12, search_s = 1.0, max_ratio = 1.6,
   detail_ms = 80, fade_ms = 7.5, profile = 'Vocal doubles',
   smooth_ms = 80, marker_density = 50, group_items = 1,
+  hide_1x = 1, console_log = 0,
   hybrid = 0, hybrid_preset = 2, hybrid_compression = 45,
   deess_hz = 6500, deess_threshold = -32, deess_amount = 65,
   deess_max_db = 9, deess_pre_ms = 10, deess_release_ms = 60,
@@ -24,7 +25,7 @@ M.presets = {
 }
 local bounds = {strength={0,100}, tolerance_ms={0,80}, search_s={0.05,5},
   hybrid={0,1},hybrid_preset={1,3},hybrid_compression={0,100},
-  max_ratio={1.05,2.5}, detail_ms={40,250}, fade_ms={2.5,30},smooth_ms={0,180},group_items={0,1},
+  max_ratio={1.05,2.5}, detail_ms={40,250}, fade_ms={2.5,30},smooth_ms={0,180},group_items={0,1},hide_1x={0,1},console_log={0,1},
   deess_hz={2000,14000},deess_threshold={-60,-6},deess_amount={0,100},deess_max_db={0,18},
   deess_pre_ms={0,75},deess_release_ms={0,200},
   deess_detail={0,100},deess_rms_ms={0,100},marker_density={0,100},

@@ -18,6 +18,7 @@ end
 function M:console(prefix,text)
   if self.last_console==text then return end
   self.last_console=text
+  if (self.cfg.console_log or 0)==0 then return end -- Settings → «Show messages in the REAPER console»; ошибка всё равно видна в окне и в отчёте
   if self.r.ShowConsoleMsg then self.r.ShowConsoleMsg(os.date('%H:%M:%S')..' '..prefix..': '..text..'\n')end
 end
 function M:fail(message)
@@ -73,6 +74,7 @@ function M:diagnostics()
       add(string.format('  target position %.6f | length %.6f | max shift %.1f ms | stretch %.4f..%.4f | markers %d | review %s',
         p.pos,p.len,p.max_shift*1000,p.min_ratio,p.max_ratio,#p.markers,tostring(p.review)))
       add(string.format('  amount %.1f%% | mean log-rate change %.5f | limited points %d',p.amount or self.cfg.strength,p.rate_variation or 0,p.limited or 0))
+      if (p.hidden_1x or 0)>0 then add(string.format('  hidden 1x markers %d (Settings: Hide redundant 1x markers)',p.hidden_1x)) end
       add('  marker: original relative time -> target project time / source time')
       for k,m in ipairs(p.markers) do
         if k<=10 or k>#p.markers-10 then add(string.format('  %d: %.6f -> %.6f / %.6f',k,m.t,m.target,m.source))
@@ -433,7 +435,8 @@ function M:settings_changed(key)
   self.live_due=self.live_due or self.r.time_precise()+.035
   if self.analyzed then self.edit_transaction=self.edit_transaction or {} end
   if key=='strength' and (self.cfg.hybrid or 0)==0 then
-    for _,d in ipairs(self.dubs) do if d.full_plan then d.plan=Warp.blend(d.full_plan,self.cfg.strength) end end
+    -- нет базового плана (план восстановлен без него) — пересобрать из пути, иначе Strength не доходил до маркеров
+    for _,d in ipairs(self.dubs) do if d.full_plan then d.plan=Warp.blend(d.full_plan,self.cfg.strength) elseif d.path then self.replan=true end end
   elseif key=='profile' or key=='search_s' then self.dirty=true;self.pending_apply=false
   elseif key~='fade_ms' then self.replan=true end
 end

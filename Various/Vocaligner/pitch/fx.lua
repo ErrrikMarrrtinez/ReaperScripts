@@ -133,9 +133,9 @@ function M.ensure(r,s,state)
   return fx
 end
 -- ReaPitch (élastique Soloist) применяет значение огибающей к звуку примерно на 45 мс позже его позиции:
--- замер Pitch Meter по двум кейсам Auto (лучшее совпадение выхода с целью — при сдвиге поправки +45 мс,
+-- замер Pitch Meter по двум кейсам Auto (лучшее совпадение выхода с целью — при сдвиге поправки +45 мс; после записи с 45 мс остаток −6 мс на 62-секундном кейсе → 39 мс,
 -- звук без сдвига). Поэтому точки пишутся на LEAD раньше; кривые и предсказание остаются во времени звука.
-M.LEAD=.045
+M.LEAD=.039
 local function envelope(r,s,fx,param,points,map)
   local env=r.TakeFX_GetEnvelope(s.take,fx,param,true);assert(env,'Cannot create the ReaPitch take envelope')
   local expected,old={},{}

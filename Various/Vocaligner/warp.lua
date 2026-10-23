@@ -101,6 +101,26 @@ function M.build(ref,dub,path,stats,cfg,job)
   for _,part in ipairs(Audio.parts(s)) do
     for _,m in ipairs(part.markers) do insert_knot(sparse,(part.pos-s.pos)+m.pos/part.rate,'knot') end
   end
+  -- Участки со скоростью 1x (смещение цели не меняется) не несут тайминга: внутри такого участка остаются только его
+  -- первая и последняя точки. Края, границы айтемов и исходные маркеры тейка (edge/boundary/knot) не трогаются никогда —
+  -- от них зависит связь и сохранение прежней карты. Допуск 20 мкс: карта звучит так же, ломаная та же.
+  local hidden_1x=0
+  if cfg.hide_1x~=0 then
+    local tol=2e-5
+    local function offset(p) return p.target-p.t end
+    local function pinned(p) return p.edge or p.boundary or p.knot end
+    local kept={sparse[1]};local ref=offset(sparse[1]);local pending
+    for i=2,#sparse do
+      local p=sparse[i];local last=i==#sparse
+      if not last and not pinned(p) and math.abs(offset(p)-ref)<=tol then
+        if pending then hidden_1x=hidden_1x+1 end;pending=p
+      else
+        if pending then kept[#kept+1]=pending;pending=nil end
+        kept[#kept+1]=p;ref=offset(p)
+      end
+    end
+    sparse=kept
+  end
   local function part_index(t)
     if not s.composite then return 1 end
     for k,part in ipairs(s.parts) do local a=part.pos-s.pos;if t>=a-1e-9 and t<=a+part.len+1e-9 then return k end end
@@ -121,7 +141,7 @@ function M.build(ref,dub,path,stats,cfg,job)
   if max_shift>cfg.search_s+1e-5 then return nil,'The proposed shift exceeds the search limit.' end
   local newpos=out[1].target;local newlen=out[#out].target-newpos
   if newpos<0 then return nil,'The proposed item would start before project time zero.' end
-  local base={markers=out,pos=newpos,len=newlen,snapshot=s,stats=stats,limited=limited,
+  local base={markers=out,pos=newpos,len=newlen,snapshot=s,stats=stats,limited=limited,hidden_1x=hidden_1x,
     min_ratio=minratio,max_ratio=maxratio,max_shift=max_shift,unchanged=max_shift<.001,
     review=stats.confidence<.4 or stats.coverage<.55 or (stats.support or 1)<.65}
   return M.blend(base,cfg.strength),nil,base

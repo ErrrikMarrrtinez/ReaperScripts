@@ -1,6 +1,6 @@
 -- @description Ruin Vocals: vocal align, breath&pitch detect and editor, envelope dynamic
 -- @author mrtnz
--- @version 0.16.0
+-- @version 0.17.0
 -- @link Documentation https://github.com/ErrrikMarrrtinez/ReaperScripts/tree/master/Various/Vocaligner
 -- @about
 --   Vocal timing, take-volume cleanup and a vocal pitch editor in one ReaImGui window.
@@ -14,10 +14,13 @@
 --   installed together. Internal modules are not separate REAPER actions.
 --   For embedding, load init.lua with dofile.
 -- @changelog
---   Pitch editor: new Auto button — tunes the voice to the chosen key or to another track's melody (Speed in ms, Transitions, Amount, optional Pitch Meter on the item). Manual edits stay in charge.
---   Pitch corrections now land on time: the delay of ReaPitch is compensated, so the sound follows the drawn curve.
---   Classic Align analysis is faster with identical results.
---   Pitch export case works with a time selection outside the item; Hybrid no longer stops on duplicated item GUIDs; applying pitch edits is more tolerant to harmless changes in ReaPitch.
+--   Auto pitch is retuned to work like a real autotune: Speed is the retune time in ms (0 = hard tune, 15–30 = tight, 100+ = only the note centre is corrected, vibrato stays), Transitions smooth note changes without jumps.
+--   Auto picks the target note from the current pitch of the voice, so it follows fast note changes the way other tuners do.
+--   Pitch corrections are written with the exact ReaPitch delay compensation, so the sound lands on the drawn curve.
+--   Align: redundant 1x stretch markers are hidden by default (Settings → Align → Hide redundant 1x markers); item edges and original markers are always kept.
+--   Messages in the REAPER console are off by default (Settings → Show messages in the REAPER console).
+--   Align Strength reliably reaches the markers again after the plan is restored.
+--   Applying Pitch edits no longer stops on harmless changes inside ReaPitch.
 -- @provides
 --   [main=main] .
 --   [nomain] align_ui.lua
