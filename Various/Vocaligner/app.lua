@@ -457,7 +457,11 @@ function M:tick()
     if state~=self.project_state then
       for _,d in ipairs(self.dubs) do if d.original_state then
         local ok,why=Audio.check_dub(self.r,d)
-        if not ok then self.pending_apply=false;self:fail(why) end
+        if not ok then
+          -- аудио изменили вне скрипта: применение останавливаем, но это статус дуба, а не ошибка на каждый шаг проекта
+          self.pending_apply=false;d.status='Changed outside — Analyze again or Restore'
+          if self.last_external~=why then self.last_external=why;self:report(why) end
+        end
       end end
       self.project_state=state
     end

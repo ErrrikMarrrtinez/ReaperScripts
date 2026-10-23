@@ -9,7 +9,7 @@ local function restore_after_failure(r,item,chunk,why)
   return why
 end
 function M.new(app)
-  return setmetatable({app=app,r=app.r,selected={},snap=false,root=0,scale=1,tool='notes',hold_ms=100,cache={},message='Select audio items or a track, then Analyze.'},M)
+  return setmetatable({app=app,r=app.r,selected={},snap=false,root=0,scale=1,tool='notes',hold_ms=100,cache={},twins={},sync_on=app.r.GetExtState('Vocaligner ui','pitch_sync')~='0',message='Select audio items or a track, then Analyze.'},M)
 end
 function M:fail(why)
   self.error=tostring(why);self.message=self.error
@@ -118,9 +118,10 @@ function M:refresh(force)
     end
     self.saved_text=text;self.item_sig=item_signature(r,item,take);self.peaks=Audio.peaks(r,s);self.display=nil
     self:auto_rebuild() -- Auto-слой: из кеша, если параметры и анализ те же
+    self:update_twins()
     self.last_reported_error=nil
     if changed then
-      self.selected={};self.prepared_cache=nil;self.contour_cache=nil
+      self.selected={};self.prepared_cache=nil;self.contour_cache=nil;self.auto_mask=nil
       if previous_track and previous_track==self.track and self.view and previous_pos then
         self.view.start=self.view.start+previous_pos-s.pos
       else self.fit_pending=true end
@@ -157,6 +158,56 @@ function M:reset_all(items,clear)
   end,.008)
   self.job.kind='reset';self.prepared_cache=nil;self.error=nil;if clear then self.view=nil;self.fit_pending=true end
 end
+-- ===== связь копий =====
+-- Копия айтема (например, скопированный припев) несёт то же состояние и тот же анализ. Если связь включена, правки
+-- открытого айтема применяются ко всем таким копиям из тех же уже готовых данных: без повторного анализа и расчёта кривых.
+local function same_geometry(a,b)
+  return a and b and a.render_key==b.render_key and a.source_key==b.source_key and math.abs((a.offset or 0)-(b.offset or 0))<1e-6
+    and math.abs((a.len or 0)-(b.len or 0))<1e-6 and math.abs((a.rate or 1)-(b.rate or 1))<1e-9
+end
+function M:update_twins()
+  local list={}
+  local ws,state=self.workspace,self.state
+  if ws and state and state.analysis and state.geometry and self.item then
+    for _,entry in ipairs(ws.items or {}) do
+      local ts=entry.state
+      if entry.item~=self.item and ts and ts.analysis==state.analysis and same_geometry(ts.geometry,state.geometry) then list[#list+1]=entry end
+    end
+  end
+  self.twins=list
+end
+function M:set_sync(on)
+  self.sync_on=on==true
+  self.r.SetExtState('Vocaligner ui','pitch_sync',on and '1' or '0',true)
+end
+-- Внутри открытой транзакции commit: разослать результат по копиям; сбой одной копии откатывает только её
+function M:replicate(s,state,prepared,mode)
+  local r=self.r;local done,skipped=0,0
+  for _,t in ipairs(self.twins or {}) do
+    local ok_chunk,chunk=r.GetItemStateChunk(t.item,'',false)
+    local ok,err=xpcall(function()
+      assert(ok_chunk,'twin chunk')
+      local ts=Analysis.capture(r,s.project,t.item)
+      local tstate=Store.read(r,ts.take);assert(tstate and tstate.analysis==state.analysis,'copy has another analysis')
+      local ns=Notes.copy(state);ns.geometry=Store.geometry(ts)
+      -- своё FX копии (после копирования айтема GUID другой): ищем и перепривязываем; проверку отпечатка не требуем —
+      -- связь сознательно перезаписывает копию
+      local own=FX.owned(r,ts,tstate)
+      ns.fx_guid=own and r.TakeFX_GetFXGUID(ts.take,own) or nil
+      ns.fx_fingerprint=nil;ns.fx_static=nil;ns.fx_envelopes=own and tstate.fx_envelopes or nil;ns.mapping=tstate.mapping
+      if mode=='remove' then FX.remove(r,ts,ns)
+      elseif mode=='bypass' then
+        local fx=own;assert(fx,'copy has no Pitch FX')
+        r.TakeFX_SetEnabled(ts.take,fx,not state.bypassed);ns.bypassed=state.bypassed
+        ns.fx_fingerprint=FX.fingerprint(r,ts.take,fx);ns.fx_static=FX.fingerprint(r,ts.take,fx,true)
+      elseif mode==nil then FX.apply(r,ts,ns,prepared) end
+      ns.geometry=Store.geometry(ts)
+      Store.write(r,ts.take,ns)
+    end,debug.traceback)
+    if ok then done=done+1 else skipped=skipped+1;restore_after_failure(r,t.item,chunk,err) end
+  end
+  self.sync_report={done=done,skipped=skipped}
+end
 function M:begin_edit(keep_version)
   if self:busy() or self.stale or not self.data or self.no_selection then return nil end
   local before=Notes.copy(self.state);if not keep_version then self.state.curve_version=4 end;self.display=nil;self.gesture=true;return before
@@ -176,7 +227,7 @@ function M:commit(before,label,mode)
     job:call(function()
       local native_started=self.r.time_precise()
       local current,why=Analysis.check(self.r,s);assert(current,why)
-      local _,text=Store.read(self.r,s.take);assert(text==saved,'Pitch item changed before applying')
+      assert(Store.raw(self.r,s.take)==saved,'Pitch item changed before applying')
       local ok,chunk=self.r.GetItemStateChunk(s.item,'',false);assert(ok,'Cannot create Pitch rollback snapshot')
       self.r.Undo_BeginBlock2(s.project);self.r.PreventUIRefresh(1)
       local success,err=xpcall(function()
@@ -196,6 +247,9 @@ function M:commit(before,label,mode)
           self.last_native_write=FX.apply(self.r,s,state,prepared)
         end
         state.geometry=Store.geometry(current)
+        if self.sync_on and self.twins and #self.twins>0 and (mode==nil or mode=='metadata' or mode=='bypass' or mode=='remove') then
+          self:replicate(s,state,prepared,mode)
+        end
         local save_started=self.r.time_precise();Store.write(self.r,s.take,state);self:measure('save_state',save_started)
       end,debug.traceback)
       if not success then err=restore_after_failure(self.r,s.item,chunk,err)end
@@ -309,7 +363,19 @@ function M:undo(redo)
   self.last_undo={redo=redo==true,description=description,result=result,guid=guid,rebound=rebound,
     notes=#(self.notes or {}),analysis=self.state and self.state.analysis,restored_guid=self.snapshot and self.snapshot.guid}
 end
+function M:apply_auto_queue()
+  local q=self.auto_queue;self.auto_queue,self.auto_queue_final=nil,nil
+  if not q or self.no_selection or self.stale or not self.data or not self.state then return end
+  local before=self:begin_edit();if not before then return end
+  self.state.auto=Auto.config(self.state)
+  for field,value in pairs(q) do if value==false then value=nil end;self.state.auto[field]=value end
+  self:auto_rebuild(true);self.display=nil
+  self:commit(before,'auto pitch')
+end
 function M:tick()
+  -- очередь применяется, как только редактор свободен: сразу после отпускания или, если отпускание не пришло, через 0.5 с тишины
+  if self.auto_queue and not self:busy() and not self.auto_before and (self.auto_queue_final or self.r.time_precise()-(self.auto_queue_at or 0)>.5) then self:apply_auto_queue() end
+  if self.auto_due and self.r.time_precise()>=self.auto_due then self.auto_due=nil;self:auto_rebuild();self.display=nil end
   if self.job then
     local job=self.job;job:step()
     if job.done then
@@ -321,6 +387,11 @@ function M:tick()
         if not job.error and job.prepared_cache then self.prepared_cache=job.prepared_cache end
       end
       self:refresh(true)
+      if job.kind=='apply' and self.sync_report and not job.error then
+        local sr=self.sync_report;self.sync_report=nil
+        if sr.skipped>0 then self.message=string.format('Synced %d linked copies, skipped %d (edited or changed)',sr.done,sr.skipped)
+        elseif sr.done>0 then self.message=string.format('Synced %d linked cop%s',sr.done,sr.done==1 and 'y' or 'ies') end
+      end
       if job.kind=='analysis' and self.batch_result then
         local b=self.batch_result;self.message=string.format('Analyzed %d / %d items%s',b.completed,b.total,b.failed>0 and ('; '..b.failed..' skipped — Copy report') or '')
         if b.failed>0 then self.error=b.errors[1] end
@@ -419,7 +490,7 @@ function M:auto_rebuild(force)
     local began=self.r.time_precise()
     layer=Auto.build(self,a) or {hop=.008,n=0,c={},stats={}}
     layer.build_key=key;layer.build_ms=(self.r.time_precise()-began)*1000
-    self.auto_layer=layer;self.display=nil;self.contour_cache=nil
+    self.auto_layer=layer;self.display=nil;self.contour_cache=nil;self.auto_built_at=self.r.time_precise()
     if layer.stats and layer.stats.error then self.auto_note=layer.stats.error end
   end
   local amount=math.max(0,math.min(1,(a.amount or 100)/100))
@@ -430,13 +501,41 @@ end
 -- Изменение параметра Auto: первое изменение открывает правку, final — применить (одно действие Undo)
 function M:set_auto(field,value,final)
   if self.no_selection or self.stale or not self.data or not self.state then return end
+  self.auto_ui = self.auto_ui or {}
+  if value == nil then self.auto_ui[field] = false else self.auto_ui[field] = value end -- значения ручек, пока не записались
   if not self.auto_before then
-    if self:busy() then return end
+    -- предыдущая запись ещё идёт (на минутном айтеме до секунд): значение не теряем и не откатываем ручку —
+    -- копим в очереди, tick применит одним действием, когда редактор освободится
+    if self:busy() then
+      self.auto_queue=self.auto_queue or {};if value==nil then value=false end;self.auto_queue[field]=value -- false = «авто» (nil)
+      self.auto_queue_at=self.r.time_precise()
+      if final then self.auto_queue_final=true end
+      return
+    end
     self.auto_before=self:begin_edit();if not self.auto_before then return end
   end
-  self.state.auto=Auto.config(self.state);self.state.auto[field]=value
-  self:auto_rebuild();self.display=nil
-  if final then local b=self.auto_before;self.auto_before=nil;self:commit(b,'auto pitch') end
+  self.state.auto=Auto.config(self.state)
+  if self.auto_queue then
+    for k,v in pairs(self.auto_queue) do if v==false then v=nil end;self.state.auto[k]=v end
+    self.auto_queue,self.auto_queue_final=nil,nil
+  end
+  self.state.auto[field]=value
+  -- пока ручка движется, слой не пересчитывается: пересчёт и перерисовка кривых — после паузы 0.2 с (tick);
+  -- на отпускании — всегда точный пересчёт перед записью
+  if final then self:auto_rebuild();self.auto_due=nil;self.display=nil
+  else self.auto_due=self.r.time_precise()+.2 end
+  if final then
+    local b=self.auto_before;self.auto_before=nil
+    if self:busy() then
+      -- к отпусканию редактор уже занят другой записью: commit молча бросил бы правку, а следующая перезагрузка
+      -- состояния откатила бы ручку. Возвращаем состояние и кладём значения в очередь — применится, когда освободится.
+      local q=self.auto_queue or {};self.auto_queue=q
+      for k,v in pairs(self.auto_ui or {}) do q[k]=v end
+      if value==nil then q[field]=false else q[field]=value end
+      self.auto_queue_final=true;self.gesture=false
+      if b then self.state=b;self.notes=b.notes;self.display=nil end
+    else self:commit(b,'auto pitch') end
+  end
 end
 -- Pitch Meter (JSFX «Vocaligner Pitch Meter») на айтеме: вкл — добавить, если нет, и включить; выкл — отключить FX
 function M:set_meter(on)
@@ -453,10 +552,28 @@ function M:set_meter(on)
   end
   if idx>=0 and r.TakeFX_GetEnabled(s.take,idx)~=(on==true) then r.TakeFX_SetEnabled(s.take,idx,on==true) end
 end
+-- Разовое включение/выключение ноты для Auto (кнопки нот в окне ATune): маска живёт в редакторе до смены тональности
+-- или айтема и в состояние не пишется; результат применяется к айтему как обычная правка
+function M:toggle_auto_note(pc)
+  if self:busy() or self.gesture or self.stale or not self.data or self.no_selection then return end
+  local function base(i) return Scale.contains(i,self.root or 0,self.scale or 1) end
+  local mask={};for i=0,11 do mask[i]=self.auto_mask and self.auto_mask[i] or (self.auto_mask==nil and base(i)) or false end
+  mask[pc]=not mask[pc]
+  local any,same=false,true
+  for i=0,11 do any=any or mask[i];if mask[i]~=base(i) then same=false end end
+  if not any then return end -- хотя бы одна нота должна остаться
+  self.auto_mask=(not same) and mask or nil
+  local a=Auto.config(self.state)
+  if not a.on or a.mode=='reference' then return end
+  local before=self:begin_edit();if not before then return end
+  self:auto_rebuild(true);self.display=nil
+  self:commit(before,'auto tuning notes')
+end
 function M:set_scale(root,mode,snap)
   if self:busy() or self.gesture then return end
   if snap==nil then snap=self.snap end;snap=snap==true
   self.root,self.scale,self.snap=root,mode,snap
+  self.auto_mask=nil -- новая тональность — разовая маска нот сбрасывается
   if not self.data or self.stale or self.no_selection then return end
   local before=Notes.copy(self.state)
   self.state.scale={root=root,mode=mode,snap=snap}

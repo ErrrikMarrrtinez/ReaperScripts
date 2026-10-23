@@ -52,6 +52,9 @@ function M.state(r,project,item)
   for _,k in ipairs(take_fields) do if k~='D_STARTOFFS' then render[#render+1]=k..'='..string.format('%.17g',s[k]) end end
   for _,m in ipairs(s.markers) do render[#render+1]=string.format('%.17g:%.17g:%.17g',m.pos,m.src,m.slope) end
   s.render_key=table.concat(render,'|')
+  -- ядро подписи — всё, что определяет звук и тайминг; огибающую громкости пишут и другие инструменты (Breath, De-ess,
+  -- Compressor, ручные правки), её отличие само по себе не значит «аудио изменилось»
+  s.signature_core=table.concat(signature,'|')
   signature[#signature+1]=s.volume_envelope or ''
   s.signature=table.concat(signature,'|');s.pos=s.D_POSITION;s.len=s.D_LENGTH
   s.rate=s.D_PLAYRATE;s.offset=s.D_STARTOFFS
@@ -116,6 +119,7 @@ local function compose(parts,project)
   end
   s.overlap_s=overlap
   s.guid='group:'..table.concat(guids,'+');s.name=string.format('%s +%d',first.name,#parts-1)
+  local cores={};for i,p in ipairs(parts)do cores[i]=p.signature_core end;s.signature_core=table.concat(cores,'||')
   s.signature=table.concat(signature,'||');s.source_key=table.concat(source_key,'||');s.render_key=table.concat(render_key,'||')
   return s
 end
@@ -177,6 +181,12 @@ function M.unchanged(r,s,expected)
 end
 -- Accept our own applied states and the captured state after REAPER Undo/Redo.
 -- An arbitrary manual edit still invalidates the cached analysis.
+-- Тот же тейк на месте (файл и GUID), даже если его правили руками: этого достаточно, чтобы вернуть сохранённое состояние
+function M.same_take(r,d)
+  local ok,current=pcall(M.current,r,d.snapshot);if not ok then return false end
+  local s=d.snapshot
+  return current.guid==s.guid and current.source_key==s.source_key
+end
 function M.check_dub(r,d)
   local s=d.snapshot
   if not M.project_open(r,s.project) then return false,'The captured project was closed.' end
@@ -195,6 +205,22 @@ function M.check_dub(r,d)
     return true
   end
   local output=d.outputs and d.outputs[current.signature]
+  -- Изменилась только огибающая громкости (её пишут Breath, De-ess, Compressor, ручные правки): тайминг и звук те же,
+  -- что в известном нам состоянии, — это не «аудио изменилось», а чужая правка огибающей. Принимаем её как новое
+  -- состояние, а не шлём ошибку на каждое изменение проекта.
+  if not output and current.signature_core then
+    if current.signature_core==s.signature_core then
+      d.applied=false;d.applied_plan=nil;d.applied_cleanup=nil;d.applied_cfg=nil
+      return true
+    end
+    for _,known in pairs(d.outputs or {}) do
+      if type(known)=='table' and known.core==current.signature_core then
+        local adopted={};for k,v in pairs(known) do adopted[k]=v end
+        adopted.volume_envelope=current.volume_envelope;adopted.volume_points=current.volume_points;adopted.native_state=current;adopted.adopted=true
+        d.outputs[current.signature]=adopted;output=adopted;break
+      end
+    end
+  end
   if output then
     d.applied=type(output)~='table'or output.timing_applied~=false
     if type(output)=='table' then

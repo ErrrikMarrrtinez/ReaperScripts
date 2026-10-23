@@ -5,6 +5,7 @@ M.defaults = {
   detail_ms = 80, fade_ms = 7.5, profile = 'Vocal doubles',
   smooth_ms = 80, marker_density = 50, group_items = 1,
   hide_1x = 1, console_log = 0,
+  atune_speed = 25, atune_transitions = 40, atune_flex = 0, atune_humanize = 0, atune_amount = 100, -- двойной клик по кнобам ATune
   hybrid = 0, hybrid_preset = 2, hybrid_compression = 45,
   deess_hz = 6500, deess_threshold = -32, deess_amount = 65,
   deess_max_db = 9, deess_pre_ms = 10, deess_release_ms = 60,

@@ -79,10 +79,18 @@ function M.focus(e,project)
   local cursor=r.GetCursorPositionEx and r.GetCursorPositionEx(project) or 0
   if not item then
     if #selected>0 then
+      -- несколько выделенных (в том числе с перекрытием на одном треке): проанализированный важнее, затем тот,
+      -- что под курсором, затем уже открытый (чтобы окно не прыгало); при равенстве — первый по позиции
+      local best,best_score,best_pos
       for _,v in ipairs(selected) do if not track or track_of(r,project,v)==track then
-        item=item or v;if v==e.item then item=v end
-        if ws then local ent=ws.by_item[v];if ent and cursor>=ent.pos and cursor<ent.pos+ent.len then item=v;break end end
+        local ent=ws and ws.by_item[v];local score=0
+        if ent and ent.state and ent.state.analysis then score=score+4 end
+        if ent and cursor>=ent.pos and cursor<ent.pos+ent.len then score=score+2 end
+        if v==e.item then score=score+1 end
+        local pos=ent and ent.pos or 0
+        if not best or score>best_score or (score==best_score and pos<best_pos) then best,best_score,best_pos=v,score,pos end
       end end
+      item=best
     elseif ws and ws.by_track[track] then
       for _,v in ipairs(ws.by_track[track].items) do
         if audio_take(r,project,v.item)then

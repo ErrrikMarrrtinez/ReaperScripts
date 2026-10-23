@@ -1,6 +1,8 @@
 -- @noindex
 local M={}
-local function copy(x) if type(x)~='table' then return x end;local t={};for k,v in pairs(x) do t[k]=copy(v) end;return t end
+-- fx_envelopes (тысячи точек огибающей ReaPitch) только заменяются целиком, на месте не правятся: копии делят их по ссылке
+local SHARED={fx_envelopes=true}
+local function copy(x) if type(x)~='table' then return x end;local t={};for k,v in pairs(x) do if SHARED[k] then t[k]=v else t[k]=copy(v) end end;return t end
 M.copy=copy
 local function clamp(x,a,b) return math.max(a,math.min(b,x)) end
 local function equal(a,b)

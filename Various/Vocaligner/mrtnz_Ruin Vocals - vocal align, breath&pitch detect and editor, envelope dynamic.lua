@@ -1,6 +1,6 @@
 -- @description Ruin Vocals: vocal align, breath&pitch detect and editor, envelope dynamic
 -- @author mrtnz
--- @version 0.17.0
+-- @version 0.18.0
 -- @link Documentation https://github.com/ErrrikMarrrtinez/ReaperScripts/tree/master/Various/Vocaligner
 -- @about
 --   Vocal timing, take-volume cleanup and a vocal pitch editor in one ReaImGui window.
@@ -14,13 +14,11 @@
 --   installed together. Internal modules are not separate REAPER actions.
 --   For embedding, load init.lua with dofile.
 -- @changelog
---   Auto pitch is retuned to work like a real autotune: Speed is the retune time in ms (0 = hard tune, 15–30 = tight, 100+ = only the note centre is corrected, vibrato stays), Transitions smooth note changes without jumps.
---   Auto picks the target note from the current pitch of the voice, so it follows fast note changes the way other tuners do.
---   Pitch corrections are written with the exact ReaPitch delay compensation, so the sound lands on the drawn curve.
---   Align: redundant 1x stretch markers are hidden by default (Settings → Align → Hide redundant 1x markers); item edges and original markers are always kept.
---   Messages in the REAPER console are off by default (Settings → Show messages in the REAPER console).
---   Align Strength reliably reaches the markers again after the plan is restored.
---   Applying Pitch edits no longer stops on harmless changes inside ReaPitch.
+--   ATune: new compact window in the Pitch editor (note and tuning indicator, Speed, Transitions, Humanize, Flex Tune, Amount, Vibrato, Key or reference, Pitch Meter). Click a note to switch it on or off for one session.
+--   Auto pitch reacts to manual edits: it finishes the already edited pitch to the note or reference.
+--   Pitch: link copies of an item (copied chorus) with the Sync button; much faster saving, Bypass and Snap.
+--   Align and Dynamics: no more false 'Captured audio changed' errors after volume-envelope edits; Restore works after manual edits.
+--   Align: redundant 1x stretch markers are hidden; console messages are off by default (Settings).
 -- @provides
 --   [main=main] .
 --   [nomain] align_ui.lua

@@ -200,7 +200,8 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
   local scale_w=root_w+mode_w+snap_w
   local right={}
   if e.tool=='curve' then right[#right+1]={'copy',button_w('Copy')};right[#right+1]={'paste',button_w('Paste')} end
-  right[#right+1]={'auto',button_w('Auto')}
+  if e.twins and #e.twins>0 then right[#right+1]={'sync',fh} end -- есть копии открытого айтема
+  right[#right+1]={'auto',button_w('ATune')}
   right[#right+1]={'scale',scale_w}
   local total=-6;for _,r in ipairs(right) do total=total+r[2]+6 end
   local count=#TOOLS+1;local cwid=count*BTN_W
@@ -274,6 +275,17 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
       end
       if snap_click and not locked then e:set_scale(e.root or 0,e.scale or 1,not e.snap) end
       host.tooltip('pitch_scale',snap_hov,c+snap_w/2,y+fh,'','Snap to the key',wx,ww,0.35,0.2)
+    elseif kind=='sync' then
+      -- Sync: правки открытого айтема применяются ко всем его копиям; зелёная, когда включена
+      im.SetCursorScreenPos(ctx,rx,y);im.InvisibleButton(ctx,'##pitch_sync',fh,fh)
+      local hv=im.IsItemHovered(ctx)
+      if hv then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
+      local on=e.sync_on==true
+      im.DrawList_AddRectFilled(dl,rx,y,rx+fh,y+fh,on and (hv and 0x3AA865FF or 0x2F8F57FF) or (hv and host.pill_hover or host.pill),8)
+      local c=on and 0xFFFFFFFF or 0xE6E6F0FF;local mx,my=rx+fh/2,y+fh/2
+      im.DrawList_AddCircle(dl,mx-4,my,4.6,c,0,1.7);im.DrawList_AddCircle(dl,mx+4,my,4.6,c,0,1.7) -- два звена
+      if im.IsItemClicked(ctx,0) then e:set_sync(not on) end
+      host.tooltip('pitch_sync',hv,rx+fh/2,y+fh,'',(on and 'Sync on' or 'Sync off')..' · '..#e.twins..(#e.twins==1 and ' linked copy' or ' linked copies'),wx,ww,TIP_DELAY,0.2)
     elseif kind=='auto' then
       -- Auto: подгонка высоты под тональность / референс; открывает облачко с параметрами (ui2.lua)
       local a=import('pitch/auto').config(e.state)
@@ -281,11 +293,11 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
       local hv=im.IsItemHovered(ctx)
       if hv then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
       im.DrawList_AddRectFilled(dl,rx,y,rx+r[2],y+fh,a.on and (hv and SEL_HOVER or SEL_FILL) or (hv and host.pill_hover or host.pill),8)
-      local tw,th=im.CalcTextSize(ctx,'Auto')
-      im.DrawList_AddText(dl,math.floor(rx+(r[2]-tw)/2),math.floor(y+(fh-th)/2),a.on and 0xFFFFFFFF or 0xE6E6F0FF,'Auto')
+      local tw,th=im.CalcTextSize(ctx,'ATune')
+      im.DrawList_AddText(dl,math.floor(rx+(r[2]-tw)/2),math.floor(y+(fh-th)/2),a.on and 0xFFFFFFFF or 0xE6E6F0FF,'ATune')
       e.auto_btn={x=rx,y=y,w=r[2],h=fh}
       if im.IsItemClicked(ctx,0) then e.auto_toggle=true end
-      host.tooltip('pitch_auto',hv,rx+r[2]/2,y+fh,'','Auto pitch: key or reference',wx,ww,TIP_DELAY,0.2)
+      host.tooltip('pitch_auto',hv,rx+r[2]/2,y+fh,'','ATune',wx,ww,TIP_DELAY,0.2)
     elseif kind=='copy' then if im.Button(ctx,'Copy##pitch_copy',r[2],fh) then e:copy_shape() end
     elseif kind=='paste' then if im.Button(ctx,'Paste##pitch_paste',r[2],fh) then e:paste_shape((im.GetKeyMods(ctx)&im.Mod_Alt)~=0) end
     end
@@ -384,66 +396,223 @@ function M.ghost_rows(im,ctx,app,dropdown)
   return count
 end
 -- Размер содержимого окна ghost (без полей): те же формулы, что в ghost_rows; вызывать с тем же шрифтом и FramePadding
--- ===== окно Auto (подгонка высоты): рисуется оболочкой ui2.lua в облачке, как Ghost =====
-local AUTO_W=268
-local function auto_lines(e)
-  local a=import('pitch/auto').config(e.state)
-  return 6+(a.mode=='reference' and 2 or 1)+(e.auto_note and 1 or 0)
+-- ===== окно ATune (автоподгонка высоты): рисуется оболочкой ui2.lua в облачке =====
+-- Слева — текущая нота под курсором, горизонтальный индикатор отклонения и ноты тональности; справа — кнобы
+-- Speed/Transitions (крупные), Flex Tune/Humanize/Amount (мелкие) и слайдер Vibrato; внизу — вкл/выкл, Pitch Meter,
+-- Key/Ref и выбор референса. Параметры идут через e:set_auto (драг — предпросмотр, отпускание — одна запись).
+local Knob=import('ui2/knob')
+local AT_W,AT_H=366,176
+local BH=24 -- высота кнопок нижней панели
+local AT_LEFT=196
+local AT={dev=0,vt=nil}
+local AT_KEYS={speed={'atune_speed','Speed',0,400,'%.0f ms'},transitions={'atune_transitions','Transitions',0,250,'%.0f ms'},
+  flex={'atune_flex','Flex Tune',0,100,'%.0f'},humanize={'atune_humanize','Humanize',0,100,'%.0f'},amount={'atune_amount','Amount',0,100,'%.0f%%'}}
+local NOTE_NAMES={'C','C#','D','D#','E','F','F#','G','G#','A','A#','B'}
+function M.auto_size(compact) return compact and AT_LEFT or AT_W,AT_H end
+function M.auto_split() return AT_LEFT-8 end -- x границы правой секции от левого края содержимого
+-- владелец для кнобов: тот же интерфейс, что у cleaner (cfg / settings_changed / control_released), поверх e:set_auto
+local OWNER={cfg={},gesture=false}
+local function knob_owner(e,a)
+  local o=OWNER;o.e=e
+  for f,k in pairs(AT_KEYS) do if not o.gesture or o.last~=f then o.cfg[k[1]]=a[f] end end
+  function o:settings_changed(key) for f,k in pairs(AT_KEYS) do if k[1]==key then self.last=f;self.dirty=f;self.e:set_auto(f,self.cfg[key],false) end end end
+  -- запись на отпускании только для ручки, которую действительно двигали: простой клик/наведение ничего не пишет
+  function o:control_released() local f=self.dirty;self.dirty=nil;self.gesture=false;if f then self.e:set_auto(f,self.cfg[AT_KEYS[f][1]],true) end end
+  return o
 end
-function M.auto_size(im,ctx,app,spacing)
-  local e=app.pitch;local fh=im.GetFrameHeight(ctx);local n=auto_lines(e)
-  return AUTO_W,n*fh+(n-1)*spacing
+local function rgb_of(r,native)
+  if not native or native==0 or not r.ColorFromNative then return nil end
+  local rr,gg,bb=r.ColorFromNative(native&0xFFFFFF);return (rr<<24)|(gg<<16)|(bb<<8)|0xFF
 end
-function M.auto_rows(im,ctx,app,dropdown)
-  local e=app.pitch;local Auto=import('pitch/auto');local a=Auto.config(e.state)
+local function short(s,n) s=(s or ''):gsub('^%s+',''):gsub('%s+$','');if #s>n then s=s:sub(1,n-1)..'…' end;return s end
+local function guid_of(r,item) local _,g=r.GetSetMediaItemInfo_String(item,'GUID','',false);return g end
+-- векторные иконки нижней панели
+local function icon_power(im,dl,cx,cy,col)
+  local pi=math.pi;im.DrawList_PathArcTo(dl,cx,cy+1,6,-pi/2+.75,3*pi/2-.75);im.DrawList_PathStroke(dl,col,0,1.8)
+  im.DrawList_AddLine(dl,cx,cy-7,cx,cy-.5,col,1.8)
+end
+local function icon_curve(im,dl,cx,cy,col)
+  for i=0,16 do im.DrawList_PathLineTo(dl,cx-8+i,cy+math.sin(i/16*math.pi*2)*4.5) end;im.DrawList_PathStroke(dl,col,0,1.7)
+end
+function M.auto_rows(im,ctx,app,x,y,fonts,host,compact)
+  local y0=y
+  local e=app.pitch;local r=e.r;local Auto=import('pitch/auto');local a=Auto.config(e.state)
+  -- значения ручек, ещё не дошедшие до сохранённого состояния (идёт запись, очередь, предпросмотр): показываем их,
+  -- иначе ручка на миг откатывается к старому значению, пока завершается предыдущая запись
+  do
+    local stored=Auto.config(e.state);local idle=not e.auto_before and not e.auto_queue and not e:busy()
+    for k,v in pairs(e.auto_queue or {}) do if v==false then v=nil end;a[k]=v end
+    for k,v in pairs(e.auto_ui or {}) do
+      local vv=v;if vv==false then vv=nil end
+      if idle and stored[k]==vv then e.auto_ui[k]=nil else a[k]=vv end
+    end
+  end
   local can=e.data~=nil and not e.stale and not e.no_selection
-  if not can then im.BeginDisabled(ctx,true) end
-  -- вкл/выкл и режим
-  local ch,on=im.Checkbox(ctx,'Auto pitch##auto_on',a.on==true)
-  if ch then e:set_auto('on',on,true) end
-  im.SameLine(ctx,0,14)
-  if im.RadioButton(ctx,'Key##auto_key',a.mode~='reference') and a.mode=='reference' then e:set_auto('mode','key',true) end
-  im.SameLine(ctx)
-  if im.RadioButton(ctx,'Reference##auto_ref',a.mode=='reference') and a.mode~='reference' then e:set_auto('mode','reference',true) end
-  if a.mode=='reference' then
-    -- опорный трек: проанализированные дорожки, кроме текущей
-    local rows={};local current
-    for _,row in ipairs(e.workspace and e.workspace.tracks or {}) do
-      if (row.analyzed or 0)>0 and row~=e.track_row then rows[#rows+1]=row;if row.guid==a.ref_track then current=row end end
+  local ref=a.mode=='reference'
+  local dl=im.GetWindowDrawList(ctx)
+  local ACC,ACC_SOFT=0xC8A85AFF,0x9C8446FF -- золотистый акцент окна (мягче оранжевого)
+  local BTN,BTN_H=host.pill,host.pill_hover
+  local lx,lw=x,AT_LEFT-14
+  local AREA=AT_H-BH-8 -- высота левого блока над нижней панелью
+  -- ===== левая часть: нота, индикатор, ноты тональности =====
+  local s=e.snapshot;local P=(r.GetPlayState()&1)==1 and r.GetPlayPosition() or r.GetCursorPosition()
+  local note,dev
+  if e.data and s and P>=s.pos and P<=s.pos+s.len then
+    local raw=import('pitch/expression').sample(e.data,P-s.pos)
+    if raw then
+      if ref then note=math.floor(raw+.5) else note=(e.auto_mask and Scale.nearest_mask(e.auto_mask) or Scale.nearest_fn(e.root or 0,e.scale or 1))(raw) end
+      dev=clamp((raw-note)*100,-100,100)
     end
-    local label=current and current.name or (#rows>0 and 'Choose track…' or 'No other analysed track')
-    if im.Button(ctx,'Reference: '..label..'##auto_reftrack',AUTO_W,0) and #rows>0 then
-      local mx,my=im.GetItemRectMin(ctx);local _,yy=im.GetItemRectMax(ctx)
-      local items={}
-      for _,row in ipairs(rows) do items[#items+1]={label=row.name,checked=row.guid==a.ref_track,action=function() e:set_auto('ref_track',row.guid,true) end} end
-      dropdown('auto_ref',mx+AUTO_W/2,yy,items)
-    end
-    local oct=a.octave;local olabel=oct==nil and 'Octave: auto' or string.format('Octave: %+d',oct)
-    if im.Button(ctx,olabel..'##auto_oct',AUTO_W,0) then
-      local mx,_=im.GetItemRectMin(ctx);local _,yy=im.GetItemRectMax(ctx)
-      local items={{label='Auto (keep the singer\'s octave)',checked=oct==nil,action=function() e:set_auto('octave',nil,true) end}}
-      for o=-2,2 do items[#items+1]={label=string.format('%+d octave',o),checked=oct==o,action=function() e:set_auto('octave',o,true) end} end
-      dropdown('auto_oct',mx+AUTO_W/2,yy,items)
-    end
-  else
-    local Scale=import('pitch/scale')
-    im.TextDisabled(ctx,'Key: '..Scale.root_name(e.root,e.scale)..' '..Scale.scales[e.scale or 1][1])
   end
-  -- три параметра: во время перетаскивания — предпросмотр, на отпускании — запись (одно Undo)
-  local function slider(field,label,lo,hi,fmt)
-    im.SetNextItemWidth(ctx,AUTO_W-96)
-    local changed,v=im.SliderDouble(ctx,label..'##auto_'..field,a[field] or Auto.defaults[field],lo,hi,fmt)
-    if changed then e:set_auto(field,v,false) end
-    if im.IsItemDeactivatedAfterEdit(ctx) then e:set_auto(field,import('pitch/auto').config(e.state)[field],true) end
+  local now=r.time_precise();local dt=clamp(now-(AT.vt or now),0,.1);AT.vt=now
+  AT.dev=AT.dev+((dev or 0)-AT.dev)*math.min(1,dt*14) -- плавный сдвиг индикатора
+  do
+    local ly=y+math.max(0,(AREA-112)/2) -- левый блок по центру высоты над нижней панелью
+    im.PushFont(ctx,fonts.note)
+    local name=note and NOTE_NAMES[note%12+1] or '–'
+    local nw,nh=im.CalcTextSize(ctx,name)
+    im.DrawList_AddText(dl,math.floor(lx+(lw-nw)/2),ly,note and 0xF2F2F2FF or 0x5A5A5AFF,name)
+    im.PopFont(ctx)
+    local by=ly+nh+6;local bh=10
+    im.DrawList_AddRectFilled(dl,lx,by,lx+lw,by+bh,0x1C1C1CFF,3)
+    local cx=lx+lw/2;local px=cx+AT.dev/100*(lw/2-2)
+    if note then im.DrawList_AddRectFilled(dl,math.min(cx,px),by+1,math.max(cx,px)+1,by+bh-1,math.abs(AT.dev)<15 and ACC or ACC_SOFT,2) end
+    im.DrawList_AddLine(dl,cx,by-3,cx,by+bh+3,0xFFFFFF90,1)
+    for _,k in ipairs({-50,50}) do local tx=cx+k/100*(lw/2-2);im.DrawList_AddLine(dl,tx,by+bh,tx,by+bh+3,0xFFFFFF40,1) end
+    -- ноты: 5 диезов сверху, 7 натуральных снизу; ноты тональности светлее, текущая — акцент
+    local py=by+bh+12;local pw,ph,pg=22,18,3
+    local function pill(i,px_,py_)
+      local inkey=not ref and (e.auto_mask and e.auto_mask[i] or (e.auto_mask==nil and Scale.contains(i,e.root or 0,e.scale or 1)))
+      local cur=note and note%12==i
+      if not ref and can then -- клик по ноте: разово включить/выключить её для Auto (не сохраняется)
+        im.SetCursorScreenPos(ctx,px_,py_);im.InvisibleButton(ctx,'##atune_pc_'..i,pw,ph)
+        if im.IsItemHovered(ctx) then im.SetMouseCursor(ctx,im.MouseCursor_Hand);im.DrawList_AddRectFilled(dl,px_-1,py_-1,px_+pw+1,py_+ph+1,0xFFFFFF18,ph/2+1) end
+        if im.IsItemClicked(ctx,0) then e:toggle_auto_note(i) end
+      end
+      local fill=cur and ACC or (inkey and 0x2E3A36FF or 0x1E1E1EFF)
+      im.DrawList_AddRectFilled(dl,px_,py_,px_+pw,py_+ph,fill,ph/2)
+      if inkey and not cur then im.DrawList_AddRect(dl,px_+.5,py_+.5,px_+pw-.5,py_+ph-.5,0x5C8C7CCC,ph/2,0,1) end
+      local t=NOTE_NAMES[i+1];local tw,th=im.CalcTextSize(ctx,t)
+      im.DrawList_AddText(dl,math.floor(px_+(pw-tw)/2),math.floor(py_+(ph-th)/2),cur and 0x1A1A1AFF or (inkey and 0xE0EFEAFF or 0x555555FF),t)
+    end
+    local nat={0,2,4,5,7,9,11};local tot=7*pw+6*pg;local ox=lx+(lw-tot)/2
+    for k,i in ipairs(nat) do pill(i,ox+(k-1)*(pw+pg),py+ph+pg) end
+    for _,sh in ipairs({{1,1},{3,2},{6,4},{8,5},{10,6}}) do pill(sh[1],ox+sh[2]*(pw+pg)-(pw+pg)/2,py) end
   end
-  slider('speed','Speed',0,400,'%.0f ms') -- как у автотюнов: 0 — мгновенно
-  slider('transitions','Transitions',0,250,'%.0f ms')
-  slider('amount','Amount',0,100,'%.0f%%')
-  local mch,mon=im.Checkbox(ctx,'Pitch Meter on the item##auto_meter',e.check_on==true)
-  if mch then e:set_meter(mon) end
-  if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Adds JS: Vocaligner Pitch Meter after ReaPitch and draws its measured pitch (yellow) beside the target. Off disables it.') end
-  if not can then im.EndDisabled(ctx) end
-  if e.auto_note then im.TextColored(ctx,0xE8B65AFF,e.auto_note) end
+  -- ===== правая часть: кнобы и Vibrato по центру высоты, без нижней панели =====
+  if not compact then
+    if not can then im.BeginDisabled(ctx,true) end
+    local own=knob_owner(e,a)
+    local rx=x+AT_LEFT;local rw=AT_W-AT_LEFT
+    local BIG,SMALL,LBL=58,40,20
+    local bigh,smallh,vh=BIG+LBL,SMALL+LBL,20
+    local gap=5
+    local total=bigh+smallh+vh+2*gap
+    local ky1=y0+math.max(0,(AT_H-total)/2);local ky2=ky1+bigh+gap;local ky3=ky2+smallh+gap
+    local function knob(field,kx,ky,px,width,locked)
+      local k=AT_KEYS[field]
+      if locked then
+        -- недоступно в режиме референса: тонкое пустое кольцо и приглушённая подпись
+        local cxk=kx+width/2
+        im.DrawList_AddCircle(dl,cxk,ky+px/2,px/2-3,0x2E2E2EFF,0,1.5)
+        local tw=im.CalcTextSize(ctx,k[2])
+        im.DrawList_AddText(dl,math.floor(cxk-tw/2),ky+px+3,0x4A4A4AFF,k[2])
+        return
+      end
+      im.SetCursorScreenPos(ctx,kx,ky)
+      Knob.control(im,ctx,own,k,nil,{skin={file='Sp_'..px..'.png'},scale=1,grow=.04,animate=true,size=px,width=width,float=true,below=true})
+    end
+    local bw=rw/2;local sw=rw/3
+    knob('speed',rx,ky1,BIG,bw);knob('transitions',rx+bw,ky1,BIG,bw)
+    knob('flex',rx,ky2,SMALL,sw,ref);knob('humanize',rx+sw,ky2,SMALL,sw,ref);knob('amount',rx+2*sw,ky2,SMALL,sw)
+    -- Vibrato: от центра влево (ослабить) и вправо (усилить); двойной клик — 0
+    if ref then im.BeginDisabled(ctx,true) end
+    im.SetCursorScreenPos(ctx,rx+6,ky3);im.SetNextItemWidth(ctx,rw-12)
+    local vib=a.vibrato or 0
+    local vch,vv=im.SliderDouble(ctx,'##atune_vibrato',vib,-100,100,math.abs(vib)<.5 and 'Vibrato' or 'Vibrato %+.0f')
+    if vch then e:set_auto('vibrato',vv,false) end
+    if im.IsItemDeactivatedAfterEdit(ctx) then e:set_auto('vibrato',(e.auto_queue and e.auto_queue.vibrato) or Auto.config(e.state).vibrato,true) end
+    if im.IsItemHovered(ctx) and im.IsMouseDoubleClicked(ctx,0) then e:set_auto('vibrato',0,true) end
+    if ref then im.EndDisabled(ctx) end
+    if not can then im.EndDisabled(ctx) end
+  end
+  -- ===== нижняя панель — только под левой секцией: цвета исходной темы =====
+  local fy=y0+AT_H-BH
+  local bx=x
+  local function button(id,w,draw,active,disabled,fill,fill_hover)
+    im.SetCursorScreenPos(ctx,bx,fy)
+    local clicked=im.InvisibleButton(ctx,id,w,BH);local hv=im.IsItemHovered(ctx)
+    if hv and not disabled then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
+    local col=fill and (hv and fill_hover or fill) or (active and (hv and SEL_HOVER or SEL_FILL) or (hv and BTN_H or BTN))
+    im.DrawList_AddRectFilled(dl,bx,fy,bx+w,fy+BH,col,8)
+    draw(bx,fy,w,disabled and 0x6A6A6AFF or (active and 0xFFFFFFFF or 0xE6E6F0FF))
+    local x0=bx;bx=bx+w+5
+    return clicked and not disabled,hv,x0
+  end
+  local function label(x0,y0_,w,col,t,pad)
+    local tw,th=im.CalcTextSize(ctx,t)
+    im.DrawList_AddText(dl,math.floor(x0+(pad and pad or (w-tw)/2)),math.floor(y0_+(BH-th)/2),col,t)
+  end
+  -- вкл/выкл с подписью «Auto»
+  local atw=im.CalcTextSize(ctx,'Auto')
+  local c1=button('##atune_on',BH+atw+10,function(x0,y0_,w,col)
+    icon_power(im,dl,x0+BH/2+1,y0_+BH/2,0xFFFFFFFF);im.DrawList_AddText(dl,math.floor(x0+BH+1),math.floor(y0_+(BH-im.GetTextLineHeight(ctx))/2),0xFFFFFFFF,'Auto') end,a.on==true,not can,
+    a.on and 0x2F8F57FF or 0xB8472AFF,a.on and 0x3AA865FF or 0xCC5634FF)
+  if c1 then e:set_auto('on',not a.on,true) end
+  -- Pitch Meter — по правому краю левой секции
+  local mx_meter=x+lw-(BH+4)
+  -- референсы: только айтемы, пересекающиеся по времени с текущим рабочим (над/под него), без соседних
+  local rows={};local cur_row,cur_item
+  local cur_a,cur_b=s and s.pos or 0,s and (s.pos+s.len) or 0
+  local function overlaps(it) return it.pos<cur_b and it.pos+it.len>cur_a end
+  for _,row in ipairs(e.workspace and e.workspace.tracks or {}) do
+    if (row.analyzed or 0)>0 and row~=e.track_row then
+      local near=false;for _,it in ipairs(row.items) do if it.state and it.state.analysis and it.item~=e.item and overlaps(it) then near=true;break end end
+      if near or row.guid==a.ref_track then rows[#rows+1]=row end
+      if row.guid==a.ref_track then cur_row=row
+        if a.ref_item then for _,it in ipairs(row.items) do if guid_of(r,it.item)==a.ref_item then cur_item=it end end end
+      end
+    end
+  end
+  local function item_name(it) local tk=r.GetActiveTake(it.item);return short(tk and r.GetTakeName(tk) or '',14) end
+  local function track_name(row) return short(row.name~='' and row.name or ('#'..tostring(row.index)),14) end
+  local mlabel='Key';local mcol
+  if ref then
+    mlabel='Ref: '..(cur_row and (track_name(cur_row)..(cur_item and (' · '..item_name(cur_item)) or '')) or 'choose')
+    if cur_row then mcol=rgb_of(r,r.GetTrackColor(cur_row.track)) end
+    if e.auto_note then mlabel=mlabel..' — no analysis';mcol=0xE8B65AFF end -- «нет анализа референса» в той же строке
+  else mlabel='Key ▾' end
+  local mtw=im.CalcTextSize(ctx,mlabel)
+  local mw=math.max(54,math.min(mtw+20,mx_meter-bx-5))
+  local mc,_,mxx=button('##atune_mode',mw,function(x0,y0_,w,col)
+    im.DrawList_PushClipRect(dl,x0+3,y0_,x0+w-3,y0_+BH,true)
+    label(x0,y0_,w,mcol or col,mlabel,mtw>w-8 and 7 or nil)
+    im.DrawList_PopClipRect(dl) end,false,not can)
+  local function open_picker()
+    local items={{label='Key — use the scale',checked=not ref,action=function() e:set_auto('mode','key',true) end},{sep=true}}
+    if #rows==0 then items[#items+1]={label='No analyzed items here',disabled=true} end
+    local function choose(row,item_guid) e:set_auto('mode','reference',false);e:set_auto('ref_item',item_guid,false);e:set_auto('ref_track',row.guid,true) end
+    for _,row in ipairs(rows) do
+      local an={};for _,it in ipairs(row.items) do if it.state and it.state.analysis and it.item~=e.item and overlaps(it) then an[#an+1]=it end end
+      items[#items+1]={label=track_name(row),dot=rgb_of(r,r.GetTrackColor(row.track)),checked=ref and row.guid==a.ref_track and not a.ref_item,action=function() choose(row,nil) end}
+      if #an>1 then
+        for i,it in ipairs(an) do
+          local g=guid_of(r,it.item);local nm=item_name(it)
+          items[#items+1]={label=nm~='' and nm or ('Item '..i),indent=14,dot=rgb_of(r,r.GetDisplayedMediaItemColor and r.GetDisplayedMediaItemColor(it.item)) or rgb_of(r,r.GetTrackColor(row.track)),
+            checked=ref and a.ref_item==g,action=function() choose(row,g) end}
+        end
+      end
+    end
+    host.dropdown('atune_ref',mxx+mw/2,fy,items,true) -- список поднимается над кнопкой (панель у нижнего края окна)
+  end
+  if mc then
+    if not ref then e:set_auto('mode','reference',true);if not cur_row then open_picker() end
+    else open_picker() end
+  end
+  bx=mx_meter
+  local c2,h2,x2=button('##atune_meter',BH+4,function(x0,y0_,w,col) icon_curve(im,dl,x0+w/2,y0_+BH/2,col) end,e.check_on==true,e.no_selection or not e.snapshot)
+  if c2 then e:set_meter(not e.check_on) end
+  if h2 then Knob.plate(im,ctx,x2+(BH+4)/2,fy-4,'Pitch Meter FX',true,nil,true) end
 end
 function M.ghost_size(im,ctx,app,spacing)
   local e=app.pitch;local fh=im.GetFrameHeight(ctx);local sel_w=(im.CalcTextSize(ctx,'Source'));local n=0

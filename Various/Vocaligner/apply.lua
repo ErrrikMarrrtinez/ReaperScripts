@@ -190,7 +190,7 @@ function M.run(r,project,reference,dubs,cfg,transaction)
     local base=d.plan.volume_only and (d.original_state or entry.state) or nil
     d.bypassed=d.next_bypassed or d.bypassed;d.next_bypassed=nil
     local bypassed={};for mode,layer in pairs(d.bypassed or {})do bypassed[mode]=layer end
-    d.outputs[signature]={plan=d.plan,cleanup=d.cleanup,envelope_points=d.envelope_points,
+    d.outputs[signature]={core=after.signature_core,plan=d.plan,cleanup=d.cleanup,envelope_points=d.envelope_points,
       layers=d.next_layers or d.layers,cfg=d.cleanup_cfg,volume_envelope=after.volume_envelope,volume_points=after.volume_points,sequence=d.output_sequence,
       native_state=d.align_app and after or nil,volume_origin=d.align_volume_state,
       baseline=base and {volume_envelope=base.volume_envelope,volume_points=base.volume_points} or nil,
@@ -215,7 +215,9 @@ function M.restore(r,project,dubs)
   if r.GetPlayStateEx(project)&4~=0 then return nil,'Stop recording before restoring takes.' end
   local batch={}
   for _,d in ipairs(dubs) do if d.original_state then
-    local ok,msg=Audio.check_dub(r,d);if not ok then return nil,msg end
+    local ok,msg=Audio.check_dub(r,d)
+    -- Restore — явная команда вернуть сохранённое состояние: тейк правили руками, но он тот же — не отказываем
+    if not ok and not Audio.same_take(r,d) then return nil,msg end
     if d.applied then batch[#batch+1]={dub=d,state=d.original_state,current=Audio.current(r,d.snapshot),volume_only=d.plan and d.plan.volume_only} end
   end end
   if #batch==0 then return nil,'Nothing applied in this session.' end
@@ -256,12 +258,12 @@ function M.restore(r,project,dubs)
   for _,b in ipairs(batch) do
     local d=b.dub;d.applied=false;d.applied_plan=nil;d.applied_cleanup=nil
     if b.bridge then
-      d.outputs=d.outputs or {};d.outputs[b.after.signature]={timing_applied=false,native_state=b.after,volume_origin=d.align_volume_state,
+      d.outputs=d.outputs or {};d.outputs[b.after.signature]={core=b.after.signature_core,timing_applied=false,native_state=b.after,volume_origin=d.align_volume_state,
         volume_envelope=b.after.volume_envelope,volume_points=b.after.volume_points}
       b.bridge.publish(b)
     end
     if b.children then
-      b.dub.outputs=b.dub.outputs or {};b.dub.outputs[b.after.signature]={timing_applied=false,native_state=b.after,
+      b.dub.outputs=b.dub.outputs or {};b.dub.outputs[b.after.signature]={core=b.after.signature_core,timing_applied=false,native_state=b.after,
         volume_origin=b.dub.align_volume_state,volume_envelope=b.after.volume_envelope,volume_points=b.after.volume_points}
       for _,child in ipairs(b.children)do child.bridge.publish(child)end
     end

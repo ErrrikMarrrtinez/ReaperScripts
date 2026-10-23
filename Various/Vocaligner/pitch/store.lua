@@ -12,30 +12,91 @@ local function validate_capture(records)
     for _,p in ipairs(q.points)do assert(type(p.t)=='number' and p.t==p.t and type(p.value)=='number' and math.abs(p.value)<=24,'Invalid captured Curve anchor')end
   end
 end
+local enc12,dec12
+local function tables()
+  if enc12 then return end
+  enc12,dec12={},{}
+  for v=0,4095 do
+    local hi,lo=v>>6,v&63
+    local pair=chars:sub(hi+1,hi+1)..chars:sub(lo+1,lo+1)
+    enc12[v]=pair;dec12[(pair:byte(1)<<8)|pair:byte(2)]=v
+  end
+end
+-- fx_envelopes[p].points (тысячи {t,v,shape,tension}) в сохранённом состоянии — одна бинарная строка:
+-- кодек тратил на таблицы основное время чтения/записи. Старые состояния с таблицами читаются как раньше.
+local function pack_points(value)
+  local fe=type(value)=='table' and value.fx_envelopes
+  if type(fe)~='table' then return value end
+  local out={};for k,v in pairs(value) do out[k]=v end
+  local fx={}
+  for p,e in pairs(fe) do
+    if type(e)=='table' and type(e.points)=='table' then
+      local rows={};for i,q in ipairs(e.points) do rows[i]=string.pack('<ddbd',q.t,q.v,q.shape or 0,q.tension or 0) end
+      local c={};for k,v in pairs(e) do c[k]=v end;c.points=nil;c.packed=table.concat(rows);c.count=#rows;fx[p]=c
+    else fx[p]=e end
+  end
+  out.fx_envelopes=fx;return out
+end
+local function unpack_points(value)
+  local fe=type(value)=='table' and value.fx_envelopes
+  if type(fe)~='table' then return value end
+  for _,e in pairs(fe) do
+    if type(e)=='table' and type(e.packed)=='string' then
+      assert(#e.packed%25==0 and #e.packed/25<=2000000,'Invalid Pitch envelope data')
+      local pts={};for at=1,#e.packed,25 do
+        local t,v,shape,tension=string.unpack('<ddbd',e.packed,at);pts[#pts+1]={t=t,v=v,shape=shape,tension=tension}
+      end
+      e.points=pts;e.packed=nil;e.count=nil
+    end
+  end
+  return value
+end
 function M.encode(data,job)
-  local s=Codec.encode(data,job);local out={}
-  for i=1,#s,3 do
-    local a,b,c=s:byte(i,i+2);local n=(a<<16)|((b or 0)<<8)|(c or 0)
-    out[#out+1]=chars:sub((n>>18)+1,(n>>18)+1)..chars:sub(((n>>12)&63)+1,((n>>12)&63)+1)..
-      (b and chars:sub(((n>>6)&63)+1,((n>>6)&63)+1) or '=')..(c and chars:sub((n&63)+1,(n&63)+1) or '=')
+  tables()
+  local s=Codec.encode(pack_points(data),job);local out={};local n=#s;local full=n-n%3
+  for i=1,full,3 do
+    local v=string.unpack('>I3',s,i)
+    out[#out+1]=enc12[v>>12]..enc12[v&4095]
     if job and i%3072==1 then job:checkpoint() end
   end
+  local rest=n-full
+  if rest==1 then local a=s:byte(full+1)<<16;out[#out+1]=enc12[a>>12]:sub(1,2)..'=='
+  elseif rest==2 then local a,b=s:byte(full+1,full+2);local v=(a<<16)|(b<<8);out[#out+1]=enc12[v>>12]..enc12[(v&4095)]:sub(1,1)..'=' end
   return table.concat(out)
 end
 function M.decode(s)
   assert(#s<=8*1024*1024 and #s%4==0 and not s:find('[^%w+/=]'),'Invalid Pitch project data')
-  local map={};for i=1,#chars do map[chars:byte(i)]=i-1 end
-  local out={}
-  for i=1,#s,4 do
-    local a,b,c,d=s:byte(i,i+3);assert(map[a] and map[b],'Invalid Pitch encoding')
-    assert((map[c] or (c==61 and d==61 and i==#s-3)) and (map[d] or (d==61 and i==#s-3)),'Invalid Pitch padding')
-    local n=(map[a]<<18)|(map[b]<<12)|((map[c] or 0)<<6)|(map[d] or 0)
-    out[#out+1]=string.char((n>>16)&255)..(c~=61 and string.char((n>>8)&255) or '')..(d~=61 and string.char(n&255) or '')
+  tables()
+  local out={};local n=#s;local last=n>=4 and n-3 or n+1
+  for i=1,last-1,4 do
+    local v1=dec12[string.unpack('>I2',s,i)];local v2=dec12[string.unpack('>I2',s,i+2)]
+    assert(v1 and v2,'Invalid Pitch encoding')
+    out[#out+1]=string.pack('>I3',(v1<<12)|v2)
   end
-  return Codec.decode(table.concat(out))
+  if n>=4 then
+    local a,b,c,d=s:byte(n-3,n)
+    local map=M._map;if not map then map={};for i=1,#chars do map[chars:byte(i)]=i-1 end;M._map=map end
+    assert(map[a] and map[b],'Invalid Pitch encoding')
+    assert((map[c] or (c==61 and d==61)) and (map[d] or d==61),'Invalid Pitch padding')
+    local v=(map[a]<<18)|(map[b]<<12)|((map[c] or 0)<<6)|(map[d] or 0)
+    out[#out+1]=string.char((v>>16)&255)..(c~=61 and string.char((v>>8)&255) or '')..(d~=61 and string.char(v&255) or '')
+  end
+  return unpack_points(Codec.decode(table.concat(out)))
 end
 function M.hash(s)
-  local h=2166136261;for i=1,#s do h=((h~s:byte(i))*16777619)&0xffffffff end;return string.format('%08x',h)
+  local h=2166136261;local n=#s;local full=n-n%8;local byte=string.byte
+  for i=1,full,8 do
+    local a,b,c,d,e,f,g,k=byte(s,i,i+7)
+    h=((h~a)*16777619)&0xffffffff;h=((h~b)*16777619)&0xffffffff;h=((h~c)*16777619)&0xffffffff;h=((h~d)*16777619)&0xffffffff
+    h=((h~e)*16777619)&0xffffffff;h=((h~f)*16777619)&0xffffffff;h=((h~g)*16777619)&0xffffffff;h=((h~k)*16777619)&0xffffffff
+  end
+  for i=full+1,n do h=((h~byte(s,i))*16777619)&0xffffffff end
+  return string.format('%08x',h)
+end
+function M.raw(r,take)
+  local ok,text=r.GetSetMediaItemTakeInfo_String(take,M.key,'',false)
+  if not ok then return '' end
+  return text or ''
 end
 function M.read(r,take)
   local ok,text=r.GetSetMediaItemTakeInfo_String(take,M.key,'',false)

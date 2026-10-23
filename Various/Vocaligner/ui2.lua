@@ -107,6 +107,7 @@ local function init()
   local function mk(sz,flags) local f=ImGui.CreateFont(family,sz,flags or 0);ImGui.Attach(ctx,f);return f end
   R.F_LBL,R.F_TIPB,R.F_TILE=mk(14),mk(14,ImGui.FontFlags_Bold),mk(12)
   R.F_TIPI=mk(12,ImGui.FontFlags_Italic)
+  R.F_NOTE=mk(40,ImGui.FontFlags_Bold) -- крупная нота в окне ATune
 end
 local function sprite(dl,i,x1,y1,x2,y2,col,rnd)
   local e=0.5/R.sp.w -- полтекселя внутрь, чтобы не тянуло соседнюю иконку
@@ -321,8 +322,13 @@ local function tooltip(key,hov,ax,ay,title,text,wx,ww,delay,speed)
   tips[#tips+1]={st.t,ax,ay,title,text,wx,ww,key}
 end
 -- облачко: тень, заливка, носик вверх (в точке nx), тонкий контур. Клип/анимацию задаёт вызывающий
-local function bubble(dl,L,T,Rr,B,nx,e,plain)
+local function bubble(dl,L,T,Rr,B,nx,e,plain,nonose)
   local rr,pi=10,math.pi
+  if nonose then -- без носика: тень, заливка и обводка прямоугольника
+    for k=1,8 do ImGui.DrawList_AddRectFilled(dl,L-k,T-k+3,Rr+k,B+k+3,fa(0x000000FF,0.016*e),rr+k) end
+    ImGui.DrawList_AddRectFilled(dl,L,T,Rr,B,fa(PILL,e),rr);ImGui.DrawList_AddRect(dl,L+.5,T+.5,Rr-.5,B-.5,fa(0x3E3E4AFF,e),rr,0,0.75)
+    return
+  end
   if plain then -- без тени и обводки (подсказки инструментов): просто плашка с носиком
     local fill=fa(PILL,e)
     ImGui.DrawList_AddRectFilled(dl,L,T,Rr,B,fill,rr)
@@ -406,7 +412,7 @@ local function modal(st,id,cfg)
   end
   local W1,H1=cfg.W,cfg.H
   local L1=math.floor(clampf(cfg.ax-W1*(cfg.anchor or 0.5),wx+8,wx+ww-8-W1)+0.5)
-  local T=math.floor(cfg.ay+8)
+  local T=math.floor(cfg.up and (cfg.ay-cfg.H-8) or (cfg.ay+8)) -- up: над точкой, без носика
   local W0,H0=cfg.from_w or W1,cfg.from_h or H1
   local L0=math.floor(clampf(cfg.ax-W0/2,wx+6,wx+ww-6-W0)+0.5)
   local L,W,H=ap(L0,L1,e),ap(W0,W1,e),ap(H0,H1,e)
@@ -417,7 +423,7 @@ local function modal(st,id,cfg)
   if ImGui.BeginChild(ctx,'##bubble_'..id,W1+2*MARGIN,H1+2*MARGIN+4,0,base|ImGui.WindowFlags_NoBackground) then
     local dl=ImGui.GetWindowDrawList(ctx)
     local from=ease(st.from or 0)
-    bubble(dl,L,T,Rr,B,clampf(cfg.ax,L+14,Rr-14),from+(1-from)*math.min(1,e*3))
+    if cfg.up then bubble(dl,L,T,Rr,B,0,from+(1-from)*math.min(1,e*3),nil,true) else bubble(dl,L,T,Rr,B,clampf(cfg.ax,L+14,Rr-14),from+(1-from)*math.min(1,e*3)) end
     cfg.content(dl,L,T,Rr,B,e,clampf((e-0.55)/0.45,0,1),L1)
     ImGui.EndChild(ctx)
   end
@@ -485,9 +491,9 @@ end
 
 -- ===== универсальный стилевой выпадающий список (облачко): items = {{label,checked,disabled,action}|{sep=true}} =====
 local DD={id=nil,items=nil,ax=0,ay=0}
-local function open_dropdown(id,ax,ay,items)
+local function open_dropdown(id,ax,ay,items,up)
   if dd.open and DD.id==id then dd.open=false;return end -- повторный клик по той же кнопке закрывает
-  DD.id,DD.items,DD.ax,DD.ay=id,items,ax,ay;DD.tab=app.tab
+  DD.id,DD.items,DD.ax,DD.ay,DD.up=id,items,ax,ay,up;DD.tab=app.tab
   if dd.open then dd.t=0 end -- переключение с другого списка: клик не должен тут же закрыть новый
   dd.open=true;dd.cw,dd.ch=nil,nil
 end
@@ -499,12 +505,12 @@ local function dropdown_modal()
   ImGui.PushFont(ctx,R.F_TILE)
   local rh=ImGui.GetTextLineHeight(ctx)+5;local mw=0;local total=0
   for i,it in ipairs(items) do
-    if it.label then mw=math.max(mw,(ImGui.CalcTextSize(ctx,it.label))) end
+    if it.label then mw=math.max(mw,(ImGui.CalcTextSize(ctx,it.label))+(it.indent or 0)+(it.dot and 14 or 0)) end
     total=total+(it.sep and 5 or rh)+(i>1 and 1 or 0)
   end
   ImGui.PopFont(ctx)
   local rw=mw+28 -- слева место под галочку
-  modal(dd,'dd',{ax=DD.ax,ay=DD.ay,W=rw+2*PAD,H=total+2*PAD,anchor=0.5,dim=false,
+  modal(dd,'dd',{ax=DD.ax,ay=DD.ay,up=DD.up,W=rw+2*PAD,H=total+2*PAD,anchor=0.5,dim=false,
     content=function(dl,L,T,Rr,B,e_,ca,L1)
       if ca<=0.02 then return end
       ImGui.PushFont(ctx,R.F_TILE)
@@ -524,7 +530,9 @@ local function dropdown_modal()
             ImGui.DrawList_PathLineTo(dl,bx+6,by+rh/2);ImGui.DrawList_PathLineTo(dl,bx+9,by+rh/2+3);ImGui.DrawList_PathLineTo(dl,bx+14,by+rh/2-3)
             ImGui.DrawList_PathStroke(dl,0xF29A5AFF,0,1.8)
           end
-          ImGui.DrawList_AddText(dl,bx+20,by+(rh-ImGui.GetTextLineHeight(ctx))/2,it.disabled and 0x6A6A76FF or 0xE6E6F0FF,it.label)
+          local tx=bx+20+(it.indent or 0)
+          if it.dot then ImGui.DrawList_AddCircleFilled(dl,tx+4,by+rh/2,3.5,it.dot);tx=tx+14 end
+          ImGui.DrawList_AddText(dl,tx,by+(rh-ImGui.GetTextLineHeight(ctx))/2,it.disabled and 0x6A6A76FF or 0xE6E6F0FF,it.label)
           if hov and ImGui.IsItemClicked(ctx,0) then dd.open=false;if it.action then it.action() end end
         end
       end
@@ -566,28 +574,58 @@ end
 -- облачко Auto: параметры подгонки высоты (содержимое — ui2/pitch.lua auto_rows)
 local function auto_modal()
   local e=app.pitch
-  if e.auto_toggle then e.auto_toggle=nil;autobox.open=not autobox.open end
+  if e.auto_toggle then e.auto_toggle=nil;autobox.open=not autobox.open;if autobox.open then autobox.focus=true end end
   if app.tab~='pitch' then autobox.open=false end
-  local b=e.auto_btn
-  if not b then return end
-  local PADX,PADY=10,10
-  ImGui.PushFont(ctx,R.F_TILE);ImGui.PushStyleVar(ctx,ImGui.StyleVar_FramePadding,4,2)
-  local gw,gh=Pitch2.auto_size(ImGui,ctx,app,6)
-  ImGui.PopStyleVar(ctx);ImGui.PopFont(ctx)
-  modal(autobox,'auto',{ax=b.x+b.w/2,ay=b.y+b.h,W=gw+2*PADX,H=gh+2*PADY,anchor=0.7,dim=false,keep=function() return dd.open or dd.t>0.01 or ImGui.IsAnyItemActive(ctx) end,
-    content=function(dl,L,T,Rr,B,e_,ca,L1)
-      if ca>0.02 then
-        ImGui.PushFont(ctx,R.F_TILE)
-        ImGui.PushStyleVar(ctx,ImGui.StyleVar_Alpha,ca);ImGui.PushStyleVar(ctx,ImGui.StyleVar_ItemSpacing,6,6)
-        ImGui.PushStyleVar(ctx,ImGui.StyleVar_FramePadding,4,2);ImGui.PushStyleVar(ctx,ImGui.StyleVar_FrameRounding,4)
-        ImGui.PushStyleColor(ctx,ImGui.Col_FrameBg,0x2C2C2CFF);ImGui.PushStyleColor(ctx,ImGui.Col_FrameBgHovered,0x383838FF)
-        ImGui.PushStyleColor(ctx,ImGui.Col_FrameBgActive,0x444444FF);ImGui.PushStyleColor(ctx,ImGui.Col_CheckMark,0xF29A5AFF)
-        ImGui.PushStyleColor(ctx,ImGui.Col_SliderGrab,0xC8783AFF);ImGui.PushStyleColor(ctx,ImGui.Col_SliderGrabActive,0xF29A5AFF)
-        ImGui.SetCursorScreenPos(ctx,L1+PADX,T+PADY)
-        ImGui.BeginGroup(ctx);Pitch2.auto_rows(ImGui,ctx,app,open_dropdown);ImGui.EndGroup(ctx)
-        ImGui.PopStyleColor(ctx,6);ImGui.PopStyleVar(ctx,4);ImGui.PopFont(ctx)
-      end
-    end})
+  e.atune_open=autobox.open;e.atune_compact=autobox.compact
+  autobox.t=ap(autobox.t or 0,autobox.open and 1 or 0,0.22)
+  if autobox.t<0.01 then autobox.t=0;return end
+  local ea=ease(autobox.t)
+  local wx,wy=ImGui.GetWindowPos(ctx);local ww,wh=ImGui.GetWindowSize(ctx)
+  local PAD=10;local gw,gh=Pitch2.auto_size(autobox.compact)
+  local W,H=gw+2*PAD,gh+2*PAD
+  -- панель живёт в правом нижнем углу окна, над скроллбаром (обзорной полосой) редактора; сама не закрывается
+  local X=math.floor(wx+ww-W-14);local Y=math.floor(wy+wh-H-40-(1-ea)*10)
+  -- «фокус» — это сама панель, а не окно ImGui: берётся кликом внутри панели и теряется кликом снаружи; при наведении
+  -- панель становится плотной, без наведения и без фокуса — прозрачнее. Закрывать при потере фокуса не нужно.
+  local hovered=ImGui.IsMouseHoveringRect(ctx,X,Y,X+W,Y+H)
+  if ImGui.IsMouseClicked(ctx,0) or ImGui.IsMouseClicked(ctx,1) then autobox.focus=hovered end
+  autobox.fade=ap(autobox.fade or 1,(autobox.focus or hovered) and 1 or 0,0.18)
+  local fade=autobox.fade
+  local bga=math.floor((0xDC+(0x78-0xDC)*(1-fade))*ea)
+  ImGui.SetCursorScreenPos(ctx,X,Y)
+  ImGui.PushStyleVar(ctx,ImGui.StyleVar_WindowPadding,0,0);ImGui.PushStyleVar(ctx,ImGui.StyleVar_ChildRounding,10)
+  ImGui.PushStyleColor(ctx,ImGui.Col_ChildBg,0)
+  if ImGui.BeginChild(ctx,'##atune_panel',W,H,0,ImGui.WindowFlags_NoScrollbar|ImGui.WindowFlags_NoScrollWithMouse|ImGui.WindowFlags_NoMove|ImGui.WindowFlags_NoBackground) then
+    local dl=ImGui.GetWindowDrawList(ctx)
+    ImGui.DrawList_AddRectFilled(dl,X,Y,X+W,Y+H,(0x1B1B1B00|bga),10)
+    ImGui.DrawList_AddRect(dl,X+.5,Y+.5,X+W-.5,Y+H-.5,(0x4A4A5600|math.floor(0x90*ea)),10,0,1)
+    if not autobox.compact then
+      ImGui.DrawList_AddRectFilled(dl,X+PAD+Pitch2.auto_split(),Y,X+W,Y+H,(0x15151500|math.floor(math.min(0xE8,bga+0x10))),10,ImGui.DrawFlags_RoundCornersRight)
+    end
+    ImGui.PushFont(ctx,R.F_TILE)
+    ImGui.PushStyleVar(ctx,ImGui.StyleVar_Alpha,ea);ImGui.PushStyleVar(ctx,ImGui.StyleVar_FramePadding,4,3);ImGui.PushStyleVar(ctx,ImGui.StyleVar_FrameRounding,4)
+    ImGui.PushStyleVar(ctx,ImGui.StyleVar_GrabRounding,4);ImGui.PushStyleVar(ctx,ImGui.StyleVar_GrabMinSize,10)
+    ImGui.PushStyleColor(ctx,ImGui.Col_FrameBg,0x2A2A2AFF);ImGui.PushStyleColor(ctx,ImGui.Col_FrameBgHovered,0x333333FF)
+    ImGui.PushStyleColor(ctx,ImGui.Col_FrameBgActive,0x3A3A3AFF);ImGui.PushStyleColor(ctx,ImGui.Col_SliderGrab,0x9C8446FF)
+    ImGui.PushStyleColor(ctx,ImGui.Col_SliderGrabActive,0xC8A85AFF)
+    Pitch2.auto_rows(ImGui,ctx,app,X+PAD,Y+PAD,{note=R.F_NOTE},HOST,autobox.compact)
+    ImGui.PopStyleColor(ctx,5);ImGui.PopStyleVar(ctx,5);ImGui.PopFont(ctx)
+    -- «свернуть» — компактная чёрточка в углу панели без фона, только подсветка при наведении; ничего не сдвигает
+    do
+      local bx,by,bs=X+W-22,Y+5,16
+      ImGui.SetCursorScreenPos(ctx,bx,by);ImGui.InvisibleButton(ctx,'##atune_min',bs,bs)
+      local hv=ImGui.IsItemHovered(ctx)
+      if hv then ImGui.SetMouseCursor(ctx,ImGui.MouseCursor_Hand);ImGui.DrawList_AddRectFilled(dl,bx,by,bx+bs,by+bs,0xFFFFFF20,4) end
+      local c=hv and 0xFFFFFFFF or 0xFFFFFF70
+      if autobox.compact then ImGui.DrawList_AddRect(dl,bx+4,by+4,bx+bs-4,by+bs-4,c,1,0,1.5) -- «развернуть»
+      else ImGui.DrawList_AddLine(dl,bx+4,by+bs-5,bx+bs-4,by+bs-5,c,1.8) end
+      if ImGui.IsItemClicked(ctx,0) then autobox.compact=not autobox.compact end
+    end
+    -- вне фокуса всё содержимое (кнобы, слайдер, ноты) гасится одним полупрозрачным слоем цвета панели
+    if fade<0.99 then ImGui.DrawList_AddRectFilled(dl,X,Y,X+W,Y+H,(0x1B1B1B00|math.floor(0x88*(1-fade)*ea)),10) end
+    ImGui.EndChild(ctx)
+  end
+  ImGui.PopStyleColor(ctx);ImGui.PopStyleVar(ctx,2)
 end
 
 -- пункты меню Report (кнопка справа в топбаре): отчёт, экспорт кейса, сброс текущей стадии

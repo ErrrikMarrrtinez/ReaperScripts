@@ -17,6 +17,7 @@ function M.mapping(r,take,fx,param)
   assert(math.abs(values[3])<.011,'ReaPitch center is not zero')
   return {lo=lo,hi=hi}
 end
+local ENV_CACHE,ENV_ORDER={},{}
 function M.fingerprint(r,take,fx,static)
   local parts={tostring(r.TakeFX_GetEnabled(take,fx)),tostring(r.TakeFX_GetOffline(take,fx))}
   for p=0,r.TakeFX_GetNumParams(take,fx)-1 do
@@ -26,9 +27,22 @@ function M.fingerprint(r,take,fx,static)
       if r.CountAutomationItems then assert(r.CountAutomationItems(env)==0,'Pitch does not own automation items') end
       local ok,chunk=r.GetEnvelopeStateChunk(env,'',false);assert(ok,'Cannot inspect Pitch envelope')
       parts[#parts+1]=p..':'..(chunk:match('\nACT ([^\r\n]+)') or '')
-      for i=0,r.CountEnvelopePoints(env)-1 do
-        local valid,t,v,shape,tension=r.GetEnvelopePoint(env,i);assert(valid,'Cannot inspect Pitch point')
-        parts[#parts+1]=string.format('%.9g,%.9g,%d,%.9g',t,v,shape,tension)
+      -- строки точек пересчитываются, только если изменился текст огибающей: Bypass и смена настроек точки не трогают,
+      -- а полный перебор тысяч GetEnvelopePoint + format стоил десятки миллисекунд на каждое нажатие
+      local key=tostring(take)..'|'..fx..'|'..p
+      local hit=ENV_CACHE[key]
+      if hit and hit.chunk==chunk then
+        if hit.text~='' then parts[#parts+1]=hit.text end
+      else
+        local pts={}
+        for i=0,r.CountEnvelopePoints(env)-1 do
+          local valid,t,v,shape,tension=r.GetEnvelopePoint(env,i);assert(valid,'Cannot inspect Pitch point')
+          pts[#pts+1]=string.format('%.9g,%.9g,%d,%.9g',t,v,shape,tension)
+        end
+        local text=table.concat(pts,'|')
+        if not ENV_CACHE[key] then ENV_ORDER[#ENV_ORDER+1]=key;if #ENV_ORDER>8 then ENV_CACHE[table.remove(ENV_ORDER,1)]=nil end end
+        ENV_CACHE[key]={chunk=chunk,text=text}
+        if text~='' then parts[#parts+1]=text end
       end
     end
   end
@@ -44,7 +58,8 @@ function M.envelopes(r,take,fx)
         local yes,t,v,shape,tension=r.GetEnvelopePoint(env,i);assert(yes,'Cannot read Pitch point')
         points[#points+1]={t=t,v=v,shape=shape,tension=tension}
       end
-      result[p]={chunk=chunk,points=points}
+      -- строки PT не нужны (сравнение идёт по points, режим берётся из заголовка): состояние вдвое меньше
+      result[p]={chunk=chunk:gsub('\nPT [^\n]*',''),points=points}
     end
   end
   return result

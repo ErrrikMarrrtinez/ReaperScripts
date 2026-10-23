@@ -31,6 +31,38 @@ function M.nearest(p,root,scale,lo,hi)
   end end
   return best
 end
+-- Быстрый поиск ближайшей ноты для массовых расчётов (Auto): на тональность один раз строится таблица соседей
+-- для каждого полутона класса высоты; результат совпадает с M.nearest (при равном расстоянии — верхняя нота).
+local fast_cache={}
+function M.nearest_fn(root,scale)
+  local key=(root or 0)..'|'..(scale or 1);local f=fast_cache[key];if f then return f end
+  local lo,hi={},{}
+  for s=0,11 do
+    local l=s;while not M.contains(l,root,scale) do l=l-1 end
+    local h=s+1;while not M.contains(h,root,scale) do h=h+1 end
+    lo[s],hi[s]=l,h
+  end
+  f=function(p)
+    local base=math.floor(p/12)*12;local x=p-base;local s=math.floor(x);if s>11 then s=11 end
+    local l,h=base+lo[s],base+hi[s]
+    if p-l<h-p-1e-9 then return l else return h end
+  end
+  fast_cache[key]=f;return f
+end
+-- То же по произвольной маске классов высоты mask[0..11] (абсолютные, C=0): разовая настройка нот в окне ATune
+function M.nearest_mask(mask)
+  local lo,hi={},{}
+  for s=0,11 do
+    local l=s;while not mask[l%12] do l=l-1 end
+    local h=s+1;while not mask[h%12] do h=h+1 end
+    lo[s],hi[s]=l,h
+  end
+  return function(p)
+    local base=math.floor(p/12)*12;local x=p-base;local s=math.floor(x);if s>11 then s=11 end
+    local l,h=base+lo[s],base+hi[s]
+    if p-l<h-p-1e-9 then return l else return h end
+  end
+end
 function M.pitch(e,p,alt) return e.snap and not alt and M.nearest(p,e.root,e.scale) or p end
 function M.center(n) return n.center+(n.visual_offset or 0)+(n.flat_offset or 0)*(n.flatten or 0) end
 function M.shift(e,n,value,alt,step,original)
