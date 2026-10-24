@@ -193,7 +193,11 @@ function M.tick(app,legacy)
   if app.project and Audio.project_open(app.r,app.project)then
     local count=app.r.GetProjectStateChangeCount(app.project)
     if count~=app.project_state then
-      for _,d in ipairs(app.dubs)do if d.original_state then local ok,why=Audio.check_dub(app.r,d);if not ok then app.pending_apply=false;app:fail(why)end end end
+      for _,d in ipairs(app.dubs)do if d.original_state then local ok,why=Audio.check_dub(app.r,d);if not ok then
+        -- изменение вне скрипта — статус дуба и одна запись в лог, а не ошибка на каждый шаг проекта
+        app.pending_apply=false;d.status='Changed outside — Analyze again or Restore'
+        if app.last_external~=why then app.last_external=why;app:report(why) end
+      end end end
       app.project_state=count
     end
   end

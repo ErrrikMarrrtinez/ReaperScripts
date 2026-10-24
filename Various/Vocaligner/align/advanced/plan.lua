@@ -254,8 +254,11 @@ function M.build(ref,dub,correspondence,cfg,constraints,job,budget,options)
   -- A guided correspondence is already a smooth, complete map. Its optimizer
   -- gets a shorter iteration budget and may finish with the validated nearest
   -- feasible point instead of refusing the whole dub.
-  local qcfg=cfg
-  if correspondence.matcher=='guided' then p.allow_approximate=true;qcfg=U.copy(cfg);qcfg.iterations=math.min(cfg.iterations,600)end
+  -- Для любого сопоставления: при высокой Strength активных ограничений больше, ADMM сходится медленно и раньше
+  -- упирался в 2000 итераций — долго и в итоге «Calculation failed» для целого дуба. Теперь бюджет 600 итераций и,
+  -- если точной сходимости нет, — ближайшая допустимая карта: она проецируется на те же ограничения и проходит ту же
+  -- независимую проверку геометрии (статус дуба помечается «approximate optimizer»).
+  local qcfg=U.copy(cfg);p.allow_approximate=true;qcfg.iterations=math.min(cfg.iterations,600)
   local delta,solve=QP.solve(p,qcfg,budget);if not delta then return nil,solve end
   local dense={};for i,u in ipairs(grid)do dense[i]={t=u,source=src[i],target=s.pos+u+delta[i],status=p.status[i],mandatory=required[i]or false,constraint_ids=p.constraint_ids[i]}end
   local plan={engine_id='advanced_v1',engine_version=cfg.algorithm_version,renderer_id='reaper_stretch_v2',baseline_id=correspondence.baseline_id,

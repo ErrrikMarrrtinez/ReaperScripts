@@ -40,8 +40,16 @@ function M.build(ref,dub,path,stats,cfg,job)
   Timing.smooth(points,(cfg.smooth_ms or 0)/1000,job)
   for i,p in ipairs(points) do delta[i]=p.shift end
   local tol=cfg.tolerance_ms/1000
+  -- Медиана 5 соседей — только среди точек, близких по времени (±100 мс). Точки берутся лишь из звучащих кадров,
+  -- поэтому соседи по индексу могут лежать по разные стороны длинной паузы: раньше первое слово после паузы
+  -- (и начало айтема) получало сдвиг, подмешанный с другой фразы.
+  local function median_near(i)
+    local list={};local ti=points[i].t
+    for k=math.max(1,i-2),math.min(#points,i+2) do if math.abs(points[k].t-ti)<=.1 then list[#list+1]=delta[k] end end
+    table.sort(list);return list[math.ceil(#list/2)]
+  end
   for i,p in ipairs(points) do
-    local shift=DSP.median5(delta,i)
+    local shift=median_near(i)
     shift=(shift>=0 and 1 or -1)*math.max(0,math.abs(shift)-tol)
     p.target=s.pos+p.t+DSP.clamp(shift,-cfg.search_s,cfg.search_s)
   end
