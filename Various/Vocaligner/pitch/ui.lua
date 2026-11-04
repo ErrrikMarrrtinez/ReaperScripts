@@ -3,6 +3,11 @@ local import=...;local Notes=import('pitch/notes');local Curve=import('pitch/cur
 local colors={bg=0x121212FF,black=0x151515FF,row=0x1F1F1EFF,row_scale=0x232323FF,line=0x161616FF,beat=0x2C2C2CFF,text=0xD6DBE5FF,muted=0x7E8695FF,
   blue=0x4269DFFF,purple=0x9D4EDCFF,selected=0xDC77E9FF,curve=0xF6F3FFFF,raw=0xAAAAAF60,accent=0x7FCCCBFF}
 local black={[1]=true,[3]=true,[6]=true,[8]=true,[10]=true}
+-- Упрощение, когда рисовать слишком много: нота уже narrow px рисуется прямоугольником по пределам силуэта;
+-- при больше dense видимых нот (или moving, пока вид едет и ещё hold с после) — все ноты прямоугольниками
+-- и без подписей. Пороги доступны как M.lod (тесты, подстройка).
+local LOD={narrow=4,dense=300,moving=150,hold=.15}
+local MOTION_HOLD=LOD.hold
 local names={'C','C#','D','D#','E','F','F#','G','G#','A','A#','B'}
 local function clamp(x,a,b)return math.max(a,math.min(b,x))end
 local function name(p)local n=math.floor(p+.5);return names[n%12+1]..tostring(n//12-1)end
@@ -14,7 +19,7 @@ local function fit_values(e,w,h,all)
   if #samples==0 then for _,f in ipairs(e.data and e.data.frames or {}) do if f.confidence>=.8 then samples[#samples+1]={p=f.pitch,w=1};total=total+1 end end end
   if e.workspace and not (e.state and e.state.bypassed) then
     for _,row in ipairs(e.workspace.tracks)do if row.visible and row~=e.track_row then
-      for _,entry in ipairs(row.items)do local visual=Workspace.visual(e,entry)
+      for _,entry in ipairs(row.items)do local visual=entry.visual or nil -- только уже загруженные: невидимые не распаковываем
         for _,n in ipairs(visual and visual.notes or {})do
           local pitch=Scale.center(n)+(n.shift or 0);local weight=n.finish-n.start
           samples[#samples+1]={p=pitch,w=weight};total=total+weight
@@ -58,6 +63,32 @@ local tooltips={notes='Drag: relative semitones. Shift / Alt: fine pitch. Double
 -- Параметры оформления для нового интерфейса (ui2/pitch.lua); по умолчанию оригинальный вид не меняется.
 -- ghost_button: вместо кнопок +/- над клавишами — кнопка «ghost» (список фоновых дорожек рисует оболочка ui2).
 M.options={ghost_button=false,smooth=false,autoscroll=false}
+M.lod=LOD
+-- Режим отрисовки нот для кадра: true — все прямоугольниками (видимых нот count, вид едет — moving)
+-- M.options.fast_motion (Settings → «Light drawing while zooming», по умолчанию вкл.): пока вид едет, форма нот не
+-- меняется (без перехода в прямоугольники) — переиспользуются готовые силуэты и контур, уточнение идёт порциями
+function M.dense(count,moving) return count>LOD.dense or moving and not M.options.fast_motion and count>LOD.moving end
+-- Фоновая сборка контура: coroutine с бюджетом ~3 мс за кадр; пока не готов — рисуется прежний контур (slot — ключ:
+-- 'main' или призрак). Возвращает готовый контур или nil. Новая цель (другое окно/данные) отменяет текущую сборку.
+local function contour_async(e,slot,r,data,notes,version,bs,bspan,bw,ppp,previous)
+  local jobs=e.contour_jobs;if not jobs then jobs={};e.contour_jobs=jobs end
+  local j=jobs[slot]
+  -- окно цели меняется каждый кадр, пока вид едет: начатую сборку не бросаем (иначе она не кончится никогда),
+  -- доводим до конца и уже по готовому контуру решаем, нужна ли следующая. Смена данных/нот — сборка заново
+  if not j or j.data~=data or j.notes~=notes or j.version~=version then
+    j={data=data,notes=notes,version=version,co=coroutine.create(function()
+      return Contour.build(data,notes,version,bs,bspan,bw,ppp,previous,coroutine.yield)
+    end)};jobs[slot]=j
+  end
+  local deadline=r.time_precise()+.003
+  while true do
+    local ok,res=coroutine.resume(j.co)
+    if not ok then jobs[slot]=nil;error(res,0) end
+    if coroutine.status(j.co)=='dead' then jobs[slot]=nil;return res end
+    if r.time_precise()>=deadline then return nil end
+  end
+end
+M.contour_async=contour_async
 M.tooltips=tooltips
 local function selection(e,id,add)
   if not add and not e.selected[id] then e.selected={} end
@@ -241,6 +272,8 @@ local function focus_view(e,v,transport,lower,upper,smooth,height,force_t)
 end
 -- Линии сетки по тактам проекта (нумерация тактов вместо секунд). Возвращает список {t=секунды от начала item, kind=1 такт|2 доля|3 подразделение, label}.
 -- Густота зависит от зума: далёкий зум — каждый N-й такт, средний — доли, близкий — ещё и половины долей.
+-- Густота решается по такту в начале вида (как раньше), а сам список строится на окно в три экрана и кэшируется
+-- по (густота, начало item, счётчик изменений проекта): скролл и простой кадр стоят 4–5 вызовов REAPER вместо десятков.
 local function bar_grid(e,v,width)
   local r=e.r;local proj=e.project or 0
   if not (r.TimeMap2_timeToBeats and r.TimeMap_GetMeasureInfo and r.TimeMap2_QNToTime) then return nil end
@@ -248,32 +281,40 @@ local function bar_grid(e,v,width)
   local t0,t1=base+v.start,base+v.start+v.span
   local _,m0=r.TimeMap2_timeToBeats(proj,t0)
   if type(m0)~='number' then return nil end
-  local out={}
-  local first=true;local bar_step=1;local beat_px=0
   local m=math.floor(m0)
-  for _=1,400 do
-    local ok,qn0,qn1,num,den=r.TimeMap_GetMeasureInfo(proj,m)
-    if not ok or not qn0 then break end
-    local ts,te=r.TimeMap2_QNToTime(proj,qn0),r.TimeMap2_QNToTime(proj,qn1)
-    if first then
-      first=false
-      local bar_px=(te-ts)/v.span*width;out.bar_px=bar_px
-      beat_px=bar_px/math.max(1,num or 4)
-      if bar_px<28 then bar_step=2^math.ceil(math.log(28/math.max(bar_px,1),2)) end
-    end
-    if ts>t1 then break end
-    if m%bar_step==0 then out[#out+1]={t=ts-base,kind=1,label=tostring(m+1)} end
-    if bar_step==1 and beat_px>=20 and num and num>0 then
-      local bq=(qn1-qn0)/num
-      local subs=beat_px>=100 and 2 or 1
-      for k=1,num*subs-1 do
-        local q=qn0+k*bq/subs
-        out[#out+1]={t=r.TimeMap2_QNToTime(proj,q)-base,kind=(k%subs==0) and 2 or 3}
+  local ok,qn0,qn1,num=r.TimeMap_GetMeasureInfo(proj,m)
+  if not ok or not qn0 then return {} end
+  local bar_px=(r.TimeMap2_QNToTime(proj,qn1)-r.TimeMap2_QNToTime(proj,qn0))/v.span*width
+  local beat_px=bar_px/math.max(1,num or 4)
+  local bar_step=1;if bar_px<28 then bar_step=math.floor(2^math.ceil(math.log(28/math.max(bar_px,1),2))) end -- целое: номера тактов в подписях без «.0»
+  local beats=bar_step==1 and beat_px>=20;local subs=beat_px>=100 and 2 or 1
+  local sc=r.GetProjectStateChangeCount and r.GetProjectStateChangeCount(proj) or 0
+  local c=e.grid_cache
+  if c and c.proj==proj and c.base==base and c.sc==sc and c.bar_step==bar_step and c.beats==beats and c.subs==subs and t0>=c.a and t1<=c.b then
+    c.out.bar_px=bar_px;return c.out
+  end
+  local a,b=math.max(t0-v.span,math.min(t0,0)),t1+v.span -- не левее начала проекта, если вид сам не левее
+  local out={bar_px=bar_px}
+  local _,ma=r.TimeMap2_timeToBeats(proj,a);if type(ma)~='number' then ma=m0 end
+  -- при прореживании тактов (bar_step>1) долей нет: идём сразу по подписанным тактам
+  local mm=math.floor(ma);mm=mm+(-mm)%bar_step;local covered=false
+  for _=1,1200 do
+    local okm,q0,q1,n=r.TimeMap_GetMeasureInfo(proj,mm)
+    if not okm or not q0 then break end
+    local ts,te=r.TimeMap2_QNToTime(proj,q0),r.TimeMap2_QNToTime(proj,q1)
+    if ts>b then covered=true;break end
+    out[#out+1]={t=ts-base,kind=1,label=tostring(mm+1)}
+    if beats and n and n>0 then
+      local bq=(q1-q0)/n
+      for k=1,n*subs-1 do
+        out[#out+1]={t=r.TimeMap2_QNToTime(proj,q0+k*bq/subs)-base,kind=(k%subs==0) and 2 or 3}
       end
     end
-    m=m+1
-    if te>t1 then break end
+    if te>b then covered=true;break end
+    mm=mm+bar_step
   end
+  -- окно кэшируется, только если список действительно покрыл его (не упёрся в лимит тактов)
+  e.grid_cache={proj=proj,base=base,sc=sc,bar_step=bar_step,beats=beats,subs=subs,a=a,b=covered and b or -math.huge,out=out}
   return out
 end
 local function small_text(im,dl,ctx,cx,cy,col,text)
@@ -341,28 +382,37 @@ function M.canvas(im,ctx,e,w,h)
     v.last=v.tgt and {v.start,v.span,v.top,v.rows} or nil
   end
   local lite=v.tgt~=nil or (e.drag~=nil and (e.drag.kind=='pan' or e.drag.kind=='overview' or e.drag.kind=='vertical')) -- пока вид едет
-  -- Контуры строятся на окно в три экрана и переиспользуются, пока вид внутри окна и плотность близка.
+  -- Контуры строятся на окно с запасом по бокам и переиспользуются, пока вид внутри окна и плотность близка.
   -- Пока вид едет, допуск по плотности шире: пересборка откладывается до остановки (тогда — один раз).
   -- пока вид едет: грубее, чем нужно, не больше чем в 1.6 раза (иначе кривая заметно «ломаная»); мельче — можно
   local c_lo,c_hi=lite and .3 or .7,lite and 1.6 or 1.45
+  local fast=M.options.fast_motion
+  if lite and fast then c_lo,c_hi=.05,4 end
+  -- перестройка силуэтов нот за кадр ограничена: после остановки зума они уточняются за несколько кадров, а не одним рывком
+  Glyph.budget=fast and (lite and 6 or 24) or math.huge
   local function contour_fits(d,s0,s1,dens,ppp)
     return d.start<=s0+1e-9 and d.start+d.span>=s1-1e-9
       and d.span/d.width>=dens*c_lo and d.span/d.width<=dens*c_hi
       and (d.pitch_per_pixel or 0)>=ppp*c_lo and (d.pitch_per_pixel or 0)<=ppp*c_hi
   end
   local function contour_window(a0,len)
-    -- в покое — три экрана (скролл почти не пересобирает); пока вид едет — экран с небольшим запасом, чтобы пересборка была дешёвой
-    local m=lite and .25 or 1
+    -- в покое — по полэкрана с каждой стороны; пока вид едет — экран с небольшим запасом, чтобы пересборка была дешёвой.
+    -- Сетка контура стабильна (Contour.build), поэтому пересборка при выходе за окно досчитывает только новые полэкрана
+    local m=lite and .25 or .5
     local bs=math.max(0,a0-v.span*m);local be=math.min(len,a0+v.span*(1+m))
     if be<=bs then bs,be=a0,a0+v.span end
     return bs,be-bs,width*(be-bs)/v.span
   end
+  local function covers(d,s0,s1)return d.start<=s0+1e-9 and d.start+d.span>=s1-1e-9 end
+  local function quick_window(a0,len)
+    local bs=math.max(0,a0-v.span*.1);local be=math.min(len,a0+v.span*1.1)
+    if be<=bs then bs,be=a0,a0+v.span end
+    return bs,be-bs,width*(be-bs)/v.span/3
+  end
   local function tx(t)return left+(t-v.start)/v.span*width end
   local function py(p)return top+(v.top-p)/v.rows*height end
   local function time(px)return v.start+(px-left)/width*v.span end
-  -- параметры вида для кэша полилиний: контуры пересобираются только когда они (или данные) меняются
   e.poly=e.poly or {};local pview=e.pview or {};e.pview=pview
-  pview.start,pview.span,pview.top,pview.rows,pview.left,pview.ty,pview.width,pview.height=v.start,v.span,v.top,v.rows,left,top,width,height
   -- тайм-селекшн проекта REAPER (общий с остальными вкладками): секунды от начала текущего item
   local ts_a,ts_b
   if e.snapshot then
@@ -404,7 +454,7 @@ function M.canvas(im,ctx,e,w,h)
     local t;local running=transport.running and transport.play
     if running then t=transport.play-e.snapshot.pos
     else
-      for _,n in ipairs(e.notes) do if e.selected[n.id] then t=(n.start+n.finish)*.5;break end end
+      if next(e.selected) then for _,n in ipairs(e.notes) do if e.selected[n.id] then t=(n.start+n.finish)*.5;break end end end -- без выделения не обходим все ноты
       t=t or ((transport.edit or 0)-e.snapshot.pos)
     end
     local n,at=Notes.at(e.notes,t)
@@ -430,6 +480,15 @@ function M.canvas(im,ctx,e,w,h)
       end
     end
   end
+  -- параметры вида для кэша полилиний: контуры пересобираются только когда они (или данные) меняются.
+  -- Берутся после follow/autoscroll/aim, иначе кэш отставал бы на кадр от реального вида.
+  -- vstamp растёт при любой смене вида: по нему силуэты нот переиспользуют готовые экранные массивы
+  local moved=pview.start~=v.start or pview.span~=v.span or pview.top~=v.top or pview.rows~=v.rows or pview.left~=left or pview.ty~=top or pview.width~=width or pview.height~=height
+  pview.start,pview.span,pview.top,pview.rows,pview.left,pview.ty,pview.width,pview.height=v.start,v.span,v.top,v.rows,left,top,width,height
+  if moved or not e.vstamp then e.vstamp=(e.vstamp or 0)+1;e.motion_until=now_t+MOTION_HOLD end
+  local vstamp=e.vstamp
+  -- «Едет» = вид менялся в последние ~150 мс (колесо, перетаскивание, плавный зум, автоскролл)
+  local moving=lite or now_t<(e.motion_until or 0)
   im.DrawList_AddRectFilled(dl,x,y,x+w,y+h,colors.bg,5)
   im.DrawList_PushClipRect(dl,x,y,x+w,y+h,true)
   -- секция линейки над сеткой: светло-серая плашка (рисуется до кнопок в углу, чтобы не перекрывать их)
@@ -539,6 +598,7 @@ function M.canvas(im,ctx,e,w,h)
   local bypassed=e.state and e.state.bypassed==true
   local workspace_hit
   if not bypassed and e.workspace and e.snapshot then
+    Workspace.pump(e) -- фоновая загрузка призраков соседних айтемов
     for _,row in ipairs(e.workspace.tracks)do
       local same=row==e.track_row
       if same or row.visible then for _,entry in ipairs(row.items)do if entry.item~=e.item then
@@ -555,23 +615,33 @@ function M.canvas(im,ctx,e,w,h)
           local visual=Workspace.visual(e,entry)
           if visual then
             local function gx(t)return tx(offset+t)end
-            local used={}
-            for _,n in ipairs(visual.notes)do if offset+n.finish>=v.start and offset+n.start<=v.start+v.span then
-              local a,b=math.max(left,gx(n.start)),math.min(right,gx(n.finish))
-              local yy=gpy(Scale.center(n)+(n.shift or 0));local half=clamp(height/v.rows*.266,4.2,21)
+            -- только ноты в видимом окне (бинарный поиск по отсортированным нотам), а не обход всех с отсечением
+            local gn=visual.notes;local g0,g1=Poly.range(gn,v.start-offset,v.start+v.span-offset)
+            local gdense=M.dense(g1-g0+1,moving);local half=clamp(height/v.rows*.266,4.2,21)
+            local gfill,gline=same and 0x8494C342 or 0x9898C52D,same and 0x9EAAD060 or 0xAAA3CE45
+            for k=g0,g1 do local n=gn[k]
+              local na,nb=gx(n.start),gx(n.finish)
+              local a,b=na>left and na or left,nb<right and nb or right
+              local yy=gpy(Scale.center(n)+(n.shift or 0))
               if b>a and yy+half>=top and yy-half<=bottom then
-                used[n.id]=true
                 local shape=Glyph.shape(visual.glyphs,n.id,visual.data,n.start,n.finish,v.start-offset,v.span,width,lite)
-                Glyph.draw(im,dl,shape,gx,yy,half,same and 0x8494C342 or 0x9898C52D,false,same and 0x9EAAD060 or 0xAAA3CE45,v.start-offset,v.start-offset+v.span)
+                if gdense or nb-na<LOD.narrow then Glyph.rect(im,dl,shape,na,nb,yy,half,gfill,false,gline)
+                else Glyph.draw(im,dl,shape,gx,yy,half,gfill,false,gline,v.start-offset,v.start-offset+v.span,e.r,vstamp) end
                 if same and mx>=a and mx<=b and math.abs(my-yy)<=half+3 then workspace_hit=entry end
               end
-            end end
+            end
             local c=visual.contour
             local vlen=visual.data.len or math.huge
             local ga,gb=math.max(0,v.start-offset),math.min(vlen,v.start-offset+v.span)
             if not c or not contour_fits(c,ga,gb,v.span/width,v.rows/height) then
               local bs,bspan,bw=contour_window(v.start-offset,vlen)
-              c=Contour.build(visual.data,visual.notes,visual.version,bs,bspan,bw,v.rows/height,c);visual.contour=c
+              if fast and c and covers(c,ga,gb) then
+                local built=contour_async(e,'ghost:'..tostring(entry),e.r,visual.data,visual.notes,visual.version,bs,bspan,bw,v.rows/height,c)
+                if built and covers(built,ga,gb) then c=built;visual.contour=c end
+              elseif fast and c then
+                local qs,qspan,qw=quick_window(v.start-offset,vlen)
+                c=Contour.build(visual.data,visual.notes,visual.version,qs,qspan,qw,v.rows/height*3,c);visual.contour=c
+              else c=Contour.build(visual.data,visual.notes,visual.version,bs,bspan,bw,v.rows/height,c);visual.contour=c end
             end
             if not Poly.stroke(im,dl,e.r,e.poly,tostring(entry)..':'..gsh,c,pview,offset,'pitch',gx,gpy,same and 0xA9BCEB85 or 0xB9A5E570,1,1) then
               local previous
@@ -592,13 +662,17 @@ function M.canvas(im,ctx,e,w,h)
       e.original_ghost={data=e.data,notes=Notes.segment(e.data,e.state.hold_ms or e.hold_ms or 100),glyphs={}}
     end
     local original=e.original_ghost
-    for _,n in ipairs(original.notes)do if n.finish>=v.start and n.start<=v.start+v.span then
-      local yy=py(n.center);local half=clamp(height/v.rows*.332,5.8,30)
+    local on=original.notes;local o0,o1=Poly.range(on,v.start,v.start+v.span)
+    local odense=M.dense(o1-o0+1,moving);local half=clamp(height/v.rows*.332,5.8,30)
+    for k=o0,o1 do local n=on[k]
+      local yy=py(n.center)
       if yy+half>=top and yy-half<=bottom then
         local shape=Glyph.shape(original.glyphs,n.id,e.data,n.start,n.finish,v.start,v.span,width)
-        Glyph.draw(im,dl,shape,tx,yy,half,0xB4BFCE58,false,0xB4BFCE90,v.start,v.start+v.span)
+        local na,nb=tx(n.start),tx(n.finish)
+        if odense or nb-na<LOD.narrow then Glyph.rect(im,dl,shape,na,nb,yy,half,0xB4BFCE58,false,0xB4BFCE90)
+        else Glyph.draw(im,dl,shape,tx,yy,half,0xB4BFCE58,false,0xB4BFCE90,v.start,v.start+v.span,e.r,vstamp) end
       end
-    end end
+    end
     original.source=Contour.source(e.data,v.start,v.span,width,original.source)
     if not Poly.stroke(im,dl,e.r,e.poly,'original',original.source,pview,0,'raw',tx,py,0xCCD6E3B0,1.2,1.2) then
       local prior
@@ -611,26 +685,35 @@ function M.canvas(im,ctx,e,w,h)
   local anim_now=e.r.time_precise()
   e.glyphs=e.glyphs or {};local glyph_used={};local badge;local last_label_right=-1e9;local hi_y,lo_y
   local hit,index,transition,boundary,anchor_hit
-  for k,n in ipairs(e.notes or {}) do if n.finish>=v.start and n.start<=v.start+v.span then
-    local ax,bx=tx(n.start),tx(n.finish);local inset=math.min(1.25,(bx-ax)*.1);ax,bx=ax+inset,bx-inset;local center=Scale.center(n)+(n.shift or 0)
+  -- видимые ноты — бинарным поиском по отсортированному списку; их число выбирает упрощённый режим
+  local notes_all=e.notes or {};local n0,n1=Poly.range(notes_all,v.start,v.start+v.span)
+  local dense=M.dense(n1-n0+1,moving)
+  local half=clamp(height/v.rows*.332,5.8,30);local near_y=half+4;if near_y<9 then near_y=9 end
+  local labels=not dense and height/v.rows>=28;local drag=e.drag;local dnote=drag and drag.note
+  for k=n0,n1 do local n=notes_all[k]
+    local ax,bx=tx(n.start),tx(n.finish);local inset=(bx-ax)*.1;if inset>1.25 then inset=1.25 end;ax,bx=ax+inset,bx-inset;local center=Scale.center(n)+(n.shift or 0)
     local an=e.note_anim and e.note_anim[n.id]
     if an then -- после разреза блок доезжает до своего места (~0.3 с, плавное замедление)
       local q=(anim_now-an.t0)/0.3
       if q>=1 then e.note_anim[n.id]=nil else q=1-(1-q)^3;center=an.from+(center-an.from)*q end
     end
-    local yy=py(center);local half=clamp(height/v.rows*.332,5.8,30)
-    local selected=e.selected[n.id];local col=Glyph.color(center,selected,bypassed and 80 or 255)
-    local near=hovered and mx>=ax-3 and mx<=bx+3 and math.abs(my-yy)<math.max(9,half+4)
+    local yy=py(center)
+    local selected=e.selected[n.id]
+    local near=hovered and mx>=ax-3 and mx<=bx+3 and math.abs(my-yy)<near_y
     if near then hit,index=n,k end
     if data and yy+half>=top and yy-half<=bottom then
       glyph_used[n.id]=true
-      hi_y=math.min(hi_y or 1e9,yy-half);lo_y=math.max(lo_y or -1e9,yy+half)
+      if not hi_y or yy-half<hi_y then hi_y=yy-half end;if not lo_y or yy+half>lo_y then lo_y=yy+half end
+      local col=Glyph.color(center,selected,bypassed and 80 or 255)
       local shape=Glyph.shape(e.glyphs,n.id,data,n.start,n.finish,v.start,v.span,width,lite)
-      Glyph.draw(im,dl,shape,tx,yy,half,col,near or e.drag and e.drag.note==n.id,selected and (bypassed and 0xEDF3FF70 or 0xEDF3FFE0) or nil,v.start,v.start+v.span)
-      if e.drag and e.drag.kind=='notes' and e.drag.note==n.id and e.drag.moved and im.IsMouseDown(ctx,0) then
-        local extent=0;for _,p in ipairs(shape)do extent=math.max(extent,p.upper*half)end
+      local glow=near or dnote==n.id;local outline=selected and (bypassed and 0xDCC8A280 or 0xDCC8A2FF) or nil -- выделение: тёплая песочная обводка в тон теме
+      -- выделенные ноты (клик или правая рамка) — с жирной обводкой
+      if dense or bx-ax<LOD.narrow then Glyph.rect(im,dl,shape,ax,bx,yy,half,col,glow,outline,2)
+      else Glyph.draw(im,dl,shape,tx,yy,half,col,glow,outline,v.start,v.start+v.span,e.r,vstamp,2) end
+      if drag and drag.kind=='notes' and dnote==n.id and drag.moved and im.IsMouseDown(ctx,0) then
+        local extent=Glyph.extent(shape)*half
         badge={x=clamp((ax+bx)*.5,left+40,right-40),y=math.max(top+3,yy-extent-29),text=string.format('%+.2f st',n.shift or 0)}
-      elseif height/v.rows>=28 then
+      elseif labels then
         -- имя ноты: только если помещается в ширину блока и не наезжает на предыдущую подпись; обрезается границами блока
         local label=name(center);local lw=im.CalcTextSize(ctx,label)
         if bx-ax>lw+14 and ax+8>=last_label_right+4 then
@@ -649,7 +732,7 @@ function M.canvas(im,ctx,e,w,h)
         end
       end
     end
-  end end
+  end
   if e.glyph_notes~=e.notes then -- набор нот сменился: чистим силуэты удалённых нот
     local alive={};for _,n in ipairs(e.notes or {}) do alive[n.id]=true end
     for id in pairs(e.glyphs)do if not alive[id] then e.glyphs[id]=nil end end
@@ -692,8 +775,8 @@ function M.canvas(im,ctx,e,w,h)
     end
   else e.split_hover=nil;e.split_from=nil end
   local display=e.display
-  -- Контур строится на окно в три экрана (экран слева и справа от вида) и переиспользуется, пока вид внутри окна
-  -- и плотность близка: скролл почти не пересобирает его, зум — только при заметной смене масштаба.
+  -- Контур строится на окно с запасом в полэкрана слева и справа от вида и переиспользуется, пока вид внутри окна
+  -- и плотность близка; при выходе за окно уже посчитанные точки берутся из прошлого контура (досчёт только нового).
   local len=data and data.len or math.huge
   local ppp=v.rows/height
   if data and (not display or display._data~=data or display._frames~=data.frames or display.frame_count~=#data.frames
@@ -705,7 +788,21 @@ function M.canvas(im,ctx,e,w,h)
       bs=math.max(0,v.start);local be=math.min(len,v.start+v.span);if be<=bs then be=bs+v.span end
       bspan,bw=be-bs,width*(be-bs)/v.span
     else bs,bspan,bw=contour_window(v.start,len) end
-    display=Contour.build(data,e.notes or {},e.state and e.state.curve_version or 1,bs,bspan,bw,ppp,e.contour_cache);e.display=display;e.contour_cache=display
+    local version=e.state and e.state.curve_version or 1
+    -- при зуме/скролле (не при правке) кривая пересобирается в фоне: прежняя рисуется, пока новая не готова
+    local s0,s1=math.max(0,v.start),math.min(len,v.start+v.span)
+    local same_data=display and display._data==data and display._frames==data.frames and display.frame_count==#data.frames and not (e.drag or e.gesture)
+    if fast and same_data and covers(display,s0,s1) then
+      local built=contour_async(e,'main',e.r,data,e.notes or {},version,bs,bspan,bw,ppp,e.contour_cache)
+      if built and covers(built,s0,s1) then display=built;e.display=display;e.contour_cache=display end
+    elseif fast and same_data then
+      -- прежняя кривая не покрывает новый вид (отдаление, скролл к краю): дешёвая сборка прямо в этом кадре — только
+      -- экран с небольшим запасом и втрое реже точки, чтобы края не пустели и не мигали; уточнение — фоном после
+      local qs,qspan,qw=quick_window(v.start,len)
+      display=Contour.build(data,e.notes or {},version,qs,qspan,qw,ppp*3,e.contour_cache);e.display=display;e.contour_cache=display
+    else
+      display=Contour.build(data,e.notes or {},version,bs,bspan,bw,ppp,e.contour_cache);e.display=display;e.contour_cache=display
+    end
     if e.measure then e:measure('contour',began) end
   end
   if e.show_source and data and not bypassed then
@@ -738,7 +835,8 @@ function M.canvas(im,ctx,e,w,h)
       local dx,dy=bx-ax,by-ay;local u=clamp(((px-ax)*dx+(py-ay)*dy)/math.max(1e-9,dx*dx+dy*dy),0,1)
       return (px-ax-u*dx)^2+(py-ay-u*dy)^2
     end
-    for i=2,#(e.notes or {})do
+    -- кандидаты: b не левее вида (индекс >= первой видимой) и a не правее (b не дальше первой ноты за видом)
+    for i=math.max(2,n0),math.min(#notes_all,n1+1)do
       local a,b=e.notes[i-1],e.notes[i]
       if Curve.can_link(a,b) and b.start>=v.start and a.finish<=v.start+v.span then
         local wa,amount=Link.settings(b);local lo,hi
@@ -775,7 +873,11 @@ function M.canvas(im,ctx,e,w,h)
   -- Draw owns the final trajectory. Show the ownership instead of silently
   -- allowing an orange control to appear responsible for the painted pitch.
   local has_paint=false
-  if not bypassed then for _,n in ipairs(e.notes or {}) do if n.drawings and #n.drawings>0 then has_paint=true;break end end end
+  -- рисунок важен только у нот рядом с видом (владелец точки — нота в пределах .15 с): их и проверяем
+  if not bypassed then
+    local p0,p1=Poly.range(notes_all,v.start-v.span*.02-.16,v.start+v.span*1.02+.16)
+    for k=p0,p1 do local n=notes_all[k];if n.drawings and #n.drawings>0 then has_paint=true;break end end
+  end
   if has_paint and display then
     -- только видимая часть контура (бинарный поиск начала), без таблицы на каждую точку
     local lo,hi=1,#display;local t0=v.start-v.span*.02
@@ -789,7 +891,9 @@ function M.canvas(im,ctx,e,w,h)
       pt,pp,pr,pd=p.t,p.pitch,p.run,drawn
     end
   end
-  if e.tool=='curve' then for _,n in ipairs(e.notes or {}) do if e.selected[n.id] then for j,p in ipairs((e.state.curve_version==4 and n.target_anchors or n.anchors) or {}) do
+  -- точки кривой только у видимых нот (с запасом в радиус точки за краями)
+  if e.tool=='curve' then local pad=8*v.span/width;local c0,c1=Poly.range(notes_all,v.start-pad,v.start+v.span+pad)
+  for k=c0,c1 do local n=notes_all[k];if e.selected[n.id] then for j,p in ipairs((e.state.curve_version==4 and n.target_anchors or n.anchors) or {}) do
     local f=raw_at(e,p.t);if f and p.t>=n.start and p.t<=n.finish then
       local ax,ay=tx(p.t),py(f+Curve.at(e.notes,p.t,'shift',e.state and e.state.curve_version or 1,e.data))
       im.DrawList_AddCircleFilled(dl,ax,ay,4,colors.accent)

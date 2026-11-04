@@ -64,7 +64,7 @@ loop(p,
 // Тело пропуска: AR порядка ≤48 (≈1 мс) не видит период основного тона и к середине «тает»,
 // поэтому тело — копия периода (лаг 2.5–12.5 мс по нормированной корреляции последних 4 мс контекста).
 // Обе стороны — плавный переход между копиями; если с одной стороны контекста мало — копия с другой.
-pitched=0;have_f=0;have_b=0;
+pitched=0;have_f=0;have_b=0;lag_f=0;lag_b=0;
 sr>0 && length>=floor(sr*0.0015) ? (
  win=floor(sr*0.004);tmin=floor(sr*0.0025);s=0;
  loop(2,
@@ -80,12 +80,16 @@ sr>0 && length>=floor(sr*0.0015) ? (
     T+=1;
    );
   );
-  lag>0 ? (
+  lag>0 && (!safe_mouth || best>=0.8) ? (
    i=0;loop(length,dst[i]=i-lag<0 ? src[cnt+i-lag] : dst[i-lag];i+=1;);
-   pitched+=1;s==0 ? have_f=1 : have_b=1;
+   pitched+=1;s==0 ? (have_f=1;lag_f=lag;) : (have_b=1;lag_b=lag;);
   );
   s+=1;
  );
+);
+// Mouth: disagreeing periods are not evidence for a periodic replacement.
+safe_mouth && (!(have_f && have_b) || min(lag_f,lag_b)<0.85*max(lag_f,lag_b)) ? (
+ pitched=0;have_f=0;have_b=0;
 );
 pitched>0 ? (
  // Края (0.5 мс): AR-экстраполяция с каждой стороны (O(n·p), без тяжёлой ленточной системы) — точно
@@ -147,13 +151,13 @@ function M.new(im,ctx,r)
    x=65536,e=131072,rhs=163840,z=196608,band=262144,fwd=1100000,bwd=1120000})do im.Function_SetValue(self.lsar,k,v)end
  return self
 end
-function M:predict(left,right,n,sr)
+function M:predict(left,right,n,sr,safe_mouth)
  assert(#left>=4 and #right>=4 and #left<=16384 and #right<=16384 and n>0 and n<=16384,'Insufficient repair context')
  local im=self.im;local lsar=M.method=='lsar'
  local fn=lsar and self.lsar or self.fn
  local order=math.min(48,math.floor(math.min(#left,#right)/4))
  if lsar then order=math.max(1,math.min(order,#left,#right)) end
- for k,v in pairs({nl=#left,nr=#right,length=n,order=order,sr=sr or 0})do im.Function_SetValue(fn,k,v)end
+ for k,v in pairs({nl=#left,nr=#right,length=n,order=order,sr=sr or 0,safe_mouth=safe_mouth and 1 or 0})do im.Function_SetValue(fn,k,v)end
  im.Function_SetValue_Array(fn,'left',self.r.new_array(left));im.Function_SetValue_Array(fn,'right',self.r.new_array(right))
  im.Function_Execute(fn);local a=self.r.new_array(n);im.Function_GetValue_Array(fn,'output',a);return a.table()
 end
@@ -161,19 +165,20 @@ local function smooth(t)t=math.max(0,math.min(1,t));return t*t*t*(10+t*(-15+6*t)
 function M.regions(events,cfg,mode,sr,count)
  local out={};local widen=math.floor(cfg[mode..'_widen_ms']*sr/1000+.5)
  local fade=math.max(2,math.floor(cfg[mode..'_fade_ms']*sr/1000+.5))
- for _,e in ipairs(events)do if not e.excluded then
+ for _,e in ipairs(events)do if not e.excluded and not(mode=='mouth' and e.amount and e.amount<=0)then
   local a=math.max(0,math.floor(e.start*sr)-widen-fade);local b=math.min(count-1,math.ceil(e.finish*sr)+widen+fade)
+  local part={a=a,b=b,amount=mode=='mouth' and math.max(0,math.min(1,e.amount or 1)) or 1}
   local prev=out[#out]
-  if prev and a<=prev.b+1 then prev.b=math.max(prev.b,b)
-  else out[#out+1]={a=a,b=b,fade=fade}end
+  if prev and a<=prev.b+1 then prev.b=math.max(prev.b,b);prev.parts[#prev.parts+1]=part
+  else out[#out+1]={a=a,b=b,fade=fade,parts={part}}end
  end end
  return out
 end
 -- read(first,count) returns immutable interleaved baseline SOURCE samples.
 -- Участки идут слева направо; левый контекст может заходить на предыдущие участки — там берутся уже
 -- исправленные значения, поэтому соседей в серии не нужно склеивать (чистый звук между щелчками не трогается).
--- cache (необязательно): прогнозы участков по ключу (границы, контекст, сила, переход, зависимость от соседа);
--- при движении слайдеров пересчитываются только изменившиеся участки.
+-- cache: raw predictions by geometry/method and the preceding repair's output dependency.
+-- Strength/confidence only invalidate a prediction when they change its left context.
 function M.build(engine,read,events,cfg,mode,sr,channels,count,source_first,job,cache)
  local regions=M.regions(events,cfg,mode,sr,count);local patch={};local skipped=0
  local strength=(cfg[mode..'_strength'] or 100)/100;assert(strength>=0 and strength<=1)
@@ -186,7 +191,12 @@ function M.build(engine,read,events,cfg,mode,sr,channels,count,source_first,job,
   if e.a-left<32 or right-e.b<32 or n>math.min(16384,math.floor(sr*.080))then skipped=skipped+1;prevkey=''
   else
    local depends=k>1 and regions[k-1].b>=left and prevkey or ''
-   local key=table.concat({e.a,e.b,left,right,e.fade,strength,depends},':')
+   -- Raw prediction depends on input geometry and prior OUTPUT, not this region's blend.
+   local key=table.concat({mode,M.method,e.a,e.b,left,right,depends},':')
+   local blend={key,strength,e.fade}
+   for _,part in ipairs(e.parts)do
+    blend[#blend+1]=part.a;blend[#blend+1]=part.b;blend[#blend+1]=part.amount
+   end
    local input=read(left,right-left+1);local nl,nr=e.a-left,right-e.b
    for ch=0,channels-1 do
     patch[ch]=patch[ch] or {};local done=patch[ch]
@@ -195,11 +205,19 @@ function M.build(engine,read,events,cfg,mode,sr,channels,count,source_first,job,
      local a,b={},{}
      for i=0,nl-1 do a[#a+1]=done[source_first+left+i] or input[i*channels+ch+1] end
      for i=right-left,e.b-left+1,-1 do b[#b+1]=input[i*channels+ch+1]end
-     predicted=job:call(engine.predict,engine,a,b,n,sr)
+     predicted=job:call(engine.predict,engine,a,b,n,sr,mode=='mouth')
     end
     if cache then used[ckey]=predicted end
     for i=0,n-1 do
      local wet=strength*smooth(i/e.fade)*smooth((n-1-i)/e.fade)
+     if mode=='mouth' then
+      -- Keep each event's confidence local even when repair contexts merge.
+      local mask=0;local sample=e.a+i
+      for _,part in ipairs(e.parts)do
+       mask=math.max(mask,part.amount*smooth((sample-part.a)/e.fade)*smooth((part.b-sample)/e.fade))
+      end
+      wet=strength*mask
+     end
      if wet>0 then
       local original=input[(nl+i)*channels+ch+1];local value=original+wet*(predicted[i+1]-original)
       assert(value==value and math.abs(value)<1000000,'Invalid reconstruction')
@@ -207,7 +225,7 @@ function M.build(engine,read,events,cfg,mode,sr,channels,count,source_first,job,
      end
     end
    end
-   prevkey=key
+   prevkey=table.concat(blend,':')
   end
   job:checkpoint(k/math.max(1,#regions),'Reconstructing samples')
  end

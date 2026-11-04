@@ -64,11 +64,16 @@ function M.encode(data,job)
   elseif rest==2 then local a,b=s:byte(full+1,full+2);local v=(a<<16)|(b<<8);out[#out+1]=enc12[v>>12]..enc12[(v&4095)]:sub(1,1)..'=' end
   return table.concat(out)
 end
-function M.decode(s)
-  assert(#s<=8*1024*1024 and #s%4==0 and not s:find('[^%w+/=]'),'Invalid Pitch project data')
+-- job (необязательно): проверка и распаковка кусками с job:checkpoint() — фоновая загрузка призраков (pitch/workspace)
+function M.decode(s,job)
+  assert(#s<=8*1024*1024 and #s%4==0,'Invalid Pitch project data')
+  if job then
+    for a=1,#s,131072 do assert(not s:sub(a,a+131071):find('[^%w+/=]'),'Invalid Pitch project data');job:checkpoint() end
+  else assert(not s:find('[^%w+/=]'),'Invalid Pitch project data') end
   tables()
   local out={};local n=#s;local last=n>=4 and n-3 or n+1
   for i=1,last-1,4 do
+    if job and i%8192==1 then job:checkpoint() end
     local v1=dec12[string.unpack('>I2',s,i)];local v2=dec12[string.unpack('>I2',s,i+2)]
     assert(v1 and v2,'Invalid Pitch encoding')
     out[#out+1]=string.pack('>I3',(v1<<12)|v2)
@@ -81,7 +86,7 @@ function M.decode(s)
     local v=(map[a]<<18)|(map[b]<<12)|((map[c] or 0)<<6)|(map[d] or 0)
     out[#out+1]=string.char((v>>16)&255)..(c~=61 and string.char((v>>8)&255) or '')..(d~=61 and string.char(v&255) or '')
   end
-  return unpack_points(Codec.decode(table.concat(out)))
+  return unpack_points(Codec.decode(table.concat(out),job))
 end
 function M.hash(s)
   local h=2166136261;local n=#s;local full=n-n%8;local byte=string.byte
@@ -118,6 +123,7 @@ function M.read(r,take)
     if n.split_group then assert(type(n.split_group)=='number' and n.split_group>=1 and n.split_group%1==0,'Invalid Pitch split group') end
     if n.transition_link~=nil then assert(type(n.transition_link)=='boolean','Invalid Pitch transition link') end
     if n.local_center~=nil then assert(type(n.local_center)=='boolean','Invalid Pitch local center') end
+    if n.auto_freeze~=nil then assert(import('pitch/auto').valid_freeze(n.auto_freeze),'Invalid frozen Auto correction') end
     if n.vibrato_replace~=nil then assert(type(n.vibrato_replace)=='boolean','Invalid vibrato mode') end
     if n.link then
       assert(value.curve_version==4 and type(n.link)=='table' and (n.link.version==1 or n.link.version==2 or n.link.version==3 or n.link.version==4 or n.link.version==5 or n.link.version==6 or n.link.version==7),'Invalid Pitch link version')
@@ -177,13 +183,14 @@ function M.save_analysis(r,s,data,job)
   if job then job:call(write) else write() end
   return id
 end
-function M.load_analysis(r,project,id)
+function M.load_analysis(r,project,id,job)
   if not id then return nil end
   local ok,text=r.GetProjExtState(project,M.section,id);if ok==0 or text=='' then return nil end
-  local v=M.decode(text);assert(v.version==1 and type(v.frames)=='string' and #v.frames%20==0,'Invalid Pitch analysis')
+  local v=M.decode(text,job);assert(v.version==1 and type(v.frames)=='string' and #v.frames%20==0,'Invalid Pitch analysis')
   assert(#v.frames/20<=40000 and v.hop==.016,'Unsupported Pitch analysis')
-  local data={frames={},hop=v.hop,len=v.len,model=v.model,waveform=Wave.unpack(v.waveform,v.len)}
+  local data={frames={},hop=v.hop,len=v.len,model=v.model,waveform=Wave.unpack(v.waveform,v.len,job)}
   for at=1,#v.frames,20 do
+    if job and at%20480==1 then job:checkpoint() end
     local p,c,db,lo,hi=string.unpack('<fffff',v.frames,at)
     assert(p==p and p>=0 and p<=150 and c>=0 and c<=1 and db>=-160 and db<=60 and math.abs(lo)<1e6 and math.abs(hi)<1e6,'Invalid Pitch frame')
     data.frames[#data.frames+1]={t=(#data.frames)*data.hop,pitch=p,hz=440*2^((p-69)/12),confidence=c,level_db=db,rms=10^(db/20),lo=lo,hi=hi}
@@ -205,6 +212,7 @@ function M.adapt(data,notes,old,current)
     for _,s in ipairs(v.drawings or {}) do s.start=s.start-delta;s.finish=s.finish-delta;for _,p in ipairs(s.points) do p.t=p.t-delta end;for _,p in ipairs(s.curve or {})do p.t=p.t-delta end end
     for _,s in ipairs(v.drawings or {})do for _,q in ipairs(s.curve_notes or {})do q.start=q.start-delta;q.finish=q.finish-delta;for _,p in ipairs(q.points)do p.t=p.t-delta end end end
     for _,key in ipairs({'phase_origin','expression_start','expression_finish'}) do if v[key] then v[key]=v[key]-delta end end
+    if v.auto_freeze then v.auto_freeze.t0=v.auto_freeze.t0-delta end
     v.first=math.max(1,math.floor(v.start/data.hop)+1);v.last=math.min(#out.frames,math.ceil(v.finish/data.hop))
     adapted[#adapted+1]=v
   end end

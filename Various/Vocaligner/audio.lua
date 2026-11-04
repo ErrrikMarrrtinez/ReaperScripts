@@ -70,7 +70,24 @@ function M.capture(r,project,item,is_dub)
   if is_dub and s.C_LOCK~=0 then error(s.name..' is locked.',0) end
   local length,is_qn=r.GetMediaSourceLength(s.source)
   if is_qn then error(s.name..': tempo-based (MIDI/QN) sources are not supported — only audio files measured in seconds.',0) end
-  if not length or length<=0 then error(s.name..': the source reports no length (offline or missing media file, or an empty item). Relink the file or remove the item.',0) end
+  if not length or length<=0 then
+    local details={s.name..': REAPER reports zero source length; source may be offline. Retry with media online.',
+      'take='..tostring(s.guid)..' | source='..tostring(s.source_key)}
+    local source=s.source
+    for depth=0,8 do
+      if not source then break end
+      local path=r.GetMediaSourceFileName and r.GetMediaSourceFileName(source) or ''
+      details[#details+1]=string.format('source[%d] file=%s | exists=%s | type=%s | length=%s | rate=%s',depth,path,
+        tostring(r.file_exists and r.file_exists(path)),tostring(r.GetMediaSourceType and r.GetMediaSourceType(source)),
+        tostring(r.GetMediaSourceLength(source)),tostring(r.GetMediaSourceSampleRate(source)))
+      source=r.GetMediaSourceParent and r.GetMediaSourceParent(source)
+    end
+    local message=table.concat(details,'\n')
+    if is_dub=='pitch' then
+      error(setmetatable({code='pitch_source_unavailable',message=message},{__tostring=function(v)return v.message end}),0)
+    end
+    error(message,0)
+  end
   local source_rate=r.GetMediaSourceSampleRate and r.GetMediaSourceSampleRate(s.source) or 0
   local edge_tolerance=2/(source_rate>0 and source_rate or 44100)
   local source_end=#s.markers>0 and s.markers[#s.markers].src or s.offset+s.len*s.rate

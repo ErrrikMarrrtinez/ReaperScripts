@@ -97,8 +97,10 @@ function M.bend(u,k)
   local c=.5-.5*k;local s=(-2*c+math.sqrt(4*c*c+4*k*u))/(2*k)
   return 2*s*(1-s)*(1-c)+s*s
 end
+-- Границы события с учётом ручной правки (e.a/e.b — тянули края в ручном режиме)
+local function span(e) return e.a or e.start,e.b or e.finish end
 local function fades(data,cfg,e)
-  local duration=e.finish-e.start
+  local a,b=span(e);local duration=b-a
   return math.min(duration/2,math.max(data.hop,(cfg.breath_pre_ms or 10)/1000)),
     math.min(duration/2,math.max(data.hop,(cfg.breath_release_ms or 20)/1000))
 end
@@ -107,39 +109,46 @@ end
 local function bezier(data,cfg,events,job)
   local k=clamp((cfg.breath_curve or 50)/100,0,1);local active={}
   for _,e in ipairs(events)do if not e.excluded and e.reduction>0 then active[#active+1]=e end end
-  table.sort(active,function(a,b)return a.start<b.start end)
+  table.sort(active,function(a,b)return (a.a or a.start)<(b.a or b.start) end)
+  -- сила фейдов: своя у события (ручная правка fin/fout, 0..1), иначе общая Curve
+  local function kin(e) return e.fin or k end
+  local function kout(e) return e.fout or k end
   local function at(e,t)
-    local fadein,fadeout=fades(data,cfg,e)
-    if t<=e.start or t>=e.finish then return 0 end
-    if t<e.start+fadein then return e.reduction*M.bend((t-e.start)/fadein,k) end
-    if t>e.finish-fadeout then return e.reduction*(1-M.bend((t-e.finish+fadeout)/fadeout,-k)) end
+    local fadein,fadeout=fades(data,cfg,e);local a,b=span(e)
+    if t<=a or t>=b then return 0 end
+    if t<a+fadein then return e.reduction*M.bend((t-a)/fadein,kin(e)) end
+    if t>b-fadeout then return e.reduction*(1-M.bend((t-b+fadeout)/fadeout,-kout(e))) end
     return e.reduction
   end
   local times={0,data.len};local shapes={}
   for j,e in ipairs(active)do
-    local fadein,fadeout=fades(data,cfg,e)
-    for _,ramp in ipairs({{e.start,fadein},{e.finish-fadeout,fadeout}})do
+    local fadein,fadeout=fades(data,cfg,e);local ea,eb=span(e)
+    for side,ramp in ipairs({{ea,fadein},{eb-fadeout,fadeout}})do
       -- точки по кривой Безье: не чаще, чем раз в 15 мс и не больше 8 на фейд (раньше каждые 5 мс — цепочки лишних точек)
-      local n=k>.01 and math.min(8,math.max(3,math.ceil(ramp[2]/.015))) or 1
+      local kk=side==1 and kin(e) or kout(e)
+      local n=kk>.01 and math.min(8,math.max(3,math.ceil(ramp[2]/.015))) or 1
       for i=0,n do times[#times+1]=ramp[1]+ramp[2]*i/n end
     end
-    local isolated=(not active[j-1] or active[j-1].finish<=e.start+1e-9) and (not active[j+1] or active[j+1].start>=e.finish-1e-9)
-    if isolated and k>.01 then
-      shapes[#shapes+1]={a=e.start,b=e.start+fadein,tension=M.tension_in*k}
-      shapes[#shapes+1]={a=e.finish-fadeout,b=e.finish,tension=M.tension_out*k}
+    local pa=active[j-1] and select(2,span(active[j-1]));local nb=active[j+1] and span(active[j+1])
+    local isolated=(not pa or pa<=ea+1e-9) and (not nb or nb>=eb-1e-9)
+    if isolated then
+      if kin(e)>.01 then shapes[#shapes+1]={a=ea,b=ea+fadein,tension=M.tension_in*kin(e)} end
+      if kout(e)>.01 then shapes[#shapes+1]={a=eb-fadeout,b=eb,tension=M.tension_out*kout(e)} end
     end
     step(job,j)
   end
   table.sort(times)
   local points,peak,previous={},0,-1
   for i,t in ipairs(times)do if t>=0 and t<=data.len and t>previous+1e-9 then
-    local db=0;for _,e in ipairs(active)do if e.start<t and e.finish>t then db=math.max(db,at(e,t)) end end
+    local db=0;for _,e in ipairs(active)do local ea,eb=span(e);if ea<t and eb>t then db=math.max(db,at(e,t)) end end
     points[#points+1]={t=t,db=db};peak=math.max(peak,db);previous=t
     step(job,i)
   end end
   return points,peak,shapes
 end
-function M.build(data,cfg,job,exclusions,engine,profile)
+M._bezier=bezier -- для тестов
+function M.build(data,cfg,job,exclusions,engine,profile,edits)
+  local find_edit=import('cleanup').find_edit
   local templates,scores=detect(data,cfg,profile,job,engine);local events,values={},{}
   for i=1,#data.frames do values[i]=0;step(job,i) end
   for j,e in ipairs(templates) do
@@ -148,7 +157,17 @@ function M.build(data,cfg,job,exclusions,engine,profile)
     for _,excluded in ipairs(exclusions or {}) do
       if excluded.kind=='breath' and excluded.start<e.finish and excluded.finish>e.start then out.excluded=true;break end
     end
-    local depth=M.depth(cfg,e)
+    out.kind='breath'
+    local depth=M.depth(cfg,e)*(cfg.breath_strength or 100)/100 -- Strength — общая сила всех дыханий
+    -- ручная правка этого дыхания (ui2/comp2 ручной режим): сила ×gain, свои края a/b, сила фейдов fin/fout
+    local x=not out.excluded and edits and find_edit(edits,'breath',e.start,e.finish)
+    if x then
+      out.edit=x;depth=depth*(x.gain or 1)
+      if x.a then out.a=math.max(0,math.min(x.a,(x.b or e.finish)-.005)) end
+      if x.b then out.b=math.min(data.len,math.max(x.b,(x.a or e.start)+.005)) end
+      out.fin,out.fout=x.fin,x.fout
+    end
+    depth=math.min(depth,48)
     out.reduction=out.excluded and 0 or depth
     -- One constant gain per event. Fades stay INSIDE its boundaries: no pre-open
     -- across the previous word and no release tail over the next consonant.

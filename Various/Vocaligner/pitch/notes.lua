@@ -19,7 +19,7 @@ local function same_voice(a,b)
   for _,key in ipairs(voice_fields) do if a[key]~=b[key] then return false end end
   local pa,pb=a.anchors or {},b.anchors or {};if #pa~=#pb then return false end
   for i,p in ipairs(pa) do if p.t~=pb[i].t or p.value~=pb[i].value then return false end end
-  if not equal(a.drawings,b.drawings) or not equal(a.target_anchors,b.target_anchors) or not equal(a.link,b.link) then return false end
+  if not equal(a.drawings,b.drawings) or not equal(a.target_anchors,b.target_anchors) or not equal(a.link,b.link) or not equal(a.auto_freeze,b.auto_freeze) then return false end
   return true
 end
 -- Identical children retain the parent's acoustic span. Splitting is a visual
@@ -48,7 +48,7 @@ end
 function M.same_curve(a,b)
   if not a or not b or a.start~=b.start or a.finish~=b.finish then return false end
   for _,key in ipairs(voice_fields)do if a[key]~=b[key]then return false end end
-  return equal(a.anchors,b.anchors) and equal(a.drawings,b.drawings) and equal(a.target_anchors,b.target_anchors) and equal(a.link,b.link)
+  return equal(a.anchors,b.anchors) and equal(a.drawings,b.drawings) and equal(a.target_anchors,b.target_anchors) and equal(a.link,b.link) and equal(a.auto_freeze,b.auto_freeze)
 end
 function M.changed_ranges(old,current)
   local ranges={}

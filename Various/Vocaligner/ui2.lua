@@ -25,6 +25,10 @@ local theme={
 
 -- ===== размеры и цвета оболочки =====
 local S={tooltips=true,delay=0.35,smooth=true,anim=true,autoscroll=true,scroll_pos=1}
+-- «Hide cursor while dragging» — общая настройка всех перетаскиваемых виджетов (ui2/drag.lua); по умолчанию включена
+S.hide_cursor=reaper.GetExtState('Vocaligner ui','hide_cursor')~='0'
+S.fast_motion=reaper.GetExtState('Vocaligner ui','fast_motion')~='0' -- лёгкая отрисовка нот во время зума/скролла (по умолчанию вкл.)
+local Drag=import('ui2/drag');Drag.enabled=S.hide_cursor
 local dd={t=0,open=false} -- состояние универсального выпадающего списка (ниже) -- настройки интерфейса (облачко Settings); delay = задержка показа тултипа
 local WRND=12 -- скругление окна
 local PSZ=28 -- размер родителя, когда его группа раскрыта
@@ -70,7 +74,10 @@ local sizes,saved_sizes,cur_sect,size_dirty={},{} -- запомненные ра
 local fps_last,fps_dt
 local PBH=38 -- высота второго топбара на странице инструментов Pitch (вдвое ниже обычной)
 local tb_in=0 -- появление панели Pitch в топбаре 0..1
-local pitch_page,pbar,HOST='tools',0,nil -- страница Pitch: 'tools' | 'menu'; pbar 0..1 — сжатие бара; HOST — данные окна для Pitch
+local pitch_page,pbar,HOST='tools',0,nil -- страница Pitch: 'tools' | 'menu'; pbar 0..1 — переход в редактор; HOST — данные окна для Pitch
+local PB={v=0,from=0,to=0,t0=0} -- состояние перехода pbar (tween)
+local loading_t0 -- когда редактор Pitch начал догружать анализ (ожидание входа)
+local resize,win_w,win_h -- плавная смена размера окна между разделами; последний размер окна
 local lockv,locked=0,false -- затемнение и блокировка плиток при включённом bypass
 local pop={open=false,t=0,ax=0,ay=0}
 local ghost={open=false,t=0}
@@ -91,6 +98,16 @@ end
 local function fa(c,a) return (c&~255)|math.floor((c&255)*a+0.5) end -- множитель альфы
 local function ap(c,t,k) if S.anim==false then return t end return c+(t-c)*k end
 local function ease(t) return 1-(1-t)^3 end
+-- Плавный переход по времени (smoothstep), а не по кадрам: одинаковая длительность при любом fps, мягкий старт и финиш.
+-- st={v,from,to,t0}; смена цели посреди перехода продолжает движение от текущего значения
+local TRANS=.2
+local function tween(st,want,dur)
+  local now=reaper.time_precise()
+  if st.to~=want then st.from=st.v;st.to=want;st.t0=now end
+  if S.anim==false then st.v=want;return want end
+  local u=math.min(1,(now-st.t0)/dur);u=u*u*(3-2*u)
+  st.v=st.from+(st.to-st.from)*u;return st.v
+end
 -- как ap, но с минимальным шагом: анимация гарантированно заканчивается без долгого «хвоста» и финального рывка
 local function apm(c,t,k,minstep) if S.anim==false then return t end local d=t-c;local st=math.max(math.abs(d)*k,minstep);if math.abs(d)<=st then return t end return c+(d>0 and st or -st) end
 local function clampf(v,a,b) return math.max(a,math.min(b,v)) end
@@ -449,14 +466,64 @@ local function settings_modal()
         ImGui.SetCursorScreenPos(ctx,L1+8,T+38)
         ImGui.PushStyleColor(ctx,ImGui.Col_ChildBg,0);ImGui.PushStyleVar(ctx,ImGui.StyleVar_WindowPadding,8,0)
         if ImGui.BeginChild(ctx,'##settings_scroll',330-16,320-46,0,ImGui.WindowFlags_NoMove|ImGui.WindowFlags_NoBackground) then
+          ImGui.TextDisabled(ctx,app.native_test and 'Pitch analyzer - C++ TEST' or 'Pitch analyzer')
+          do
+            local Native=import('pitch/native');local chosen=Native.preference(app.r);local available,why=Native.available(app.r)
+            local busy=app.pitch:busy();if busy then ImGui.BeginDisabled(ctx,true) end
+            if ImGui.RadioButton(ctx,'EEL analyzer',chosen=='eel' or not available)then Native.select(app.r,'eel')end
+            if not available then ImGui.BeginDisabled(ctx,true)end
+            if ImGui.RadioButton(ctx,'C++ analyzer',chosen=='cpp' and available)then Native.select(app.r,'cpp')end
+            if not available then ImGui.EndDisabled(ctx);ImGui.TextWrapped(ctx,why)end
+            if busy then ImGui.EndDisabled(ctx) end
+          end
+          ImGui.Spacing(ctx)
+          ImGui.TextDisabled(ctx,'Align analyzer (Classic)')
+          do -- C++: признаки и DTW в пуле потоков, пачка дублей конвейером; Advanced (experimental) считает по-своему
+            local Native=import('align/classic_native');local chosen=Native.preference(app.r);local available,why=Native.available(app.r)
+            local busy=app.job~=nil;if busy then ImGui.BeginDisabled(ctx,true) end
+            if ImGui.RadioButton(ctx,'Lua',chosen=='lua' or not available)then Native.select(app.r,'lua')end
+            if not available then ImGui.BeginDisabled(ctx,true)end
+            ImGui.SameLine(ctx);if ImGui.RadioButton(ctx,'C++ (parallel)',chosen=='cpp' and available)then Native.select(app.r,'cpp')end
+            if ImGui.IsItemHovered(ctx) then ImGui.SetTooltip(ctx,'Same Classic result as Lua. The reference is read once; dubs are read, analyzed and matched in parallel, and appear as they finish.') end
+            local ch,n=ImGui.SliderInt(ctx,'Threads##align_threads',Native.thread_setting(app.r),0,16,Native.thread_setting(app.r)==0 and 'Auto' or '%d')
+            if ImGui.IsItemHovered(ctx) then ImGui.SetTooltip(ctx,'Auto = logical CPUs minus one (at most 12). Lower it if playback crackles during analysis.') end
+            if ch then Native.set_threads(app.r,n) end
+            if not available then ImGui.EndDisabled(ctx);ImGui.TextWrapped(ctx,why)end
+            if busy then ImGui.EndDisabled(ctx) end
+          end
+          ImGui.Spacing(ctx)
           ImGui.TextDisabled(ctx,'Dynamics')
           CompUI.settings(ImGui,ctx,app) -- те же общие настройки, что в оригинальном окне
+          do -- состояние Dynamics / Breath / DeClick в самом проекте (по умолчанию выкл.; Pitch хранит своё в проекте всегда, Align — нет)
+            local Session=import('session_cache');local on=Session.project_enabled(app.r)
+            local ch,v=ImGui.Checkbox(ctx,'Keep processing state in the project',on)
+            if ImGui.IsItemHovered(ctx) then ImGui.SetTooltip(ctx,'Dynamics, Breath and DeClick store settings, manual edits and the original envelope in the project file. After restarting REAPER, a processed item is picked up again by itself (re-analyzed). Align is not stored.') end
+            if ch then Session.set_project_enabled(app.r,v) end
+          end
+          -- Defaults: что получает новый айтем. «Save» — текущие ручки инструмента как Default, «Factory» — заводские
+          do
+            local Presets=import('compressor/presets');local c=app.cleaner
+            for _,m in ipairs({{'compressor','Compressor'},{'gate','Gate'},{'deess','De-ess'},{'breath','Breath'}})do
+              local items=Presets.load(app.r,m[1]) or {}
+              ImGui.AlignTextToFramePadding(ctx);ImGui.Text(ctx,m[2]);ImGui.SameLine(ctx,96)
+              if ImGui.SmallButton(ctx,'Save as default##def_'..m[1]) then
+                local ok,why=pcall(Presets.save,app.r,m[1],Presets.default,c.cfg);if not ok then app:fail(why) end
+              end
+              ImGui.SameLine(ctx)
+              if items[Presets.default] then
+                if ImGui.SmallButton(ctx,'Factory##fac_'..m[1]) then pcall(Presets.delete,app.r,m[1],Presets.default) end
+              else ImGui.TextDisabled(ctx,'factory') end
+            end
+          end
           ImGui.Spacing(ctx)
           ImGui.TextDisabled(ctx,'Interface')
           local _,v=ImGui.Checkbox(ctx,'Show tooltips',S.tooltips);S.tooltips=v
           ImGui.SetNextItemWidth(ctx,330-48)
           _,v=ImGui.SliderDouble(ctx,'Tooltip delay',S.delay,0,1,'%.2f s');S.delay=v
           _,v=ImGui.Checkbox(ctx,'Animations (interface)',S.anim);S.anim=v
+          local hc;hc,v=ImGui.Checkbox(ctx,'Hide cursor while dragging',S.hide_cursor)
+          if ImGui.IsItemHovered(ctx) then ImGui.SetTooltip(ctx,'Knobs and edit handles hide the mouse pointer while you drag and return it where you clicked.') end
+          if hc then S.hide_cursor=v;Drag.enabled=v;reaper.SetExtState('Vocaligner ui','hide_cursor',v and '1' or '0',true) end
           ImGui.Spacing(ctx)
           ImGui.TextDisabled(ctx,'Align')
           local cfg=app.cfg
@@ -468,6 +535,9 @@ local function settings_modal()
           ImGui.Spacing(ctx)
           ImGui.TextDisabled(ctx,'Pitch editor')
           _,v=ImGui.Checkbox(ctx,'Smooth scroll and zoom',S.smooth);S.smooth=v
+          local fc;fc,v=ImGui.Checkbox(ctx,'Light drawing while zooming',S.fast_motion)
+          if ImGui.IsItemHovered(ctx) then ImGui.SetTooltip(ctx,'While the view zooms or scrolls, ready note shapes and the curve are reused instead of rebuilt; full detail returns over a few frames after it stops. Keeps zooming smooth on long items and busy tracks.') end
+          if fc then S.fast_motion=v;reaper.SetExtState('Vocaligner ui','fast_motion',v and '1' or '0',true) end
           _,v=ImGui.Checkbox(ctx,'Auto-scroll (with Aim)',S.autoscroll);S.autoscroll=v
           -- где стоит курсор при автоскролле: слева (22%), по центру (50%) или справа (78%)
           ImGui.TextDisabled(ctx,'Cursor position');ImGui.SameLine(ctx)
@@ -577,7 +647,7 @@ local function auto_modal()
   if e.auto_toggle then e.auto_toggle=nil;autobox.open=not autobox.open;if autobox.open then autobox.focus=true end end
   if app.tab~='pitch' then autobox.open=false end
   e.atune_open=autobox.open;e.atune_compact=autobox.compact
-  autobox.t=ap(autobox.t or 0,autobox.open and 1 or 0,0.22)
+  autobox.t=ap(autobox.t or 0,autobox.open and 1 or 0,autobox.open and 0.22 or 0.28)
   if autobox.t<0.01 then autobox.t=0;return end
   local ea=ease(autobox.t)
   local wx,wy=ImGui.GetWindowPos(ctx);local ww,wh=ImGui.GetWindowSize(ctx)
@@ -597,6 +667,9 @@ local function auto_modal()
   ImGui.PushStyleColor(ctx,ImGui.Col_ChildBg,0)
   if ImGui.BeginChild(ctx,'##atune_panel',W,H,0,ImGui.WindowFlags_NoScrollbar|ImGui.WindowFlags_NoScrollWithMouse|ImGui.WindowFlags_NoMove|ImGui.WindowFlags_NoBackground) then
     local dl=ImGui.GetWindowDrawList(ctx)
+    -- закрытие: панель целиком (фон, кнобы, слайдеры) «складывается» к нижнему краю, а не гаснет одним фоном
+    local closing=not autobox.open
+    if closing then ImGui.PushClipRect(ctx,X,math.floor(Y+H*(1-ea)),X+W,Y+H,true) end
     ImGui.DrawList_AddRectFilled(dl,X,Y,X+W,Y+H,(0x1B1B1B00|bga),10)
     ImGui.DrawList_AddRect(dl,X+.5,Y+.5,X+W-.5,Y+H-.5,(0x4A4A5600|math.floor(0x90*ea)),10,0,1)
     if not autobox.compact then
@@ -623,6 +696,7 @@ local function auto_modal()
     end
     -- вне фокуса всё содержимое (кнобы, слайдер, ноты) гасится одним полупрозрачным слоем цвета панели
     if fade<0.99 then ImGui.DrawList_AddRectFilled(dl,X,Y,X+W,Y+H,(0x1B1B1B00|math.floor(0x88*(1-fade)*ea)),10) end
+    if closing then ImGui.PopClipRect(ctx) end
     ImGui.EndChild(ctx)
   end
   ImGui.PopStyleColor(ctx);ImGui.PopStyleVar(ctx,2)
@@ -651,7 +725,10 @@ local function titlebar()
   local ww=ImGui.GetWindowSize(ctx)
   ImGui.DrawList_AddRectFilled(dl,wx,wy,wx+ww,wy+TBH,TB_BG,WRND,ImGui.DrawFlags_RoundCornersTop)
   -- Редактор Pitch: плитки навигации скрыты, вся панель инструментов едет в глобальный топбар (без BYPASS ALL, fps и Report)
-  local editor=app.tab=='pitch' and pitch_page=='tools' and HOST~=nil -- кнопки навигации и BYPASS ALL/fps/Report уходят сразу
+  -- смена топбара идёт тем же переходом (tb_in = pbar): первая половина — прежние кнопки гаснут на месте, вторая —
+  -- панель редактора проявляется на месте (без въезда сверху); размеры правых кнопок перетекают плавно
+  local ev=tb_in
+  local editor=ev>=0.5
   -- BYPASS слева: включённый bypass выключает ВСЁ, что скрипт внёс в проект (Cleanup, DeClick, Pitch, Align),
   -- чтобы сравнить с оригиналом; повторный клик возвращает. Подробности — ui2/master.lua.
   if not editor then
@@ -693,10 +770,12 @@ local function titlebar()
     local lw=ImGui.CalcTextSize(ctx,label)
     ImGui.DrawList_AddText(dl,math.floor(fx+(fw-lw)/2),math.floor(my+(PH-ImGui.GetTextLineHeight(ctx))/2-.5),0x8A8A96FF,label)
     ImGui.PopFont(ctx)
+    if ev>0 then ImGui.DrawList_AddRectFilled(dl,wx,wy,fx+fw+2,wy+TBH,fa(TB_BG,math.min(1,ev*2)),0) end
   end
   -- в редакторе Pitch кнопки справа той же высоты и ширины, что виджеты панели (одинаковая высота во всём баре)
-  local ph_=editor and math.min(TBH-2*G,ImGui.GetFrameHeight(ctx)+2) or PH
-  local pw_=editor and ph_ or PW
+  local eph=math.min(TBH-2*G,ImGui.GetFrameHeight(ctx)+2)
+  local ph_=math.floor(PH+(eph-PH)*ev+.5)
+  local pw_=math.floor(PW+(eph-PW)*ev+.5)
   local cx=wx+ww-G-pw_ -- край и зазоры между кнопками — G, высота у всех ph_
   local btns={ -- key, ячейка спрайта, x, заголовок тултипа
     {'close',2,cx},
@@ -704,13 +783,14 @@ local function titlebar()
   }
   if not editor then btns[#btns+1]={'report',3,cx-2*(G+pw_),'Report'}
   else btns[#btns+1]={'pmenu',false,cx-2*(G+pw_),'Menu'} end -- меню редактора слева от Settings
-  if editor and tb_in>0.02 then
-    -- панель Pitch появляется мягко: небольшой сдвиг сверху и проявление поверх фона топбара
+  if editor then
+    -- панель Pitch проявляется на своём месте поверх фона топбара
     local avail=ww-(3*pw_+2*G+G+G)
     ImGui.DrawList_PushClipRect(dl,wx,wy,wx+avail,wy+TBH,true)
-    Pitch2.toolbar(HOST,ImGui,ctx,app,wx,wy-(1-tb_in)*6,avail,TBH)
+    Pitch2.toolbar(HOST,ImGui,ctx,app,wx,wy,avail,TBH)
     ImGui.DrawList_PopClipRect(dl)
-    if tb_in<0.99 then ImGui.DrawList_AddRectFilled(dl,wx,wy,wx+avail,wy+TBH,fa(TB_BG,1-tb_in),0) end
+    local a=1-(ev-.5)*2
+    if a>0.01 then ImGui.DrawList_AddRectFilled(dl,wx,wy,wx+avail,wy+TBH,fa(TB_BG,a),0) end
   end
   local rbx,rby
   for _,b in ipairs(btns) do
@@ -755,7 +835,7 @@ local function body(bx,by,bw,bh,flat)
     if app.tab=='declick' then Declick.draw(ImGui,ctx,app,color)
     elseif Settings.is_tool(app.tab) then
       app.cleaner:set_mode(app.tab)
-      if app.tab=='breath' then Breath.draw(ImGui,ctx,app,color,wave)
+      if app.tab=='breath' and not (Dynamics.supports and Dynamics.supports('breath',ImGui,ctx)) then Breath.draw(ImGui,ctx,app,color,wave)
       else Dynamics.draw(ImGui,ctx,app,color,wave) end -- De-ess / Compressor / Gate
     elseif app.tab=='pitch' then Pitch2.body(HOST,ImGui,ctx,app)
     else AlignUI.draw(ImGui,ctx,app,color,wave) end
@@ -783,12 +863,14 @@ local function bar()
   local wx_,wy_=ImGui.GetWindowPos(ctx);local ww_,wh_=ImGui.GetWindowSize(ctx)
   local aw,ah=wx_+ww_-G-x0,wy_+wh_-G-y0
   local bhf=SZ+LBL+PAD*2 -- полная высота бара с плитками
-  local want=(app.tab=='pitch' and pitch_page=='tools') and 1 or 0
-  pbar=apm(pbar,want,0.26,0.03)
-  local bh=ap(bhf,0,ease(pbar)) -- в редакторе Pitch бар сворачивается в ноль (инструменты переехали в топбар)
-  local show_tiles=not (app.tab=='pitch' and pitch_page=='tools') -- плитки исчезают сразу, без анимации; сворачивается только фон
-  local barclip={x0,y0,x0+aw,y0+bh}
-  if bh>0.5 then ImGui.DrawList_AddRectFilled(dl,x0,y0,x0+aw,y0+bh,BG,10) end
+  -- Переход в редактор Pitch (pbar, см. M.draw): бар не сплющивается — он гаснет на месте, а холст редактора плавно
+  -- поднимается в его место и закрывает его снизу; обратно — то же в обратную сторону
+  local cut=y0+(bhf+G)*(1-pbar) -- верх холста/панели контента
+  local show_tiles=pbar<1
+  local fading=pbar>0 and pbar<1
+  local barclip={x0,y0,x0+aw,math.max(y0,math.min(y0+bhf,cut))}
+  if fading then ImGui.DrawList_PushClipRect(dl,barclip[1],barclip[2],barclip[3],barclip[4],true);ImGui.BeginDisabled(ctx,true) end
+  if show_tiles then ImGui.DrawList_AddRectFilled(dl,x0,y0,x0+aw,y0+bhf,BG,10) end
   if drag and not ImGui.IsMouseDown(ctx,0) then commit_order(drag.grp,drag.start,KIDS[drag.grp]);drag=nil end
   if not drag then KIDS.dynamics=dyn_order() end -- порядок Dynamics всегда из конфига, пока не тащим
   dimv=ap(dimv,drag and 1 or 0,0.2)
@@ -856,6 +938,10 @@ local function bar()
     end
   end
   for _,t in ipairs(late) do paint(table.unpack(t)) end -- перетаскиваемая плитка поверх всех
+  if fading then -- бар растворяется в фон окна (плитки и подложка вместе), клик по нему во время перехода не проходит
+    ImGui.DrawList_AddRectFilled(dl,x0,y0,x0+aw,y0+bhf,fa(TB_BG,math.min(1,pbar*1.5)),10)
+    ImGui.EndDisabled(ctx);ImGui.DrawList_PopClipRect(dl)
+  end
 
   if app.tab=='pitch' and HOST then
     if pitch_page=='menu' and pbar==0 then -- «Вперёд»: вернуться к инструментам Pitch, справа по центру
@@ -870,7 +956,7 @@ local function bar()
     end
   end
 
-  local py=y0+bh+(pbar>=1 and 0 or G) -- панель контента (в редакторе Pitch бара нет — холст сразу под топбаром)
+  local py=cut -- панель контента (в редакторе Pitch бара нет — холст сразу под топбаром); зазор G уходит вместе с баром
   if app.tab=='pitch' then
     body(x0,py,aw,ah-(py-y0),true) -- редактор Pitch: без подложки; поля со всех сторон по G, как зазор виджетов в топбаре
   else
@@ -972,9 +1058,21 @@ function M.draw(im,c,a)
     local sz=sizes[sect];ImGui.SetNextWindowSize(ctx,sz and sz[1] or (sect=='main' and 675 or 860),sz and sz[2] or (sect=='main' and 471 or 680),sz and ImGui.Cond_Always or ImGui.Cond_FirstUseEver)
   elseif sect~=cur_sect then
     cur_sect=sect
-    local sz=sizes[sect];if sz then ImGui.SetNextWindowSize(ctx,sz[1],sz[2],ImGui.Cond_Always) end
+    local sz=sizes[sect];local minw=sect=='pitch' and 880 or 520
+    -- окно не прыгает к размеру раздела, а перетекает к нему тем же переходом, что и редактор (TRANS, smoothstep)
+    if win_w and S.anim~=false then
+      local to=sz and {sz[1],sz[2]} or {math.max(win_w,minw),win_h}
+      if to[1]~=win_w or to[2]~=win_h then resize={from={win_w,win_h},to=to,t0=app.r.time_precise()} end
+    elseif sz then ImGui.SetNextWindowSize(ctx,sz[1],sz[2],ImGui.Cond_Always) end
   end
-  ImGui.SetNextWindowSizeConstraints(ctx,app.tab=='pitch' and 880 or 520,400,2400,2400)
+  local minw=app.tab=='pitch' and 880 or 520
+  if resize then
+    local u=math.min(1,(app.r.time_precise()-resize.t0)/TRANS);local k=u*u*(3-2*u)
+    local rw=resize.from[1]+(resize.to[1]-resize.from[1])*k;local rh=resize.from[2]+(resize.to[2]-resize.from[2])*k
+    ImGui.SetNextWindowSize(ctx,rw,rh,ImGui.Cond_Always);minw=math.min(minw,math.floor(rw))
+    if u>=1 then resize=nil end
+  end
+  ImGui.SetNextWindowSizeConstraints(ctx,minw,400,2400,2400)
   for _,entry in ipairs(theme) do ImGui.PushStyleColor(ctx,ImGui[entry[1]],entry[2]) end
   ImGui.PushStyleColor(ctx,ImGui.Col_WindowBg,TB_BG)
   ImGui.PushStyleVar(ctx,ImGui.StyleVar_FrameRounding,5)
@@ -985,7 +1083,7 @@ function M.draw(im,c,a)
   ImGui.PushStyleVar(ctx,ImGui.StyleVar_WindowBorderSize,0) -- штатную обводку убираем: рисуем свою лёгкую серую ниже
   ImGui.PushStyleVar(ctx,ImGui.StyleVar_ChildBorderSize,0)
   local flags=ImGui.WindowFlags_NoScrollbar|ImGui.WindowFlags_NoScrollWithMouse|ImGui.WindowFlags_NoTitleBar -- перемещение штатное
-  local visible,open_=ImGui.Begin(ctx,'Vocaligner · Lua',true,flags)
+  local visible,open_=ImGui.Begin(ctx,app.native_test and 'Vocaligner C++ TEST' or 'Vocaligner · Lua',true,flags)
   if visible then
     ImGui.PushFont(ctx,R.F_LBL)
     do local wx0=ImGui.GetWindowPos(ctx);local ww0=ImGui.GetWindowSize(ctx)
@@ -996,9 +1094,16 @@ function M.draw(im,c,a)
     local blocked=pop.t>0.01 -- пока открыто модальное облачко, остальное неинтерактивно
     if blocked then ImGui.BeginDisabled(ctx,true) end
     local editor_want=app.tab=='pitch' and pitch_page=='tools'
-    local tbh_t=editor_want and (math.floor(ImGui.GetFrameHeight(ctx)+2)+2*G) or (PH+2*G) -- и в обычном топбаре, и в редакторе Pitch: высота кнопки + G сверху и снизу; меняется плавно
-    TBH=apm(TBH,tbh_t,0.34,1.2)
-    tb_in=apm(tb_in,(editor_want and pbar>=0.7) and 1 or 0,0.32,0.05)
+    -- вход/выход редактора Pitch — один переход по времени (pbar 0..1, smoothstep): размер окна, бар с плитками, холст
+    -- и топбар движутся вместе и приходят в конечный вид одновременно, без рывка на последних кадрах
+    local now_=app.r.time_precise()
+    if app.pitch.loading then loading_t0=loading_t0 or now_ else loading_t0=nil end
+    -- вход ждёт загрузки (не дольше 1.5 с): переход приходит в готовый вид, а не меняется после анимации
+    local go_editor=editor_want and not (loading_t0 and now_-loading_t0<1.5)
+    pbar=tween(PB,go_editor and 1 or 0,TRANS)
+    tb_in=(HOST~=nil and app.tab=='pitch') and pbar or 0
+    local ftb=math.floor(ImGui.GetFrameHeight(ctx)+2)+2*G -- и в обычном топбаре, и в редакторе Pitch: высота кнопки + G сверху и снизу
+    TBH=(PH+2*G)+(ftb-(PH+2*G))*tb_in
     if pending then apply_pending() end
     titlebar()
     bar()
@@ -1008,8 +1113,10 @@ function M.draw(im,c,a)
     dropdown_modal()
     do -- запоминание размера текущего раздела (см. выше)
       local ww2,wh2=ImGui.GetWindowSize(ctx);ww2,wh2=math.floor(ww2+.5),math.floor(wh2+.5)
+      win_w,win_h=ww2,wh2
       local sz=sizes[cur_sect]
-      if not (sz and sz[1]==ww2 and sz[2]==wh2) and sect==cur_sect then sizes[cur_sect]={ww2,wh2};size_dirty=app.r.time_precise() end
+      -- промежуточные размеры плавного перехода не запоминаются как размер раздела
+      if not resize and not (sz and sz[1]==ww2 and sz[2]==wh2) and sect==cur_sect then sizes[cur_sect]={ww2,wh2};size_dirty=app.r.time_precise() end
       if size_dirty and not ImGui.IsMouseDown(ctx,0) and app.r.time_precise()-size_dirty>1 then
         size_dirty=nil
         for k,v in pairs(sizes) do

@@ -32,16 +32,30 @@ local function dump(v,out)
   out[#out+1]='}'
  else out[#out+1]='nil' end
 end
+-- Settings → «Keep processing state in the project»: запись ещё и в тейк (P_EXT, в .rpp), её читает load после
+-- перезапуска REAPER, когда файла сессии уже нет. Ключ тейка ищется по GUID среди айтемов текущего проекта.
+local KEY='P_EXT:VocalignerClick1'
+local function project_on(r) return r.GetExtState and r.GetExtState('Vocaligner ui','project_state')=='1' end
+local function take_of(r,guid)
+ if not r.CountMediaItems then return nil end
+ for i=0,r.CountMediaItems(0)-1 do
+  local it=r.GetMediaItem(0,i);local tk=it and r.GetActiveTake(it)
+  if tk then local _,g=r.GetSetMediaItemTakeInfo_String(tk,'GUID','',false);if g==guid then return tk end end
+ end
+end
 function M.save(r,guid,state)
  if not available(r) or not guid then return false end
  local out={'return '};dump(state,out)
+ if project_on(r) then local tk=take_of(r,guid);if tk then r.GetSetMediaItemTakeInfo_String(tk,KEY,table.concat(out),true) end end
  local f=io.open(path(r,guid),'wb');if not f then return false end
  f:write(table.concat(out));f:close();return true
 end
 function M.load(r,guid)
  if not available(r) or not guid then return nil end
- local f=io.open(path(r,guid),'rb');if not f then return nil end
- local text=f:read('a');f:close()
+ local f=io.open(path(r,guid),'rb');local text
+ if f then text=f:read('a');f:close()
+ elseif project_on(r) then local tk=take_of(r,guid);if tk then local ok,t=r.GetSetMediaItemTakeInfo_String(tk,KEY,'',false);if ok and t~='' then text=t end end end
+ if not text then return nil end
  local chunk=load(text,'=declick session','t',{});if not chunk then return nil end
  local ok,value=pcall(chunk)
  if ok and type(value)=='table' and value.version==1 then return value end

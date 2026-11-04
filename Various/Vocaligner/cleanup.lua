@@ -133,7 +133,7 @@ function M.features(data,cutoff,job,engine)
   return out
 end
 function M.build(data,cfg,job,exclusions,engine,mode,profile,edits)
-  if mode=='breath' then return import('breath').build(data,cfg,job,exclusions,engine and engine.breath,profile) end
+  if mode=='breath' then return import('breath').build(data,cfg,job,exclusions,engine and engine.breath,profile,edits) end
   local frames=data.frames;local n=#frames;local hop=data.hop
   local sib,sd={},{}
   local features=M.features(data,cfg.deess_hz,job,engine)

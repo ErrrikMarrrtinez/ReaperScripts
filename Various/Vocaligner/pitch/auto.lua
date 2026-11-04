@@ -32,7 +32,7 @@ function M.reference(e,track_guid,item_guid)
   for _,entry in ipairs(row.items) do
     local guid=item_guid and e.r.GetSetMediaItemInfo_String and select(2,e.r.GetSetMediaItemInfo_String(entry.item,'GUID','',false))
     if entry.state and entry.state.analysis and entry.item~=e.item and (not item_guid or guid==item_guid) then
-      local vis=Workspace.visual(e,entry)
+      local vis=Workspace.visual(e,entry,true)
       if vis and vis.data then entries[#entries+1]={pos=entry.pos,len=entry.len,data=vis.data} end
     end
   end
@@ -215,10 +215,30 @@ function M.build(e,a)
   return {hop=HOP,n=n,c=c,stats=stats}
 end
 
+-- «Заморозка»: ручная правка ноты при включённом ATune фиксирует поправку Auto на этой ноте (n.auto_freeze) такой,
+-- какой она была до правки. Дальше нота от слоя Auto не зависит — ни от ручек и режима ATune, ни от его включения/
+-- выключения; правка ложится поверх замороженной поправки. Сбрасывает заморозку только Reset ноты (Expression.reset).
+-- Формат: {t0=начало (с от начала item), step=шаг (с), n=число значений, p=int16 LE в тысячных полутона}
+local decoded=setmetatable({},{__mode='k'})
+local function frozen_values(f)
+  local d=decoded[f]
+  if not d then d={};for i=1,f.n do d[i]=string.unpack('<i2',f.p,(i-1)*2+1)/1000 end;decoded[f]=d end
+  return d
+end
+local function frozen_at(f,t)
+  local d=frozen_values(f);local x=(t-f.t0)/f.step;local k=math.floor(x)+1
+  if k<1 or k>f.n then return 0 end
+  local u=x-(k-1);local a,b=d[k],d[k+1]
+  return (a or 0)*(1-u)+(b or 0)*u
+end
+function M.valid_freeze(f)
+  return type(f)=='table' and type(f.t0)=='number' and f.t0==f.t0 and type(f.step)=='number' and f.step>=.001 and f.step<=.1
+    and type(f.n)=='number' and f.n%1==0 and f.n>=1 and f.n<=200000 and type(f.p)=='string' and #f.p==f.n*2
+end
 -- Сколько Auto «уступает» ручной правке в момент t (1 — полностью ручная, Auto выключен)
 local function manual_weight(n)
   if not n then return 0 end
-  if n.auto_off then return 1 end
+  if n.auto_off or n.auto_freeze then return 1 end
   if n.target_anchors and #n.target_anchors>0 then return 1 end
   for _,s in ipairs(n.drawings or {}) do if s.target then return 1 end end
   return 0 -- сдвиг, Flatten и прочие ручные правки не отключают подгонку: она доводит уже их результат
@@ -230,10 +250,24 @@ function M.value(layer,t)
   if a==nil and b==nil then return 0 end
   return (a or 0)*(1-u)+(b or 0)*u
 end
-function M.at(layer,notes,t)
-  local v=M.value(layer,t)*(layer.amount or 1)
-  if v==0 then return 0 end
-  local _,i=Notes.at(notes,t);local p=0
+M.protected=manual_weight
+-- Поправка Auto на ноте n по слою layer (с учётом уступок ручным правкам соседей) — для заморозки
+function M.freeze(layer,notes,n)
+  local step=layer.hop;local count=math.max(2,math.ceil((n.finish-n.start)/step)+1);local parts={}
+  for k=0,count-1 do
+    local t=math.min(n.start+k*step,n.finish-1e-6)
+    local v=math.max(-32,math.min(32,M.at(layer,notes,t,true)))
+    parts[k+1]=string.pack('<i2',math.floor(v*1000+.5))
+  end
+  return {t0=n.start,step=step,n=count,p=table.concat(parts)}
+end
+-- live_only — только слой Auto (без замороженных значений): так поправка снимается в момент заморозки
+function M.at(layer,notes,t,live_only)
+  local v=layer and M.value(layer,t)*(layer.amount or 1) or 0
+  local n,i=Notes.at(notes,t)
+  local frozen=(not live_only and n and n.auto_freeze) and frozen_at(n.auto_freeze,t) or 0
+  if v==0 then return frozen end
+  local p=0
   for j=(i or 1)-1,(i or 1)+1 do
     local m=notes[j]
     if m then
@@ -244,6 +278,6 @@ function M.at(layer,notes,t)
       end
     end
   end
-  return v*(1-p)
+  return v*(1-p)+frozen
 end
 return M

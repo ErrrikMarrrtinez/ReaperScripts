@@ -85,9 +85,10 @@ end
 -- отношения ~1 не дают. Близкие всплески (≤3 мс) склеиваются в одно событие (серии, «бульки»), границы
 -- тянутся по затухающему хвосту (до 8 мс), чтобы не оставалось слышимого остатка.
 -- Защита (Protect attacks): периодические импульсы голоса (L и 2L по обе стороны, у края голоса — с одной) и атака слова,
--- когда голос начинается сразу (≤4 мс) за всплеском. Щелчок губ, отделённый от голоса паузой, не защищается.
+-- Плавная дополнительная защита учитывает рост НЧ после всплеска и задержанное начало голоса до 40 мс.
+-- Неуверенные события получают меньшую степень вмешательства, а не полную замену ядра.
 M.mouth_method='transient' -- 'transient' | 'spectral' (прежний путь через click/spectral.lua)
-local G,SPAN,MERGE,LEFT,TAIL=3,24,12,6,32 -- в кадрах по 0.25 мс
+local function smooth(x)x=clamp(x,0,1);return x*x*(3-2*x)end
 local function percentile_sample(rows,k,q)
  local v={};for i=1,#rows,8 do v[#v+1]=rows[i][k] end
  table.sort(v);return v[math.max(1,math.ceil(#v*q))] or 0
@@ -98,8 +99,10 @@ local function median(rows,k,a,b)
  table.sort(v);local n=#v
  return n%2==1 and v[(n+1)//2] or .5*(v[n//2]+v[n//2+1])
 end
-function M.mouth_events(data,cfg,exclusions,job,engine)
+local function mouth_candidates(data,cfg,job,engine)
  local rows=data.rows;local n=#rows;local h=data.hop
+ local function frames(ms)return math.max(1,math.floor(ms*.001/h+.5))end
+ local G,SPAN,MERGE,LEFT,TAIL=frames(.75),frames(6),frames(3),frames(1.5),frames(8)
  local tr=data.transient
  if not tr then
   local fh=math.max(percentile_sample(rows,6,.2),10^(-90/20));local fr=math.max(percentile_sample(rows,2,.2),10^(-90/20))
@@ -108,49 +111,79 @@ function M.mouth_events(data,cfg,exclusions,job,engine)
  local skew=cfg.mouth_skew or 0;local wh=clamp(.5+skew/20,0,1)
  local protect=cfg.mouth_protect or 0;local T=12*2^(-(cfg.mouth_sensitivity or 50)/30)
  local score={}
- for i=1,n do score[i]=math.max(tr.rh[i],1e-9)^wh*math.max(tr.rp[i],1e-9)^(1-wh) end
+ for i=1,n do
+  score[i]=math.max(tr.rh[i],1e-9)^wh*math.max(tr.rp[i],1e-9)^(1-wh)
+  if i%2048==0 then job:checkpoint()end
+ end
  local function at(k) if k<1 or k>n then return 0 end;return math.max(score[math.max(1,k-1)],score[k],score[math.min(n,k+1)]) end
- local events={};local i=1
+ local events={};local i=1;local next_yield=128
  while i<=n do
   if score[i]<T then i=i+1
   else
    local a,b,j=i,i,i
    while j<=n do
     if score[j]>=T then b=j;j=j+1 elseif j-b<=MERGE then j=j+1 else break end
+    if j%2048==0 then job:checkpoint()end
    end
    local peak=a;for k=a,b do if score[k]>score[peak] then peak=k end end
    local s0,s1=a,b
    while s0>1 and a-s0<LEFT and score[s0-1]>1.4 do s0=s0-1 end
    while s1<n and s1-b<TAIL and score[s1+1]>1.4 do s1=s1+1 end
-   local why
+   local why;local protection=0
    if (b-a+1)*h>.025 then why='long' end
    if not why and protect>0 then
     local rep=0
     -- повтор с тем же шагом по обе стороны (L и 2L); если с одной стороны тишина (край голоса) — достаточно другой
-    local el,er=median(rows,1,peak-100,peak-4),median(rows,1,peak+4,peak+100)
+    local el,er=median(rows,1,peak-frames(25),peak-frames(1)),median(rows,1,peak+frames(1),peak+frames(25))
     local quiet_l,quiet_r=el<.15*er,er<.15*el
-    for lag=10,50 do
+    for lag=frames(2.5),frames(12.5) do
      local l,r=math.min(at(peak-lag),at(peak-2*lag)),math.min(at(peak+lag),at(peak+2*lag))
      rep=math.max(rep,math.min(l,r),quiet_r and l or 0,quiet_l and r or 0)
     end
     if rep>=math.max(.5*(1-protect/200)*score[peak],.7*T) and score[peak]<3*T then why='periodic' end
+    protection=smooth((rep/math.max(score[peak],1e-9)-.2)/.6)
    end
-   if not why and protect>=50 then
-    local before=median(rows,1,a-120,a-8);local after=median(rows,1,b+4,b+120)
-    local lo_after=median(rows,4,b+4,b+160);local voiced=b+1
-    while voiced<math.min(n,b+160) and rows[voiced][4]<.5*lo_after do voiced=voiced+1 end
-    if after>8*(before+1e-6) and before<.004 and voiced-b<=16 then why='attack' end
+   if not why and protect>0 then
+    -- A consonant release can precede voicing by tens of milliseconds. Require
+    -- sustained low-band growth on BOTH time scales; a lone click cannot supply it.
+    local before=median(rows,4,a-frames(30),a-frames(2))
+    local after=median(rows,4,b+frames(4),b+frames(45))
+    local later=median(rows,4,b+frames(20),b+frames(55))
+    local rise=smooth((math.min(after,later)/(before+1e-6)-2)/6)
+    local audible=smooth((math.min(after,later)-.0002)/.001)
+    local voiced=b+1;local stop=math.min(n,b+frames(40))
+    while voiced<stop and rows[voiced][4]<.5*math.min(after,later)do voiced=voiced+1 end
+    local proximity=1-smooth(((voiced-b)*h-.015)/.025)
+    protection=math.max(protection,rise*audible*proximity)
    end
    if not why then
     local f=rows[peak]
+    -- Heuristic confidence, not a probability. Near-threshold candidates must
+    -- not trigger a full-waveform replacement, even at Strength=100.
+    local amount=smooth((score[peak]/T-1)/2)*(1-clamp(protect/100,0,1)*protection)^2
     local e={kind='mouth',start=(s0-1)*h,finish=math.min(data.len,s1*h),peak=f[8],score=score[peak],
-     level_db=20*math.log(math.max(f[1],1e-12),10),contrast=score[peak]}
-    for _,x in ipairs(exclusions or {})do if x.kind=='mouth' and x.finish>e.start and x.start<e.finish then e.excluded=true end end
+     level_db=20*math.log(math.max(f[1],1e-12),10),contrast=score[peak],amount=amount,protection=protection}
     events[#events+1]=e
    end
    i=j
   end
-  if i%2048==0 then job:checkpoint() end
+  if i>=next_yield then job:checkpoint();next_yield=i+128 end
+ end
+ return events
+end
+function M.mouth_events(data,cfg,exclusions,job,engine)
+ -- One immutable candidate set per source; blend-only controls never rerun selection.
+ local key=table.concat({cfg.mouth_sensitivity or 50,cfg.mouth_skew or 0,cfg.mouth_protect or 0},':')
+ local cached=data.mouth_candidates
+ if not cached or cached.key~=key then
+  cached={key=key,events=mouth_candidates(data,cfg,job,engine)};data.mouth_candidates=cached
+ end
+ local events={}
+ for i,original in ipairs(cached.events)do
+  local e={};for k,v in pairs(original)do e[k]=v end
+  for _,x in ipairs(exclusions or {})do if x.kind=='mouth' and x.finish>e.start and x.start<e.finish then e.excluded=true end end
+  events[#events+1]=e
+  if i%256==0 then job:checkpoint()end
  end
  return events
 end

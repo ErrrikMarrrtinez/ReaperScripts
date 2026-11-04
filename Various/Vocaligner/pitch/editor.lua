@@ -54,6 +54,43 @@ local function item_signature(r,item,take)
   return string.format('%.9f|%.9f|%.9f|%.9f|%s|%d|%d',g(item,'D_POSITION'),g(item,'D_LENGTH'),t(take,'D_STARTOFFS'),t(take,'D_PLAYRATE'),
     tostring(r.GetMediaItemTake_Source(take)),r.GetTakeNumStretchMarkers(take),r.TakeFX_GetCount and r.TakeFX_GetCount(take) or 0)
 end
+-- Предзагрузка: пока открыта другая вкладка, анализ выделенных айтемов с состоянием Pitch распаковывается фоновой
+-- задачей (~4 мс за кадр, не считается занятостью редактора) и кладётся в кеш. К клику по вкладке всё уже готово:
+-- редактор открывается сразу полностью (Analyze, цвета, ноты на месте), без догрузки после анимации.
+function M:preload()
+  local r=self.r;local job=self.preload_job
+  if job then
+    job:step()
+    if job.done then
+      self.preload_job=nil
+      if self.wait_preload then self.wait_preload=nil;if self.app.tab=='pitch' then self:refresh(true) end end
+    end
+    return
+  end
+  local now=r.time_precise()
+  if self.job or self.gesture or now<(self.preload_at or 0) then return end
+  self.preload_at=now+.5
+  local project=r.EnumProjects(-1);if not project then return end
+  local parts,items={tostring(project)},{}
+  for i=0,math.min(r.CountSelectedMediaItems(project),4)-1 do local it=r.GetSelectedMediaItem(project,i);items[#items+1]=it;parts[#parts+1]=tostring(it) end
+  local sig=table.concat(parts,'|')
+  if sig==self.preload_sig then return end
+  self.preload_sig=sig
+  if #items==0 then return end
+  self.preload_job=Job.new(r,function(j)
+    for _,item in ipairs(items) do
+      local take=r.ValidatePtr2(project,item,'MediaItem*') and r.GetActiveTake(item)
+      if take and not r.TakeIsMIDI(take) then
+        local ok,state=pcall(Store.read,r,take);local id=ok and state and state.analysis
+        if id and not (self.cache and self.cache[project] and self.cache[project][id]) then
+          local data,geometry=Store.load_analysis(r,project,id,j)
+          if data then self:remember(project,id,{data=data,geometry=geometry}) end
+        end
+      end
+      j:checkpoint()
+    end
+  end,.004)
+end
 function M:refresh(force)
   local r=self.r;local project=r.EnumProjects(-1)
   if not project then return end
@@ -91,6 +128,23 @@ function M:refresh(force)
       local valid,reason=FX.rebind(r,s,state);if not valid then self.stale=true;self.error=reason end
       self.cache[project]=self.cache[project] or {}
       local cached=self.cache[project][state.analysis]
+      if not cached and state.analysis and self.preload_job then
+        self.wait_preload=true;self.loading=true
+        self.snapshot=s;self.project=project;self.item=item;self.take=take;self.data=nil;self.notes={};self.state=nil;self.display=nil
+        self.message='Loading '..s.name..'…';return
+      end
+      if not cached and state.analysis and not force then
+        -- анализ ещё не распакован (первое открытие айтема): распаковка длинного анализа занимала сотни мс одним
+        -- кадром — ровно та пауза перед анимацией входа. Фоновая задача (~6 мс за кадр), потом refresh(true)
+        local id=state.analysis
+        self.job=Job.new(r,function(job)
+          local data,geometry=Store.load_analysis(r,project,id,job)
+          if data then self:remember(project,id,{data=data,geometry=geometry}) end
+        end,.006)
+        self.job.kind='load';self.loading=true
+        self.snapshot=s;self.project=project;self.item=item;self.take=take;self.data=nil;self.notes={};self.state=nil;self.display=nil
+        self.message='Loading '..s.name..'…';return
+      end
       if not cached then local data,geometry=Store.load_analysis(r,project,state.analysis);if data then cached={data=data,geometry=geometry};self:remember(project,state.analysis,cached) end end
       local data,notes
       if cached then data,reason=Store.adapt(cached.data,{},cached.geometry,s) end
@@ -128,6 +182,7 @@ function M:refresh(force)
     end
   end)
   self.project_count=count
+  if not (self.job and self.job.kind=='load') and not self.wait_preload then self.loading=nil end
   self:measure('refresh',refresh_started)
   if not ok then self.snapshot=nil;self.data=nil;self.notes={};self:fail(why) end
 end
@@ -212,8 +267,26 @@ function M:begin_edit(keep_version)
   if self:busy() or self.stale or not self.data or self.no_selection then return nil end
   local before=Notes.copy(self.state);if not keep_version then self.state.curve_version=4 end;self.display=nil;self.gesture=true;return before
 end
+-- Ручная правка ноты при включённом ATune: поправка Auto на этой ноте замораживается (см. pitch/auto.lua) —
+-- иначе после пересборки слоя Auto «доводил» бы результат правки обратно к ноте тональности
+local function hand_edited(n) return (n.shift or 0)~=0 or #(n.anchors or {})>0 or Expression.edited(n) end
+function M:freeze_edited(before)
+  local a=Auto.config(self.state);local layer=self.auto_layer
+  if not (before and before.notes and a.on and layer and layer.c and self.data and self.data._auto==layer and self.notes) then return end
+  local old={};for _,n in ipairs(before.notes) do old[n.id]=n end
+  local froze=false
+  for _,n in ipairs(self.notes) do
+    local b=old[n.id]
+    -- только изменённые, ещё не замороженные, не «целевые» (у них Auto и так выключен) и не сброшенные в ноль (Reset)
+    if b and not n.auto_freeze and not b.auto_freeze and Auto.protected(n)==0 and hand_edited(n) and not Notes.same_curve(b,n) then
+      n.auto_freeze=Auto.freeze(layer,before.notes,n);froze=true
+    end
+  end
+  if froze then self.data._frozen=true end
+end
 function M:commit(before,label,mode)
   self.gesture=false;if not before or self:busy() then return end
+  if not mode then self:freeze_edited(before) end
   local s=self.snapshot;local saved=self.saved_text;local state=Notes.copy(self.state)
   self.display=nil
   self.job=Job.new(self.r,function(job)
@@ -373,14 +446,15 @@ function M:apply_auto_queue()
   self:commit(before,'auto pitch')
 end
 function M:tick()
+  if self.preload_job then self:preload() end
   -- очередь применяется, как только редактор свободен: сразу после отпускания или, если отпускание не пришло, через 0.5 с тишины
   if self.auto_queue and not self:busy() and not self.auto_before and (self.auto_queue_final or self.r.time_precise()-(self.auto_queue_at or 0)>.5) then self:apply_auto_queue() end
   if self.auto_due and self.r.time_precise()>=self.auto_due then self.auto_due=nil;self:auto_rebuild();self.display=nil end
   if self.job then
     local job=self.job;job:step()
     if job.done then
-      self.job=nil;self.partial=nil;self.gesture=false
-      if self.last_analysis and job.kind=='analysis' then self.last_analysis.max_step_ms=job.max_step_ms;self.last_analysis.work_ms=job.work_ms;self.last_analysis.steps=job.steps end
+      self.job=nil;self.partial=nil;self.gesture=false;self.loading=nil
+      if job.kind=='analysis' then self.last_batch={elapsed_ms=(self.r.time_precise()-job.created_at)*1000,work_ms=job.work_ms,max_step_ms=job.max_step_ms,steps=job.steps} end
       if job.kind=='apply' then
         self.last_apply={work_ms=job.work_ms,max_step_ms=job.max_step_ms,steps=job.steps,elapsed_ms=(self.r.time_precise()-job.created_at)*1000,
           pitch_points=job.pitch_points,formant_points=job.formant_points,rebuilt_cells=job.rebuilt_cells,reused_cells=job.reused_cells}
@@ -394,6 +468,7 @@ function M:tick()
       end
       if job.kind=='analysis' and self.batch_result then
         local b=self.batch_result;self.message=string.format('Analyzed %d / %d items%s',b.completed,b.total,b.failed>0 and ('; '..b.failed..' skipped — Copy report') or '')
+        if (b.skipped or 0)>0 then self.message=self.message..string.format('; %d sources unavailable — Copy report',b.skipped) end
         if b.failed>0 then self.error=b.errors[1] end
       end
       if job.kind=='export' and not job.error then self.last_case=job.result;self.message='Pitch case saved: '..job.result end
@@ -403,10 +478,12 @@ function M:tick()
       end
       if job.error then self:fail(job.error) end
     end
-  elseif self.app.tab=='pitch' then self:refresh() end
+  elseif self.app.tab=='pitch' then self:refresh()
+  else self:preload() end
 end
 function M:diagnostics()
-  local lines={'PITCH: '..(self.engine and self.engine.label or 'not initialized'),self.message or ''}
+  local lines={'PITCH: '..(self.analysis_backend or (self.engine and self.engine.label) or 'not initialized'),self.message or ''}
+  if self.native_fallback then lines[#lines+1]='C++ fallback: '..self.native_fallback end
   lines[#lines+1]='Display: predicted source F0 + requested correction; yellow Check line = measured output when enabled.'
   if self.last_vocal then local v=self.last_vocal;lines[#lines+1]=string.format('Vocal render v%d: %d regions, %d source / %d output periods, %.0f ms work, %.1f ms max step; %s',v.version,v.regions,v.source_pulses,v.output_pulses,v.work_ms or 0,v.max_step_ms or 0,v.path)end
   if self.check_on then lines[#lines+1]=import('pitch/check').report(self) end
@@ -464,6 +541,15 @@ function M:diagnostics()
     for field,map in pairs(self.state.mapping) do lines[#lines+1]=string.format('ReaPitch %s: %.3f .. %.3f st',field,map.lo,map.hi) end
   end
   if self.last_analysis then for k,v in pairs(self.last_analysis) do lines[#lines+1]=k..' = '..tostring(v) end end
+  if self.last_batch then for k,v in pairs(self.last_batch) do lines[#lines+1]='batch_'..k..' = '..tostring(v) end end
+  if self.batch_result then
+    local b=self.batch_result
+    lines[#lines+1]=string.format('Batch: %d/%d completed | %d failed | %.3f audio seconds | worker CPU %.1f ms',b.completed,b.total,b.failed,b.audio_seconds or 0,b.kernel_ms or 0)
+    for _,v in ipairs(b.items or {}) do lines[#lines+1]=string.format('Batch item: %s | %.3f s audio | %.1f ms elapsed | %.1f ms worker CPU',v.name or '?',v.seconds,v.elapsed_ms,v.kernel_ms) end
+    for _,err in ipairs(b.errors or {}) do lines[#lines+1]=err end
+    lines[#lines+1]='Unavailable sources skipped: '..tostring(b.skipped or 0)
+    for _,warning in ipairs(b.warnings or {}) do lines[#lines+1]='Source warning: '..warning end
+  end
   local s=self.snapshot
   if s then lines[#lines+1]='Source: '..tostring(s.source_key) end
   if s then lines[#lines+1]=string.format('take %s | offset %.9f | rate %.9f | length %.9f | stretch markers %d',s.guid,s.offset,s.rate,s.len,#s.markers) end
@@ -476,6 +562,8 @@ end
 -- параметры + анализ/геометрия айтема (не сам объект data: он пересоздаётся после каждого применения).
 function M:auto_rebuild(force)
   local data=self.data;if not data then return end
+  local frozen=false;for _,n in ipairs(self.notes or {}) do if n.auto_freeze then frozen=true;break end end
+  data._frozen=frozen or nil -- замороженные ноты работают и при выключенном ATune
   local a=Auto.config(self.state)
   self.auto_note=nil
   if not a.on then data._auto=nil;data._auto_key=nil;return end

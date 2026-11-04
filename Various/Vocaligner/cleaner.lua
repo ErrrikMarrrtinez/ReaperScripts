@@ -7,7 +7,15 @@ local Dynamics=import('compressor/settings');local Chain=import('compressor/chai
 local M={};M.__index=M
 function M.new(app)
   local auto=not (app.r.GetExtState and app.r.GetExtState('Vocaligner session v7','auto')=='0')
-  return setmetatable({app=app,r=app.r,cfg=Config.copy(app.cfg),cache={},items={},focus=1,revision=0,mode='deess',auto=auto},M)
+  -- у Breath свой Auto (по умолчанию выключен: анализ по кнопке Analyze), сохраняется между запусками
+  local breath_auto=app.r.GetExtState and app.r.GetExtState('Vocaligner ui','breath_auto')=='1'
+  return setmetatable({app=app,r=app.r,cfg=Config.copy(app.cfg),cache={},items={},focus=1,revision=0,mode='deess',auto=auto,breath_auto=breath_auto},M)
+end
+-- Auto текущей вкладки: Breath — отдельный флажок, остальные Dynamics — общий из Settings
+function M:auto_on() if self.mode=='breath' then return self.breath_auto==true end return self.auto==true end
+function M:set_breath_auto(value)
+  self.breath_auto=value==true;self.last_selected=nil;self.last_selection_key=nil;self.follow_key=nil;self.follow_due=nil
+  if self.r.SetExtState then self.r.SetExtState('Vocaligner ui','breath_auto',value and '1' or '0',true) end
 end
 function M:current() return self.items[self.focus] end
 function M:fail(why) local text=tostring(why);if self.error~=text then self.app:report(text);if self.app.console then self.app:console('Vocaligner Cleanup error',text)end end;self.error=text end
@@ -110,6 +118,18 @@ function M:reset_stage()
   end
   if n>0 then self:control_released() end
 end
+-- Настройки нового айтема: заводские значения инструментов, поверх — сохранённые «Default» каждого инструмента
+-- (Settings → Defaults). Последние накрученные ручки на другом айтеме на новый больше не переносятся.
+function M:new_cfg()
+  local Presets=import('compressor/presets')
+  local cfg=Config.copy(self.app.cfg) -- общие ключи (порядок цепочки, RT Update и т. п.) остаются глобальными
+  for _,mode in ipairs({'compressor','gate','deess','breath'})do
+    local items=Presets.load(self.r,mode)
+    local values=Presets.defaults(mode,items)
+    for k,v in pairs(values)do cfg[k]=v end
+  end
+  return cfg
+end
 function M:control_released()
   self.save_after=self.r.time_precise()+1.5
   if self.approx_until then self.approx_until=nil;self:request(true) end -- после приближённых превью — точный пересчёт
@@ -127,8 +147,8 @@ function M:set_mode(mode)
   local reading=self.job and self.job.kind=='read'
   if not reading then self:cancel() end;self.mode=mode
   local d=self:current()
-  if d then d.want_apply=self.auto;d.preview=nil;d.detected=nil
-    if not reading then if self.auto then self:analyze(true) else self:request(false) end end
+  if d then d.want_apply=self:auto_on();d.preview=nil;d.detected=nil
+    if not reading then if self:auto_on() then self:analyze(true) else self:request(false) end end
   end
 end
 function M:select_item(index,keep_targets)
@@ -147,7 +167,7 @@ function M:select_item(index,keep_targets)
   end
   self.selection=nil;self:sync_selection()
   if keep_targets then return end
-  if self.auto then self:analyze(true)
+  if self:auto_on() then self:analyze(true)
   elseif d.audio and not d.preview_valid then self:request(false) end
 end
 -- Each captured take keeps its source cache, controls, undo ownership and view.
@@ -186,7 +206,7 @@ function M:capture(preview_only)
       local plan={snapshot=s,unchanged=true,volume_only=true,pos=s.pos,len=s.len,amount=0,
         markers={{t=0,target=s.pos},{t=s.len,target=s.pos+s.len}}}
       captured[#captured+1]={index=index,dub={snapshot=s,enabled=true,plan=plan,range={0,s.len},
-        exclusions={},edits={},cfg=Config.copy(old and old.cfg or self.app.cfg),want_apply=not preview_only,
+        exclusions={},edits={},cfg=old and Config.copy(old.cfg) or self:new_cfg(),want_apply=not preview_only,
         breath_profile=old and old.breath_profile or BreathProfile.load(r,project,s.guid),
         quick=Audio.peaks(r,s)}}
       local d=captured[#captured].dub
@@ -511,8 +531,18 @@ function M:selection_key()
   return table.concat(ids,'|')
 end
 function M:follow_selection()
-  if not self.auto or self.gesture or (self.job and (self.job.kind=='apply' or self.job.kind=='batch')) or not Dynamics.is_tool(self.app.tab) then return end
-  if self.r.CountSelectedMediaItems(0)>1 then
+  if self.gesture or (self.job and (self.job.kind=='apply' or self.job.kind=='batch')) or not Dynamics.is_tool(self.app.tab) then return end
+  -- без Auto выделение не обрабатывается, КРОМЕ айтема, у которого уже есть наша запись в проекте: он подхватывается
+  -- сам (переанализ без записи в айтем), как будто его только что открыли
+  local auto=self:auto_on();local pickup=false
+  if not auto then
+    local r=self.r
+    if not (Session.project_enabled(r) and r.CountSelectedMediaItems(0)==1) then return end
+    local it=r.GetSelectedMediaItem(0,0);local tk=it and r.GetActiveTake(it)
+    if not Session.has_project(r,tk) then return end
+    pickup=true
+  end
+  if not pickup and self.r.CountSelectedMediaItems(0)>1 then
     local key=self:selection_key()
     if key==self.last_selection_key then self.follow_due=nil;return end
     if key~=self.follow_key or not self.follow_due then
@@ -539,6 +569,7 @@ function M:follow_selection()
   local index=self.cache[self.project].by_guid[guid]
   if index and self.items[index].snapshot.item==selected then
     if index~=self.focus then self:select_item(index) end
+  elseif pickup then self:capture(true);self:analyze(false) -- переанализ без записи в айтем
   else self:capture() end
 end
 function M:tick()
@@ -546,18 +577,21 @@ function M:tick()
   self:bind(project)
   local d=self:current()
   local state=self.r.GetProjectStateChangeCount(project)
+  -- Пока тянут ручку/правку, проект меняет наша же живая запись: полная сверка айтема (чтение всей огибающей по точкам)
+  -- на каждом таком кадре и давала задержку курсора. Сверка откладывается до отпускания.
+  if self.gesture then state=self.project_state end
   if d and not d.restore_value and state~=self.project_state and not (self.job and self.job.kind=='batch') then
     local previous=d.applied_cleanup;local ok,why,geometry,gain_changed=Audio.check_dub(self.r,d)
     if not ok then
       d.stale=true;d.want_apply=false;d.preview_valid=false;self:cancel();self:fail(why)
     elseif geometry then
       d.stale=nil;self.error=nil;self.selection=nil;self:cancel();self:sync_selection()
-      if self.auto then self:analyze(true) else self:request(false) end
+      if self:auto_on() then self:analyze(true) else self:request(false) end
     elseif gain_changed then
       -- Overall item volume does not change De-ess/Breath source features.
       -- Only level-dependent dynamics need a new preview, using the same PCM.
       if d.layers and (d.layers.compressor or d.layers.gate) then
-        self:cancel();self:request(self.auto)
+        self:cancel();self:request(self:auto_on())
       end
       d.save_pending=true
     elseif previous~=d.applied_cleanup then

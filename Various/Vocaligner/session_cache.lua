@@ -1,6 +1,19 @@
 -- @noindex
 local import=...;local Codec=import('codec');local Config=import('config');local Envelope=import('envelope');local Pack=import('cache_packing');local M={}
 local section='Vocaligner session v7'
+-- ===== состояние в проекте (Settings → «Keep processing state in the project», по умолчанию выкл.) =====
+-- Сессионный кеш живёт до закрытия REAPER. С этой настройкой рядом с ним в сам тейк (P_EXT, сохраняется в .rpp)
+-- пишется компактная запись: настройки, ручные правки и исключения, исходная огибающая громкости (база) и последняя
+-- записанная нами огибающая со слоями — без кеша аудио и превью. После перезапуска REAPER айтем переанализируется
+-- сам (признаки считаются заново), а по базе и последней записи понятно, что огибающая наша и как её вернуть.
+M.KEY='P_EXT:VocalignerDyn1';M.FLAG='P_EXT:VocalignerDyn1f'
+function M.project_enabled(r) return r.GetExtState and r.GetExtState('Vocaligner ui','project_state')=='1' end
+function M.set_project_enabled(r,on) if r.SetExtState then r.SetExtState('Vocaligner ui','project_state',on and '1' or '0',true) end end
+-- есть ли у тейка запись в проекте (маленький флажок — читать дёшево каждый кадр)
+function M.has_project(r,take)
+  if not take or not r.GetSetMediaItemTakeInfo_String then return false end
+  local ok,flag=r.GetSetMediaItemTakeInfo_String(take,M.FLAG,'',false);return ok and flag=='1'
+end
 local function pack_layers(layers,job)
   local out={}
   for mode,curve in pairs(layers or {}) do
@@ -146,6 +159,17 @@ function M:save(d,job)
     end
   end
   self:write(id,'meta',value,job);self.entries[id]=true
+  if M.project_enabled(self.r) and d.snapshot.take then
+    -- в проект — только последняя запись и база; без превью и аудио
+    local compact={}
+    for k,v in pairs(value) do if k~='previews' and k~='audio_file' and k~='outputs' then compact[k]=v end end
+    compact.outputs={value.outputs[1]};compact.header={guid=d.snapshot.guid,render_key=d.snapshot.render_key,offset=d.snapshot.offset,len=d.snapshot.len}
+    local ok,text=pcall(import('pitch/store').encode,{version=1,record=compact},job)
+    if ok and #text<=4*1024*1024 then
+      self.r.GetSetMediaItemTakeInfo_String(d.snapshot.take,M.KEY,text,true)
+      self.r.GetSetMediaItemTakeInfo_String(d.snapshot.take,M.FLAG,'1',true)
+    end
+  end
   local header={stamp=value.stamp};for _,k in ipairs({'guid','source_key','render_key','offset','len','rate'}) do header[k]=d.snapshot[k] end
   self:write(id,'index',header,job);self.headers[id]=header
   local ids={};for key in pairs(self.entries) do ids[#ids+1]=key end
@@ -194,7 +218,22 @@ function M:find(s)
       end
     end
   end
-  return exact or candidate or ambiguous
+  local found=exact or candidate or ambiguous
+  if not found and M.project_enabled(self.r) then found=M.project_record(self.r,s) end
+  return found
+end
+-- запись из проекта для этого тейка (после перезапуска REAPER сессионного кеша уже нет)
+function M.project_record(r,s)
+  if not s.take or not M.has_project(r,s.take) then return nil end
+  local ok,text=r.GetSetMediaItemTakeInfo_String(s.take,M.KEY,'',false);if not ok or text=='' then return nil end
+  local good,data=pcall(import('pitch/store').decode,text)
+  if not good or type(data)~='table' or data.version~=1 or type(data.record)~='table' then return nil end
+  local v=data.record;local h=v.header
+  -- запись годится только для того же звука: тот же рендер-ключ, смещение и длина (тейк могли подрезать или заменить)
+  if type(h)~='table' or h.render_key~=s.render_key or math.abs((h.offset or 0)-s.offset)>1e-7 or math.abs((h.len or 0)-s.len)>1e-7 then return nil end
+  if not (type(v.snapshot)=='table' and type(v.cfg)=='table' and type(v.outputs)=='table') then return nil end
+  v.from_project=true
+  return v
 end
 function M:attach(v,s,job)
   hydrate(v,job)

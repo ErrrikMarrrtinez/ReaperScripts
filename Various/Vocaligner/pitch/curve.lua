@@ -255,7 +255,7 @@ function M.at(notes,t,field,version,data,context,unclamped)
   if version==4 and field=='shift' and data then result=new_links(notes,t,data,result,context) end
   if version==4 and field=='shift' and data and context.manual then result=manual(notes,t,data,result,context) end
   -- Auto (подгонка под тональность / референс): поверх, уступает ручным целям (см. pitch/auto.lua)
-  if field=='shift' and data and data._auto then result=result+Auto.at(data._auto,notes,t) end
+  if field=='shift' and data and (data._auto or data._frozen) then result=result+Auto.at(data._auto,notes,t) end
   return unclamped and result or clamp(result,-24,24)
 end
 function M.evaluator(notes,field,version,data)

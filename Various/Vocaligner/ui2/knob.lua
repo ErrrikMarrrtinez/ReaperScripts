@@ -5,7 +5,7 @@
 -- Поверх кноба рисуется кольцо-метр (спрайт с вырезанным телом): его дугу ведёт уровень детектора, а не значение.
 -- Модуль устроен как набор независимых виджетов: сейчас используется для порога Compressor/Gate,
 -- вернуть обычный слайдер = не вызывать Knob.control (в ui2/dynamics.lua остался прежний путь).
-local import=...;local Settings=import('compressor/settings');local W=import('ui2/widgets');local M={}
+local import=...;local Settings=import('compressor/settings');local W=import('ui2/widgets');local Drag=import('ui2/drag');local M={}
 local r=reaper
 local here=debug.getinfo(1,'S').source:match([[^@(.+[\/])]])
 M.dir=here..'assets/knobs/'
@@ -156,12 +156,7 @@ function M.control(im,ctx,owner,e,meter,o)
   if active and d then
     owner.gesture=true
     local dx,dy
-    if WARP then -- Windows + JS: прячем курсор и возвращаем в точку клика каждый кадр
-      im.SetMouseCursor(ctx,im.MouseCursor_None)
-      local mx,my=r.GetMousePosition()
-      dx,dy=mx-d.x,my-d.y
-      r.JS_Mouse_SetPosition(d.x,d.y)
-    else dx,dy=im.GetMouseDelta(ctx) end
+    dx,dy=Drag.delta(im,ctx,d) -- общий драг: курсор прячется/возвращается, если включено в Settings
     local delta=CFG.horizontal and dx or -dy
     if delta~=0 then
       d.t=clamp(d.t+delta/250*sensitivity(im,ctx,CFG.dragSens,CFG.dragFine),0,1) -- копим без округления

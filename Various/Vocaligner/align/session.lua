@@ -4,7 +4,7 @@ local Preferences=import('align/preferences');local Config=import('config');loca
 local M={};local serial=0
 local Bridge=import('align/cleanup_bridge')
 local app_fields={'ref_audio','analyzed','dirty','replan','error','view'}
-local dub_fields={'audio','path','stats','plan','full_plan','error','status','enabled','match_profile','match_search','correspondence','advanced_feature_key','advanced_match_key','align_error'}
+local dub_fields={'audio','path','stats','plan','full_plan','error','status','enabled','match_profile','match_search','correspondence','advanced_feature_key','advanced_match_key','align_error','native_match'}
 local function copy_keys(from,keys)local out={};for _,k in ipairs(keys)do out[k]=from[k]end;return out end
 local function put(to,from,keys)for _,k in ipairs(keys)do to[k]=from and from[k]end end
 local function busy(app)return app.job or app.cleaner.job or app.pitch.job or app.mutation_lease end

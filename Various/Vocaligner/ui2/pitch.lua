@@ -48,10 +48,10 @@ local function dragvalue(im,ctx,id,label,value,lo,hi,fmt,w,speed,disabled)
   local st=drag_state[id] or {};drag_state[id]=st
   local changed,activated,released=false,false,false
   if not disabled then
-    if im.IsItemActivated(ctx) then activated=true;st.edited=false;st.value=value end
+    if im.IsItemActivated(ctx) then activated=true;st.edited=false;st.value=value;st.anchor=import('ui2/drag').begin() end
     if active then
       im.SetMouseCursor(ctx,im.MouseCursor_ResizeAll)
-      local dx,dy=im.GetMouseDelta(ctx)
+      local dx,dy=import('ui2/drag').delta(im,ctx,st.anchor)
       local fine=(im.GetKeyMods(ctx)&im.Mod_Shift)~=0 and .1 or 1
       local delta=(dx-dy)*speed*fine
       if delta~=0 then st.value=clamp((st.value or value)+delta,lo,hi);value=st.value;changed=true;st.edited=true end
@@ -651,6 +651,7 @@ function M.body(host,im,ctx,app)
   PitchUI.options.autoscroll=host.settings~=nil and host.settings.autoscroll==true -- автоскролл как в FL (Settings)
   PitchUI.options.scroll_pos=({.22,.5,.78})[host.settings and host.settings.scroll_pos or 1] or .22
   PitchUI.options.smooth=host.settings==nil or host.settings.smooth~=false -- плавный скролл/зум (отключается в Settings)
+  PitchUI.options.fast_motion=host.settings==nil or host.settings.fast_motion~=false -- лёгкая отрисовка во время зума (Settings)
   PitchUI.options.icon=host.icon;PitchUI.options.ghost_icon=SP.ghost;PitchUI.options.aim_icons={SP.aim_on,SP.aim_off}
   tip_text=nil
   -- прокси ленивый: каждая функция берётся из im один раз и кладётся в прокси (без лишнего поиска на каждый вызов)

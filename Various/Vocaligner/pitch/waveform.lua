@@ -61,11 +61,12 @@ function M.pack(w,job)
   for i=1,#base.lo do rows[i]=string.pack('<ff',base.lo[i],base.hi[i]);if job and i%2048==0 then job:checkpoint() end end
   return table.concat(rows)
 end
-function M.unpack(bytes,len)
+function M.unpack(bytes,len,job)
   if not bytes then return nil end
   assert(type(bytes)=='string' and #bytes%8==0 and #bytes/8<=600001 and #bytes/8<=math.ceil(len*1000)+1,'Invalid Pitch waveform')
   local w=M.new()
   for at=1,#bytes,8 do
+    if job and at%32768==1 then job:checkpoint() end
     local lo,hi=string.unpack('<ff',bytes,at)
     assert(lo<=0 and hi>=0 and lo>-1e6 and hi<1e6,'Invalid Pitch waveform peak');M.push(w,lo,hi)
   end

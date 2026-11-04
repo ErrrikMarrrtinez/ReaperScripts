@@ -7,7 +7,7 @@
 -- поверх — честная передаточная кривая (порог, ratio, круговое колено Julian 1 в 1 с compressor/engine.lua),
 -- у правого края — шкала dB и метр уровня детектора; Attack/Release — кнобы внутри по нижнему краю.
 -- Вся связь с cleaner та же, что у старой страницы: cfg[key] + W.changed + control_released + gesture.
-local import=...;local Settings=import('compressor/settings');local W=import('ui2/widgets');local Knob=import('ui2/knob')
+local import=...;local Settings=import('compressor/settings');local W=import('ui2/widgets');local Knob=import('ui2/knob');local Drag=import('ui2/drag')
 local Config=import('config');local Transport=import('transport');local Cleanup=import('cleanup');local Progress=import('progress');local Canvas=import('ui2/canvas');local M={}
 
 local DB_LO,DB_HI=-60,3 -- вертикаль «плеера»; у режима свой диапазон (SP.lo/SP.hi), задаётся в M.draw
@@ -34,8 +34,15 @@ local DEESS={
   {'deess_pre_ms','Pre-open',0,75,'%.0f ms'},{'deess_release_ms','Release',0,200,'%.0f ms'},
   {'deess_detail','Detail',0,100,'%.0f%%'},{'deess_rms_ms','RMS',0,100,'%.0f ms'},
 }
+-- Breath: те же ключи и диапазоны, что у прежней страницы (ui2/breath.lua) + общая сила Strength
+local BREATH={
+  {'breath_target','Target',-80,-12,'%.1f dBFS'},{'breath_strength','Strength',0,200,'%.0f%%'},
+  {'breath_sensitivity','Sensitivity',0,100,'%.0f%%'},{'breath_min_ms','Minimum',40,500,'%.0f ms'},
+  {'breath_pre_ms','Fade in',0,100,'%.0f ms'},{'breath_release_ms','Fade out',0,300,'%.0f ms'},
+  {'breath_curve','Curve',0,100,'%.0f%%'},{'breath_join_ms','Join gaps',0,300,'%.0f ms'},{'breath_edge_ms','Find edges',0,250,'%.0f ms'},
+}
 local E={}
-for _,list in ipairs({Settings.compressor,Settings.gate,DEESS}) do for _,e in ipairs(list) do E[e[1]]=e end end
+for _,list in ipairs({Settings.compressor,Settings.gate,DEESS,BREATH}) do for _,e in ipairs(list) do E[e[1]]=e end end
 local function entry(key,label,tip) local e=E[key];return {e[1],label or e[2],e[3],e[4],e[5],tip} end
 local function clamp(v,lo,hi) return v<lo and lo or (v>hi and hi or v) end
 local function fa(col,k) return (col&0xFFFFFF00)|math.floor((col&255)*clamp(k,0,1)) end
@@ -105,6 +112,15 @@ local SPECS={
     mini={{'deess_hz','Frequency',{scaling=1}},{'deess_max_db','Max cut',{scaling=1}}},
     row={{'deess_pre_ms',nil,'big',{scaling=.5}},{'deess_release_ms',nil,'big',{scaling=.5}},{'deess_detail',nil,'mid',{}},
          {'deess_rms_ms','RMS','mid',{scaling=.5}}}},
+  -- Breath: линия Target (громкость дыхания, выше которой оно опускается), подсветка дыханий на волне, ручная правка:
+  -- у каждого дыхания своя сила (низ «Т»), сила фейдов (края перекладины) и длина (края подсветки)
+  breath={lo=-72,hi=3,thr='breath_target',thr_label='Target',highlight=true,editable=true,events='breaths',core=true,
+    red_knob='breath_strength',red_scale=function(cfg) return math.max(1,25*(cfg.breath_strength or 100)/100) end,
+    gain=function() return 0 end,out=function(cfg,x) return x end,
+    big={{'breath_target','Target'},{'breath_strength','Strength'}},
+    mini={{'breath_sensitivity','Sensitivity',{scaling=1}},{'breath_min_ms','Minimum',{scaling=.5}}},
+    row={{'breath_pre_ms',nil,'big',{scaling=.5}},{'breath_release_ms',nil,'big',{scaling=.5}},{'breath_curve',nil,'mid',{}},
+         {'breath_join_ms',nil,'mid',{scaling=.5}},{'breath_edge_ms',nil,'mid',{scaling=.5}}}},
 }
 local SP=SPECS.compressor
 function M.supports(mode) return SPECS[mode]~=nil end
@@ -412,7 +428,7 @@ local function player_input(im,ctx,c,d,x,y,w,h,g,dis)
         local v=clamp(S.thr_drag.v-(my-S.thr_drag.y)*(DB_HI-DB_LO)/g.ph*fine,e[3],e[4])
         if math.abs(v-c.cfg[SP.thr])>1e-9 then c.cfg[SP.thr]=v;W.changed(c,SP.thr) end
         im.SetMouseCursor(ctx,im.MouseCursor_ResizeNS)
-        Knob.plate(im,ctx,mx,g.ty+10,string.format('Threshold %.1f dB',v))
+        Knob.plate(im,ctx,mx,g.ty+10,string.format((SP.thr_label or 'Threshold')..' %.1f dB',v))
       elseif S.click_x and math.abs(mx-S.click_x)>3 then S.moved=true end
     else
       if S.thr_drag then c:control_released()
@@ -581,7 +597,8 @@ local function volume_envs(c)
 end
 local function env_visible(c)
   local now=c.r.time_precise()
-  if S.vis_at and now<S.vis_at+.5 and S.vis_target==c:current() then return S.vis end
+  -- видимость огибающей читается из её полного текста (тысячи точек): раз в 3 с и никогда во время перетаскивания
+  if S.vis_at and (c.gesture or now<S.vis_at+3) and S.vis_target==c:current() then return S.vis end
   local vis=false
   for _,env in ipairs(volume_envs(c)) do
     local ok,ch=c.r.GetEnvelopeStateChunk(env,'',false)
@@ -665,10 +682,7 @@ local function deess_eq(im,ctx,c,d,x,y,w,h)
   if active and S.eq_drag then
     c.gesture=true
     local dx,dy
-    if warp then
-      im.SetMouseCursor(ctx,im.MouseCursor_None)
-      local gx,gy=rr.GetMousePosition();dx,dy=gx-S.eq_drag.x,gy-S.eq_drag.y;rr.JS_Mouse_SetPosition(S.eq_drag.x,S.eq_drag.y)
-    else dx,dy=im.GetMouseDelta(ctx) end
+    dx,dy=Drag.delta(im,ctx,S.eq_drag)
     local sv=sens(.25,.025)
     if dx~=0 then S.eq_drag.th=clamp(S.eq_drag.th+dx/250*sv,0,1) end
     if dy~=0 then S.eq_drag.tc=clamp(S.eq_drag.tc+dy/250*sv,0,1) end
@@ -796,7 +810,7 @@ end
 -- Область события на экране. Ядро — с ручными границами; вокруг — Pre-open / Release из настроек (а не текущие рампы
 -- подавления: те сжимаются при ослаблении, и подсветка «уменьшалась» бы). Края не заходят за середину до соседнего
 -- события: два близких сибилянта не сливаются в одну область.
-local function ev_range(e) local x=e.edit;return (x and x.a) or e.start,(x and x.b) or e.finish end
+local function ev_range(e) local x=e.edit;return (x and x.a) or e.a or e.start,(x and x.b) or e.b or e.finish end
 -- Детектор часто режет один сибилянт на несколько кусков с зазорами в пару кадров. Для интерфейса соседние куски с
 -- зазором < 60 ms — одна группа: одна подсветка, одно «Т», правка применяется ко всем кускам группы.
 local function groups_of(events)
@@ -810,7 +824,8 @@ local function groups_of(events)
 end
 local function ev_span(c,events,i,len)
   local e=events[i];local a,b=e.a or ev_range(e),e.b or select(2,ev_range(e))
-  local ea,eb=a-(c.cfg.deess_pre_ms or 0)/1000,b+(c.cfg.deess_release_ms or 0)/1000
+  local ea,eb=a,b
+  if not SP.core then ea,eb=a-(c.cfg.deess_pre_ms or 0)/1000,b+(c.cfg.deess_release_ms or 0)/1000 end
   local p,n=events[i-1],events[i+1]
   if p then local pb=p.b or select(2,ev_range(p));ea=math.max(ea,(pb+a)/2) end
   if n then local na=n.a or ev_range(n);eb=math.min(eb,(b+na)/2) end
@@ -818,15 +833,8 @@ local function ev_span(c,events,i,len)
 end
 -- перетаскивание «как у кноба»: курсор прячется и возвращается в точку клика (Windows + JS), дельта копится без округления;
 -- Shift — ×0.1, Ctrl — ×0.05, Ctrl+Shift — ×0.025
-local WARP=(reaper.GetOS() or ''):match('^Win')~=nil and reaper.JS_Mouse_SetPosition~=nil
-local function grab() local gx,gy=reaper.GetMousePosition();return {gx=gx,gy=gy} end
-local function grab_delta(im,ctx,gr)
-  if WARP then
-    im.SetMouseCursor(ctx,im.MouseCursor_None)
-    local gx,gy=reaper.GetMousePosition();local dx,dy=gx-gr.gx,gy-gr.gy;reaper.JS_Mouse_SetPosition(gr.gx,gr.gy);return dx,dy
-  end
-  return im.GetMouseDelta(ctx)
-end
+local function grab() return Drag.begin() end
+local function grab_delta(im,ctx,gr) return Drag.delta(im,ctx,gr) end
 local function grab_sens(im,ctx)
   local m,ctrl,shift=im.GetKeyMods(ctx),im.Mod_Ctrl,im.Mod_Shift
   if m==(ctrl|shift) then return .025 elseif m==ctrl then return .05 elseif m==shift then return .1 end
@@ -835,12 +843,27 @@ end
 -- «Т» над сибилянтом: B — низ ножки (множитель снижения, как раньше), TC — центр перекладины (поднять/опустить
 -- автоматизацию события целиком), TL / TR — края перекладины (наклон: поднять/опустить начало или конец).
 local T_TIPS={B='Strength ×%.2f',TC='Lift %+.1f dB',TL='Lift start %+.1f dB',TR='Lift end %+.1f dB'}
-local function t_value(part,x)
+-- Breath: перекладина — сила фейдов этого дыхания (0..100 %, по умолчанию — общая Curve)
+local T_TIPS_BREATH={B='Strength ×%.2f',TC='Fades %.0f%%',TL='Fade in %.0f%%',TR='Fade out %.0f%%'}
+local function t_value(part,x,cfg)
   x=x or {}
   if part=='B' then return x.gain or 1 end
+  if SP.events=='breaths' then
+    local k=(cfg and cfg.breath_curve or 50)/100
+    if part=='TL' then return x.fin or k end
+    if part=='TR' then return x.fout or k end
+    return ((x.fin or k)+(x.fout or k))/2
+  end
   if part=='TL' then return x.lift_l or 0 end
   if part=='TR' then return x.lift_r or 0 end
   return ((x.lift_l or 0)+(x.lift_r or 0))/2
+end
+local function t_tip(part,val)
+  if SP.events=='breaths' then
+    if part=='B' then return string.format(T_TIPS_BREATH.B,val) end
+    return string.format(T_TIPS_BREATH[part],val*100)
+  end
+  return string.format(T_TIPS[part],val)
 end
 local function edit_page(im,ctx,c,d,color,dis,x,y,aw,ah,wx,wy,ww,wh,round)
   local dl=im.GetWindowDrawList(ctx)
@@ -876,10 +899,10 @@ local function edit_page(im,ctx,c,d,color,dis,x,y,aw,ah,wx,wy,ww,wh,round)
   end
   local function tt(px) return g.start+(px-g.px0)*g.pt end
   local mx,my=im.GetMousePos(ctx)
-  local events=groups_of(d and d.detected and d.detected.sibilants or {}) -- дальше «событие» = группа кусков
+  local events=groups_of(d and d.detected and d.detected[SP.events or 'sibilants'] or {}) -- дальше «событие» = группа кусков
   local inside=mx>=x and mx<x+aw and my>=y and my<bottom
   local free=inside and im.IsWindowHovered(ctx) and not im.IsAnyItemHovered(ctx) and not im.IsAnyItemActive(ctx) and not dis
-  local ctrl=(im.GetKeyMods(ctx)&im.Mod_Ctrl)~=0
+  local ctrl=SP.events~='breaths' and (im.GetKeyMods(ctx)&im.Mod_Ctrl)~=0 -- Ctrl-кисть — только De-ess
   local wy0,wy1=g.py0,g.py0+g.ph
   S.glow=S.glow or {}
   S.thr_near=free and not S.ed and math.abs(my-g.ty)<6 and mx<g.sx -- пунктир порога: тянется и в ручном режиме
@@ -898,8 +921,8 @@ local function edit_page(im,ctx,c,d,color,dis,x,y,aw,ah,wx,wy,ww,wh,round)
   for ii,it in ipairs(items) do
     local di=it.audio or it.quick
     if ii>1 and di and it.detected then
-      for _,e in ipairs(it.detected.sibilants or {}) do
-        local xa,xb=tx(di.pos+e.start),tx(di.pos+e.finish)
+      for _,e in ipairs(it.detected[SP.events or 'sibilants'] or {}) do
+        local xa,xb=tx(di.pos+(e.a or e.start)),tx(di.pos+(e.b or e.finish))
         if xb>g.px0 and xa<g.right then im.DrawList_AddRectFilled(dl,xa,wy0,xb,wy1,e.excluded and 0x80808014 or 0xE8B06A22) end
       end
     end
@@ -962,8 +985,8 @@ local function edit_page(im,ctx,c,d,color,dis,x,y,aw,ah,wx,wy,ww,wh,round)
     end
     local show=(S.ed and S.ed.pt) or hot_pt
     if show then
-      local q=p[show];local val=S.ed and S.ed.pt and S.ed.val or t_value(show,T.e.edit)
-      Knob.plate(im,ctx,q[1],q[2]-10,string.format(T_TIPS[show],val),true,nil,true)
+      local q=p[show];local val=S.ed and S.ed.pt and S.ed.val or t_value(show,T.e.edit,c.cfg)
+      Knob.plate(im,ctx,q[1],q[2]-10,t_tip(show,val),true,nil,true)
     end
   end
   -- Ctrl: применённая огибающая (снижение вниз от 0 dB по шкале справа)
@@ -1005,8 +1028,10 @@ local function edit_page(im,ctx,c,d,color,dis,x,y,aw,ah,wx,wy,ww,wh,round)
     elseif hot_pt and im.IsMouseDoubleClicked(ctx,0) then -- двойной клик по точке — сброс её значения
       local e=T.e;c:edits_push(d)
       edit_group(e,function(xe)
-        if hot_pt=='B' then xe.gain=nil elseif hot_pt=='TL' then xe.lift_l=nil elseif hot_pt=='TR' then xe.lift_r=nil else xe.lift_l,xe.lift_r=nil,nil end
-        if not (xe.gain or xe.lift_l or xe.lift_r or xe.a or xe.b or xe.curve) then return false end
+        if hot_pt=='B' then xe.gain=nil
+        elseif SP.events=='breaths' then if hot_pt=='TL' then xe.fin=nil elseif hot_pt=='TR' then xe.fout=nil else xe.fin,xe.fout=nil,nil end
+        elseif hot_pt=='TL' then xe.lift_l=nil elseif hot_pt=='TR' then xe.lift_r=nil else xe.lift_l,xe.lift_r=nil,nil end
+        if not (xe.gain or xe.lift_l or xe.lift_r or xe.fin or xe.fout or xe.a or xe.b or xe.curve) then return false end
       end);S.ed=nil
     elseif hot and hot_part=='G' and im.IsMouseDoubleClicked(ctx,0) then
       if hot.edit then c:edits_push(d);edit_group(hot,function() return false end) end;S.ed=nil
@@ -1019,9 +1044,9 @@ local function edit_page(im,ctx,c,d,color,dis,x,y,aw,ah,wx,wy,ww,wh,round)
         local pts={};for i=0,n do local t=ea+(eb-ea)*i/n;pts[#pts+1]={t=t,db=d.tool_preview and Cleanup.value(d.tool_preview,t) or 0} end
         c:edits_push(d);S.ed={kind='draw',e=hot,pts=pts,a=ea,b=eb}
       elseif hot_pt then
-        c:edits_push(d);S.ed={kind='pt',pt=hot_pt,e=T.e,val=t_value(hot_pt,T.e.edit),grab=grab()}
+        c:edits_push(d);S.ed={kind='pt',pt=hot_pt,e=T.e,val=t_value(hot_pt,T.e.edit,c.cfg),grab=grab()}
       elseif hot and hot_part=='G' then -- зажатие в любом месте события — как нижняя точка (множитель)
-        c:edits_push(d);S.ed={kind='pt',pt='B',e=hot,val=t_value('B',hot.edit),grab=grab()}
+        c:edits_push(d);S.ed={kind='pt',pt='B',e=hot,val=t_value('B',hot.edit,c.cfg),grab=grab()}
       elseif hot and (hot_part=='L' or hot_part=='R') then
         local _,_,sl,sr=ev_span(c,events,hot_i,data.len);c:edits_push(d)
         S.ed={kind=hot_part,e=hot,t=hot_part=='L' and hot.a or hot.b,off=hot_part=='L' and sl or sr}
@@ -1041,16 +1066,19 @@ local function edit_page(im,ctx,c,d,color,dis,x,y,aw,ah,wx,wy,ww,wh,round)
         local val=clamp(S.ed.v0-(my-S.ed.y0)*(DB_HI-DB_LO)/g.ph*fine,e_[3],e_[4])
         if math.abs(val-c.cfg[SP.thr])>1e-9 then c.cfg[SP.thr]=val;W.changed(c,SP.thr) end
         im.SetMouseCursor(ctx,im.MouseCursor_ResizeNS)
-        Knob.plate(im,ctx,mx,g.ty-8,string.format('Threshold %.1f dB',val),false,nil,true)
+        Knob.plate(im,ctx,mx,g.ty-8,string.format((SP.thr_label or 'Threshold')..' %.1f dB',val),false,nil,true)
       elseif S.ed.kind=='pan' then local dx=im.GetMouseDelta(ctx);v.start=clamp(v.start-dx*g.pt,LO,HI-v.span);Transport.hold(d,c.r)
       elseif S.ed.kind=='pt' then -- точки «Т»: как кноб — вверх/вниз с накоплением, Shift/Ctrl — точнее
         local _,dy=grab_delta(im,ctx,S.ed.grab);local sv=grab_sens(im,ctx);local pt=S.ed.pt
         if dy~=0 then
           if pt=='B' then S.ed.val=clamp(S.ed.val*2^(dy/40*sv),0,8) -- вниз — сильнее
+          elseif SP.events=='breaths' then S.ed.val=clamp(S.ed.val-dy*.005*sv,0,1) -- сила фейда: вверх — круче
           else S.ed.val=clamp(S.ed.val-dy*.1*sv,-24,24) end            -- вверх — громче (меньше снижения)
           local val=S.ed.val
           edit_group(e,function(xe)
             if pt=='B' then xe.gain=val
+            elseif SP.events=='breaths' then
+              if pt=='TL' then xe.fin=val elseif pt=='TR' then xe.fout=val else xe.fin,xe.fout=val,val end
             elseif pt=='TL' then xe.lift_l=val elseif pt=='TR' then xe.lift_r=val
             else local m=((xe.lift_l or 0)+(xe.lift_r or 0))/2;local dd=val-m;xe.lift_l=(xe.lift_l or 0)+dd;xe.lift_r=(xe.lift_r or 0)+dd end
           end)
@@ -1097,6 +1125,42 @@ local function ease_to(key,target,dt)
 end
 S.lay={}
 
+-- Breath: Learn breath / Keep sound / Reset learning — плашка поверх волны, над выделением по времени, на затемнении.
+-- Видна только когда есть выделение внутри айтема; без подходящей длины кнопки обучения недоступны (с подсказкой).
+local function learn_overlay(im,ctx,c,d,g)
+  if SP.events~='breaths' or not d or not d.selected or not d.range or not g or not g.data then return end
+  local data=g.data;local a,b=d.range[1],d.range[2];local len=b-a
+  local function tx(t) return g.px0+(t-g.start)/g.pt end
+  local xa,xb=tx(data.pos+a),tx(data.pos+b)
+  local profile=d.breath_profile;local learned=profile and profile.examples and #profile.examples>0
+  local labels={'Learn breath','Keep sound'};if learned then labels[3]='Reset learning' end
+  local pad,gap,bh=8,4,22;local widths={};local total=pad*2-gap
+  for i,t in ipairs(labels) do widths[i]=im.CalcTextSize(ctx,t)+16;total=total+widths[i]+gap end
+  local cx=clamp((xa+xb)/2,g.px0+total/2+4,g.right-total/2-4);local x0=math.floor(cx-total/2);local y0=g.py0+10
+  local dl=im.GetWindowDrawList(ctx)
+  im.DrawList_AddRectFilled(dl,math.max(g.px0,xa),g.py0,math.min(g.right,xb),g.py0+g.ph,0x0000002E) -- выделение чуть затемнено
+  im.DrawList_AddRectFilled(dl,x0,y0,x0+total,y0+bh+pad*2,0x101010D8,8)
+  local ok_len=len>=.04 and len<=2;local busy=c.job~=nil and c.job.kind~='preview'
+  local why=not ok_len and (len<.04 and 'The selection is shorter than 40 ms.' or 'Select one breath: up to 2 s.') or nil
+  local bx=x0+pad
+  for i,t in ipairs(labels) do
+    local w=widths[i];local disabled=(i<3 and (not ok_len or busy or not d.audio)) or (i==3 and busy)
+    im.SetCursorScreenPos(ctx,bx,y0+pad);im.InvisibleButton(ctx,'##breath_learn_'..i,w,bh)
+    local hv=im.IsItemHovered(ctx,im.HoveredFlags_AllowWhenDisabled)
+    if hv and not disabled then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
+    im.DrawList_AddRectFilled(dl,bx,y0+pad,bx+w,y0+pad+bh,disabled and 0x262626FF or (hv and 0x3A3A3AFF or 0x2C2C2CFF),6)
+    local tw,th=im.CalcTextSize(ctx,t)
+    im.DrawList_AddText(dl,math.floor(bx+(w-tw)/2),math.floor(y0+pad+(bh-th)/2),disabled and 0x6A6A6AFF or 0xF0F0F0FF,t)
+    if im.IsItemClicked(ctx,0) and not disabled then
+      if i==1 then c:learn_breath(1) elseif i==2 then c:learn_breath(-1) else c:reset_breath_learning() end
+    end
+    if hv then
+      local tip=i==1 and 'Learn this breath for the take: Sensitivity adapts to it.' or i==2 and 'Learn this sound as NOT a breath (consonant, noise).' or 'Forget everything learned on this take.'
+      Knob.plate(im,ctx,bx+w/2,y0+pad+bh+4,(disabled and i<3 and why) or tip,true)
+    end
+    bx=bx+w+gap
+  end
+end
 function M.draw(im,ctx,c,color,dis,job)
   SP=SPECS[c.mode] or SPECS.compressor;DB_LO,DB_HI=SP.lo,SP.hi
   local editing=S.edit and SP.editable;if editing then DB_HI=6 end -- в правке шкала до +6 dB: детальнее
@@ -1122,6 +1186,7 @@ function M.draw(im,ctx,c,color,dis,job)
   local font=im.GetFontSize(ctx);local dl=im.GetWindowDrawList(ctx)
   if editing then
     local g=edit_page(im,ctx,c,d,color,dis,x,y,aw,ah,wx,wy,ww,wh,round)
+    learn_overlay(im,ctx,c,d,g)
     local ui=c.app and c.app.ui_icon
     local rx=g.right-2
     local clk,hv=pill(im,ctx,'##comp2_edit',rx-24,y+1,24,24,true,function(dl_,cx,cy,col) if ui then ui(dl_,1,cx,cy,17,col) end end)
@@ -1196,7 +1261,7 @@ function M.draw(im,ctx,c,color,dis,job)
         meter=function()
           local dd=d and (d.audio or d.quick);if not dd or not d.tool_preview then return nil end
           local rd=Cleanup.value(d.tool_preview,(S.t or 0)-dd.pos)
-          return clamp(rd/math.max(1,c.cfg.deess_max_db),0,1)
+          return clamp(rd/math.max(1,SP.red_scale and SP.red_scale(c.cfg) or c.cfg.deess_max_db),0,1)
         end
       end
       Knob.control(im,ctx,c,entry(k[1],k[2]),meter,o)
@@ -1237,6 +1302,7 @@ function M.draw(im,ctx,c,color,dis,job)
     eyex=rx-24-4-24
   end
   M.hide_button(im,ctx,c,eyex,y+1)
+  learn_overlay(im,ctx,c,d,g)
   player_input(im,ctx,c,d,ix,y,x+aw-ix,h,g,dis) -- последним: реагирует, только когда мышь не над элементом
   -- прогресс-бар под панелью кнопок
   local now=c.r.time_precise();local ph_=Progress.height

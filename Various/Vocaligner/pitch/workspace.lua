@@ -21,9 +21,12 @@ function M.scan(e,project)
   if not r.CountTracks or not r.GetTrack or not r.CountTrackMediaItems then return end
   local revision=r.GetProjectStateChangeCount(project)
   if e.workspace and e.workspace.project==project and e.workspace.revision==revision then return e.workspace end
+  -- Во время обработки проект меняется на каждом шаге (запись FX/состояния): полный обход всех айтемов с чтением их
+  -- состояния — не чаще двух раз в секунду; редактирование всё равно заблокировано, пока идёт задача
+  if e.workspace and e.workspace.project==project and e.busy and e:busy() and r.time_precise()-(e.workspace.at or 0)<.5 then return e.workspace end
   local old=e.workspace and e.workspace.project==project and e.workspace
   local began=r.time_precise()
-  local ws={project=project,revision=revision,tracks={},items={},by_track={},by_item={}}
+  local ws={project=project,revision=revision,tracks={},items={},by_track={},by_item={},at=began}
   for i=0,r.CountTracks(project)-1 do
     local track=r.GetTrack(project,i);local guid=r.GetTrackGUID(track);local _,name=r.GetTrackName(track,'')
     local _,visible=r.GetProjExtState(project,section,guid)
@@ -34,7 +37,12 @@ function M.scan(e,project)
         local entry={item=item,take=take,track=row,pos=r.GetMediaItemInfo_Value(item,'D_POSITION'),len=r.GetMediaItemInfo_Value(item,'D_LENGTH'),name=r.GetTakeName(take)}
         local _,text=r.GetSetMediaItemTakeInfo_String(take,Store.key,'',false)
         local prior=old and old.by_item[item]
+        entry.offs=r.GetMediaItemTakeInfo_Value(take,'D_STARTOFFS');entry.rate=r.GetMediaItemTakeInfo_Value(take,'D_PLAYRATE')
         if prior and prior.take==take and prior.text==text then entry.state=prior.state
+          -- тот же звук и то же состояние: готовый призрак (декодированный анализ, ноты, силуэты) переживает пересканирование
+          if prior.pos==entry.pos and prior.len==entry.len and prior.offs==entry.offs and prior.rate==entry.rate then
+            entry.visual=prior.visual;entry.view_notes=prior.view_notes;entry.error=prior.error
+          end
         elseif text and text~='' then local ok,state=pcall(Store.read,r,take);if ok then entry.state=state else entry.error=tostring(state) end end
         entry.text=text
         if entry.state and entry.state.analysis then row.analyzed=row.analyzed+1 end
@@ -161,15 +169,27 @@ end
 function M.targets(e,track)
   local r=e.r;local project=r.EnumProjects(-1)
   M.focus(e,project)
-  local items={}
+  local items,seen={},{}
+  local function add(item)
+    if not seen[item] and audio_take(r,project,item) then seen[item]=true;items[#items+1]=item end
+  end
   -- A canvas/Tracks focus is for editing, not a replacement for REAPER's
   -- explicit batch selection. Capture every selected audio item at the click.
   if not track then for i=0,r.CountSelectedMediaItems(project)-1 do
     local item=r.GetSelectedMediaItem(project,i);local take=audio_take(r,project,item)
-    if take then items[#items+1]=item end
+    if take then add(item) end
   end end
-  if #items==0 and e.track_row then for _,v in ipairs(e.track_row.items) do if audio_take(r,project,v.item)then items[#items+1]=v.item end end end
-  if #items==0 and audio_take(r,project,e.item) then items={e.item} end
+  -- Selection is prioritized; append selected tracks in REAPER order. Explicit
+  -- track-only actions still use the focused editor track, not unrelated tracks.
+  local function append_track(row)
+    if row then for _,v in ipairs(row.items)do add(v.item)end end
+  end
+  if track then append_track(e.track_row)
+  elseif r.CountSelectedTracks and r.GetSelectedTrack and e.workspace then
+    for i=0,r.CountSelectedTracks(project)-1 do append_track(e.workspace.by_track[r.GetSelectedTrack(project,i)])end
+  end
+  if #items==0 then append_track(e.track_row) end
+  if #items==0 and audio_take(r,project,e.item) then add(e.item) end
   return items
 end
 function M.visible(e,value,row)
@@ -181,16 +201,20 @@ function M.visible(e,value,row)
   row.visible=value
   e.r.MarkProjectDirty(e.project)
 end
-function M.visual(e,entry)
+-- Призрак соседнего айтема: анализ распаковывается фоновой задачей (M.pump, ~6 мс за кадр), а не целиком в кадре
+-- отрисовки — длинный анализ занимал сотни мс и вешал зум. Пока задача идёт, призрак просто не рисуется.
+-- now=true — сразу, синхронно (ATune-референс по другой дорожке ждать не может)
+function M.visual(e,entry,now)
   if entry.visual~=nil then return entry.visual or nil end
-  entry.visual=false
-  if not entry.state or not entry.state.analysis then return end
-  local ok,result=pcall(function()
-    local s=Analysis.capture(e.r,e.project,entry.item,true);local state=entry.state
+  if not entry.state or not entry.state.analysis then entry.visual=false;return end
+  if e.visual_job and not now then return nil end
+  local state=entry.state
+  local job=import('job').new(e.r,function(job)
+    local s=Analysis.capture(e.r,e.project,entry.item,true)
     e.cache=e.cache or {};e.cache[e.project]=e.cache[e.project] or {}
     local cached=e.cache[e.project][state.analysis]
     if not cached then
-      local data,geometry=Store.load_analysis(e.r,e.project,state.analysis)
+      local data,geometry=Store.load_analysis(e.r,e.project,state.analysis,job)
       if not data then return end
       cached={data=data,geometry=geometry}
       if e.remember then e:remember(e.project,state.analysis,cached) else e.cache[e.project][state.analysis]=cached end
@@ -200,9 +224,23 @@ function M.visual(e,entry)
     local _,notes=Store.adapt({frames={},hop=data.hop,len=state.geometry.len},state.notes,state.geometry,s)
     if type(notes)~='table' then entry.error=notes;return end
     return {data=data,notes=notes,version=state.curve_version or 1,glyphs={}}
-  end)
-  if ok then entry.visual=result or false else entry.error=tostring(result) end
-  return entry.visual or nil
+  end,now and 1e9 or .006)
+  job.entry=entry
+  if now then
+    while not job.done do job:step() end
+    if job.error then entry.visual=false;entry.error=tostring(job.error) else entry.visual=job.result or false end
+    return entry.visual or nil
+  end
+  e.visual_job=job
+  return nil
+end
+function M.pump(e)
+  local job=e.visual_job;if not job then return end
+  job:step()
+  if job.done then
+    e.visual_job=nil;local entry=job.entry
+    if job.error then entry.visual=false;entry.error=tostring(job.error) else entry.visual=job.result or false end
+  end
 end
 function M.notes(e,entry)
   if entry.view_notes~=nil then return entry.view_notes end

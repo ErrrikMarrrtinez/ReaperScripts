@@ -179,7 +179,7 @@ end
 function M.reset(n)
   n.shift=0;n.anchors={};n.target_anchors=nil;n.drawings=nil;n.link=nil;n.transition=.08
   for _,key in ipairs({'modulation','drift','flatten','flat_offset','vibrato_depth','vibrato_rate','vibrato_onset','vibrato_release','vibrato_growth','vibrato_replace',
-    'expression_start','expression_finish','phase_origin','expression_version','transition_amount','transition_shape','transition_bias','transition_link','visual_offset'}) do n[key]=nil end
+    'expression_start','expression_finish','phase_origin','expression_version','transition_amount','transition_shape','transition_bias','transition_link','visual_offset','auto_freeze'}) do n[key]=nil end
 end
 function M.edited(n)
   return (n.modulation or 1)~=1 or (n.drift or 1)~=1 or (n.flatten or 0)~=0 or (n.vibrato_depth or 0)~=0 or (n.transition_amount or 0)~=0 or #(n.drawings or {})>0 or #(n.target_anchors or {})>0 or n.link~=nil

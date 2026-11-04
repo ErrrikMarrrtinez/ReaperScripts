@@ -1,6 +1,6 @@
 -- @description Ruin Vocals: vocal align, breath&pitch detect and editor, envelope dynamic
 -- @author mrtnz
--- @version 0.18.2
+-- @version 0.18.3
 -- @link Documentation https://github.com/ErrrikMarrrtinez/ReaperScripts/tree/master/Various/Vocaligner
 -- @about
 --   Vocal timing, take-volume cleanup and a vocal pitch editor in one ReaImGui window.
@@ -12,9 +12,16 @@
 --   measurements; the included export action saves its frames and notes.
 --   All Lua modules, model weights and license notices are
 --   installed together. Internal modules are not separate REAPER actions.
+--   Optional: install the "Vocaligner Native" package (C++ extension) for parallel Align and fast Pitch
+--   analysis; restart REAPER afterwards. Without it everything runs on the Lua / EEL engines.
 --   For embedding, load init.lua with dofile.
 -- @changelog
---   Align: no more shift borrowed across long pauses (start of an item, first word after a pause); Advanced no longer drops takes at high Strength: it finishes with the closest valid timing map, faster.
+--   Align: Classic now runs in the optional C++ extension (parallel analysis and matching, many dubs at once, results appear as they finish); falls back to Lua without it
+--   Pitch: the C++ analyzer is the default when installed, with automatic fallback to EEL
+--   Pitch editor: smoother open/close animation, data preloaded in the background, lighter drawing while zooming (Settings), thicker outline on selected notes
+--   ATune: a manual edit freezes the Auto correction on that note, so later ATune changes do not undo it; Reset brings it back
+--   Breath: manual edit page like De-ess (per-breath strength, fades, edges), Analyze with a separate Auto switch, Learn / Keep / Reset over the editor
+--   Settings: hide the cursor while dragging, saved Default presets for new items, optional processing state saved in the project
 -- @provides
 --   [main=main] .
 --   [nomain] align_ui.lua

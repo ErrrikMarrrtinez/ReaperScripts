@@ -28,7 +28,7 @@ function M.run(r,s,engine,job,on_partial)
   if math.abs(s.rate-1)>1e-6 and math.abs(finish-s.len*s.rate)<1e-4 and math.abs(finish-s.len)>1e-4 then scale=s.rate end
   local read_rate=math.floor(16000/scale+.5)
   if math.abs(read_rate*scale-16000)>.01 then error('Pitch: this play rate cannot be mapped to 16 kHz exactly. Glue a copy first.',0) end
-  local feature=call(job,Features.new,r)
+  local feature=not engine.native_pcm and call(job,Features.new,r)
   local n=math.max(1,math.floor(s.len*16000/256));local frames={};local rows={};local hop=.016
   local result={frames=frames,hop=hop,len=s.len,model=Model.version,accessor_scale=scale,read_rate=read_rate,reads=0,peak=0,channels=s.channels,waveform=Wave.new()}
   local state_count=r.GetProjectStateChangeCount(s.project)
@@ -38,10 +38,13 @@ function M.run(r,s,engine,job,on_partial)
   result.block_frames=block
   local buffer=call(job,r.new_array,((block+16)*256+2048)*s.channels)
   local function read(first,count)
+    local began=r.time_precise()
     buffer.clear();local status=r.GetAudioAccessorSamples(aa,read_rate,s.channels,first/16000*scale,count,buffer)
     if type(status)=='number' and status<0 then error('Pitch: audio read failed at '..first/16000,0) end
     if status==0 then buffer.clear() end
-    return buffer.table(1,count*s.channels),status
+    local values=buffer.table(1,count*s.channels)
+    result.read_ms=(result.read_ms or 0)+(r.time_precise()-began)*1000
+    return values,status
   end
   for first=0,n-1,block do
     if r.EnumProjects then assert(Audio.project_open(r,s.project),'The Pitch project was closed.') end
@@ -54,6 +57,7 @@ function M.run(r,s,engine,job,on_partial)
     local left,right=math.max(0,first-7),math.min(n-1,last+7)
     local a=math.max(0,left*256-1024);local b=math.min(math.ceil(s.len*16000),right*256+1024)
     local interleaved,status=call(job,read,a,b-a);result.reads=result.reads+1
+    local channel_started=r.time_precise()
     local energies={};for ch=1,s.channels do energies[ch]=0 end
     local mono=s.channels==1;local peak=0
     for j=1,#interleaved do
@@ -71,10 +75,17 @@ function M.run(r,s,engine,job,on_partial)
       for j=0,b-a-1 do local x=interleaved[j*s.channels+channel];samples[j+1]=x;peak=math.max(peak,math.abs(x)) end
     end
     result.peak=math.max(result.peak,peak)
+    result.channel_ms=(result.channel_ms or 0)+(r.time_precise()-channel_started)*1000
     -- Reuse the input read for the model. Each interval is added exactly once,
     -- including the final partial hop; context overlap is never duplicated.
+    local wave_started=r.time_precise()
     Wave.append(result.waveform,samples,a,first*256,last==n-1 and math.ceil(s.len*16000) or (last+1)*256)
+    result.waveform_ms=(result.waveform_ms or 0)+(r.time_precise()-wave_started)*1000
     if status==nil and peak==0 then result.empty_nil=(result.empty_nil or 0)+1 end
+    local count=right-left+1;local predictions
+    if engine.native_pcm then
+      predictions=engine:analyze_pcm(samples,left*256-a,count,job)
+    else
     for index=left,right do
       if not rows[index] then rows[index]=call(job,function()
         local started=r.time_precise();local row=feature:frame(samples,index*256-a)
@@ -82,10 +93,11 @@ function M.run(r,s,engine,job,on_partial)
       end) end
       job:checkpoint(first/n,'Pitch spectrum')
     end
-    local input={};local count=right-left+1
+    local input={}
     for bin=1,384 do for index=left,right do input[#input+1]=rows[index][bin] end end
     job:checkpoint(first/n,'Pitch model')
-    local predictions=engine:infer(input,count,job)
+    predictions=engine:infer(input,count,job)
+    end
     for index=first,last do
       local p=predictions[index-left+1];local sum,pk,lo,hi=0,0,0,0
       for k=index*256,index*256+255 do local x=samples[k-a+1] or 0;pk=math.max(pk,math.abs(x)) end

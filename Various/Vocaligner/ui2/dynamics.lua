@@ -58,11 +58,23 @@ local function dynamic_controls(im,ctx,c)
   end
 end
 
+-- страница поддерживает режим в новом виде (спрайты кнобов на месте)
+function M.supports(mode,im,ctx) return COMP_V2 and Comp2.supports(mode) and Comp2.available(im,ctx) end
 function M.draw(im,ctx,app,color,wave)
   local c=app.cleaner;local d=c:current()
   local hard_busy=app.job~=nil or (c.job and c.job.kind~='preview' and not c.job.live) or false
   -- Auto lives in Settings. Get only matters while capture is manual.
-  if not c.auto then
+  if c.mode=='breath' then
+    -- Breath: анализ по кнопке; свой Auto (следить за выделением в REAPER и обрабатывать сразу)
+    im.BeginDisabled(ctx,hard_busy)
+    if im.Button(ctx,'Analyze') then c:capture() end
+    if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Analyze the selected audio items and find breaths.') end
+    im.EndDisabled(ctx)
+    im.SameLine(ctx,0,10)
+    local ch,on=im.Checkbox(ctx,'Auto##breath_auto',c.breath_auto==true)
+    if ch then c:set_breath_auto(on) end
+    if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Follow the REAPER selection and process breaths automatically.') end
+  elseif not c.auto then
     im.BeginDisabled(ctx,hard_busy)
     if im.Button(ctx,'Get') then c:capture() end
     if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Capture the selected audio items and process this tab. Turn on Auto in Settings to follow the REAPER selection.') end

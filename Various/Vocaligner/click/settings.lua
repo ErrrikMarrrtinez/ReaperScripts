@@ -15,4 +15,7 @@ for _,mode in ipairs({'click','mouth'}) do
   {p..'protect','Protect attacks',0,100,'%.0f%%','Reduce scores for repeating voice pulses and sustained note/consonant onsets. Zero disables this protection.'},
  }
 end
+M.controls.mouth[1][6]='Higher finds weaker candidates and raises their confidence. Marginal candidates receive gentler repair.'
+M.controls.mouth[2][6]='Maximum repair blend; uncertain events and protected attacks receive less. Zero restores this session\'s original samples.'
+M.controls.mouth[6][6]='Protect repeating voice pulses and consonant attacks, including delayed voicing. Higher values reduce intervention; zero disables attack protection.'
 return M

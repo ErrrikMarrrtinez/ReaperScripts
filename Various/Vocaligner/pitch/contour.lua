@@ -41,13 +41,14 @@ function M.source(data,start,span,width,previous)
   end
   flush();raw,id=M.sample(data,b);out[#out+1]={t=b,raw=raw,run=id};return out
 end
-function M.build(data,notes,version,start,span,width,pitch_per_pixel,previous)
+-- pause (необязательно): вызывается каждые 48 новых точек — фоновая сборка по кадрам (pitch/ui M.contour_async)
+function M.build(data,notes,version,start,span,width,pitch_per_pixel,previous,pause)
   local out={start=start,span=span,width=width,pitch_per_pixel=pitch_per_pixel};local count=math.max(2,math.min(4096,math.ceil(width/1.5)))
   local tolerance=math.max(.0025,(pitch_per_pixel or 0)*.35);local cache={}
   local resolved=Notes.resolve(notes);local evaluate=Curve.evaluator(resolved,'shift',version,data)
   local valid=previous and previous._data==data and previous._version==version and previous._frames==data.frames and previous.frame_count==#data.frames
   local dirty=valid and Notes.changed_ranges(previous._notes,resolved) or nil
-  local reused=0
+  local reused,fresh=0,0
   local function point(t)
     if cache[t] then return cache[t] end
     local old=valid and previous._samples[t]
@@ -55,6 +56,7 @@ function M.build(data,notes,version,start,span,width,pitch_per_pixel,previous)
       for _,range in ipairs(dirty)do if t>=range[1] and t<=range[2] then old=nil;break end end
       if old then cache[t]=old;reused=reused+1;return old end
     end
+    if pause then fresh=fresh+1;if fresh%48==0 then pause() end end
     local raw,run=M.sample(data,t)
     local p={t=t,run=run,raw=raw}
     if raw then p.pitch=raw+evaluate(t);p.supported=Notes.at(notes,t)~=nil end
@@ -73,6 +75,9 @@ function M.build(data,notes,version,start,span,width,pitch_per_pixel,previous)
   end
   out[1]=point(start)
   local step=span/count
+  -- шаг квантуется (1/16 октавы, ±2%): соседние окна при скролле получают ту же сетку, и пересборка
+  -- берёт уже посчитанные точки из previous вместо полного пересчёта трёх экранов
+  step=2^(math.floor(math.log(step,2)*16+.5)/16)
   -- Anchor the seed grid to item time. Panning reuses the same samples rather
   -- than shifting every sample time along with the viewport.
   for i=math.floor(start/step)+1,math.ceil((start+span)/step)-1 do

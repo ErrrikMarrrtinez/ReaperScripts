@@ -1,6 +1,7 @@
 -- @noindex
 local import=...;local Config=import('config');local Audio=import('audio');local Job=import('job')
 local DTW=import('dtw');local Warp=import('warp');local Apply=import('apply');local Cleaner=import('cleaner');local Pitch=import('pitch/editor')
+local Native=import('align/classic_native')
 local M={};M.__index=M
 function M.new(r,config)
   local self=setmetatable({r=r,cfg=config or Config.load(r),dubs={},groups={},message='Capture a reference, then select the dubs.',
@@ -380,15 +381,20 @@ function M:start(recover)
     end
   end
   if #self.groups==0 then seconds=self.ref.len;for _,d in ipairs(self.dubs) do seconds=seconds+d.snapshot.len end end
-  if seconds*cfg.sample_rate/cfg.hop>cfg.max_total_frames then
-    self:fail('Group audio cache exceeds 20 minutes. Remove a group to free it.');return
+  -- C++ Align держит признаки в DLL компактно (≈3.4 МБ на минуту, сверх лимита — лёгкие кадры): потолок в 10 раз выше
+  local native=Native.active(r);local cap=cfg.max_total_frames*(native and 10 or 1)
+  if seconds*cfg.sample_rate/cfg.hop>cap then
+    self:fail(string.format('Group audio cache exceeds %d minutes. Remove a group to free it.',math.floor(cap*cfg.hop/cfg.sample_rate/60+.5)));return
   end
   self.error=nil;self.pending_apply=false;self.replan=false;self.dirty=false
   self.operation={progress=0,created_at=r.time_precise()}
   self.job=Job.new(r,function(job)
+    if native then return Native.run(self,job,cfg) end
     local total=self.ref.len;for _,d in ipairs(self.dubs)do total=total+2*d.snapshot.len end
     local reference_end=self.ref.len/total
     local ok,msg=Audio.unchanged(r,self.ref);if not ok then error(msg,0) end
+    -- кадры из C++ лёгкие (без MFCC/спектра): Lua-сопоставлению нужен свой анализ
+    if self.ref_audio and self.ref_audio.native_lite then self.ref_audio=nil end
     if not self.ref_audio then self.ref_audio=Audio.analyze(r,self.ref,cfg,job:scope(0,reference_end),'Reading reference') end
     job:checkpoint(reference_end,'Reference ready')
     if self.ref_audio.silent then error('The reference is silent or too quiet to analyze.',0) end
@@ -399,6 +405,7 @@ function M:start(recover)
       d.status='Analyzing'
       local good,why=pcall(function()
         local valid,changed=Audio.check_dub(r,d);if not valid then error(changed,0) end
+        if d.audio and d.audio.native_lite and (not d.path or d.match_profile~=cfg.profile or d.match_search~=cfg.search_s) then d.audio=nil end
         if not d.audio then
           d.audio=Audio.analyze(r,self:align_read_snapshot(d.snapshot),cfg,part:scope(0,.45),'Reading dub '..i..' / '..#self.dubs)
           d.audio.snapshot=d.snapshot
@@ -409,7 +416,7 @@ function M:start(recover)
           d.path=nil;d.stats=nil
           local path,stats=DTW.align(self.ref_audio,d.audio,cfg,part:scope(.45,.95))
           if not path then error(stats,0) end
-          d.path,d.stats=path,stats;d.match_profile=cfg.profile;d.match_search=cfg.search_s
+          d.path,d.stats=path,stats;d.match_profile=cfg.profile;d.match_search=cfg.search_s;d.native_match=nil -- путь из Lua: план в DLL не по нему
         end
         local plan,reason,base=Warp.build(self.ref_audio,d.audio,d.path,d.stats,cfg,part:scope(.95,1))
         if not plan then error(reason,0) end
@@ -492,12 +499,14 @@ function M:tick()
     elseif self.replan then
       self.replan=false;local cfg=Config.copy(self.cfg)
       self.job=Job.new(self.r,function(job)
-        local plans={}
+        -- C++: планы всех дублей с путём в DLL считаются параллельно (Hybrid и Lua-пути — тем же Warp.build)
+        local plans=Native.active(self.r) and Native.replan(self,job,cfg) or nil
+        if not plans then plans={}
         for _,d in ipairs(self.dubs) do if d.path then
           local plan,err,base=Warp.build(self.ref_audio,d.audio,d.path,d.stats,cfg,job)
           plans[#plans+1]={dub=d,plan=plan,base=base,error=err}
           if not plan then self:fail(d.snapshot.name..': '..tostring(err)) end
-        end end
+        end end end
         for _,entry in ipairs(plans)do
           local d=entry.dub;d.plan=entry.plan;d.full_plan=entry.base;d.error=entry.error;d.enabled=entry.plan~=nil
         end

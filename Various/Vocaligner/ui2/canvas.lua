@@ -159,13 +159,23 @@ function M.navigator(im,ctx,d,w,h,r,project)
   end
   -- Reduction overview: a light 5 px blur and an antialiased outline instead
   -- of one hard bar per pixel.
-  local n=math.floor(iw);local raw={}
-  if d.tool_preview then for px=0,n-1 do raw[px]=math.max(0,Cleanup.value(d.tool_preview,data.len*(px+.5)/iw)) end end
+  local n=math.floor(iw)
+  -- профиль ослабления по пикселям кешируется до смены превью/ширины (раньше — бинарный поиск на каждый пиксель каждый кадр)
+  local nc=d.nav_cache
+  if not nc or nc.preview~=d.tool_preview or nc.n~=n or nc.len~=data.len then
+    local raw={}
+    if d.tool_preview then for px=0,n-1 do raw[px]=math.max(0,Cleanup.value(d.tool_preview,data.len*(px+.5)/iw)) end end
+    local dbs={}
+    for px=0,n-1 do
+      local sum,count=0,0
+      for k=-2,2 do local value=raw[px+k];if value then sum=sum+value;count=count+1 end end
+      dbs[px]=count>0 and sum/count or 0
+    end
+    nc={preview=d.tool_preview,n=n,len=data.len,db=dbs};d.nav_cache=nc
+  end
   local previous,previous_db
   for px=0,n-1 do
-    local sum,count=0,0
-    for k=-2,2 do local value=raw[px+k];if value then sum=sum+value;count=count+1 end end
-    local db=count>0 and sum/count or 0
+    local db=nc.db[px]
     local top=y+h-2-(h-4)*math.min(1,db/scale)
     if db>.01 then im.DrawList_AddLine(draw,ix+px+.5,top,ix+px+.5,y+h-2,0xD8AC7748) end
     if previous and (db>.01 or previous_db>.01) then im.DrawList_AddLine(draw,ix+px-1,previous,ix+px,top,0xE6BC88D0,1.2) end

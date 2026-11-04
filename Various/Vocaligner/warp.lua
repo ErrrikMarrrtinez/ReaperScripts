@@ -23,17 +23,18 @@ function M.build(ref,dub,path,stats,cfg,job)
   if (cfg.hybrid or 0)~=0 then return import('align/hybrid/plan').build(ref,dub,path,stats,cfg,job)end
   local s=dub.snapshot;local points,delta={},{}
   for _,p in ipairs(path) do
-    local f=at(dub,p.dub)
+    -- C++ Align отдаёт онсет и стоимость исходного положения прямо в точке пути: кадры в Lua для этого не нужны
+    local f=p.onset==nil and at(dub,p.dub) or nil
     if p.active and p.cost<.8 then
       local shift=p.ref-(s.pos+p.dub)
       local original_t=s.pos+p.dub-ref.pos
       local gain
       if original_t>=0 and original_t<ref.len and math.abs(shift)<.08 then
-        local original=DSP.distance(f,at(ref,original_t),cfg.profile)
+        local original=f and DSP.distance(f,at(ref,original_t),cfg.profile) or p.orig
         gain=original-p.cost
         if (cfg.smooth_ms or 0)==0 and original<p.cost+.035 then shift=0 end
       end
-      points[#points+1]={t=p.dub,shift=shift,gain=gain,cost=p.cost,onset=f.onset}
+      points[#points+1]={t=p.dub,shift=shift,gain=gain,cost=p.cost,onset=f and f.onset or p.onset}
     end
   end
   if #points<4 then return nil,'Too few trustworthy correspondences.' end
