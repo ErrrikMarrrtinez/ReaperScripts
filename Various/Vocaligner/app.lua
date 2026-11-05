@@ -298,6 +298,13 @@ function M:add_edge_anchors()
           local _,pos=r.GetTakeStretchMarker(s.take,index);assert(math.abs(pos-edge)<1e-6,'REAPER constrained an edge anchor')
         end
       end
+      -- Маркеры за краями айтема (айтем обрезали, маркеры остались снаружи) не звучат: карту внутри теперь задают
+      -- краевые якоря. Но крайними в списке оставались бы они — и проверка краёв не проходила бы никогда.
+      local limit=s.len*s.rate
+      for i=r.GetTakeNumStretchMarkers(s.take)-1,0,-1 do
+        local _,pos=r.GetTakeStretchMarker(s.take,i)
+        if pos<-1e-7 or pos>limit+1e-7 then assert(r.DeleteTakeStretchMarkers(s.take,i,1)==1,'Could not remove a stretch marker outside '..s.name) end
+      end
       r.UpdateItemInProject(s.item)
     end
   end,debug.traceback)

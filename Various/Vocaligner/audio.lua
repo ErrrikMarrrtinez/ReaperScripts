@@ -99,7 +99,9 @@ function M.capture(r,project,item,is_dub)
   if not source_only and #s.markers>0 then
     for _,m in ipairs(s.markers) do if math.abs(m.slope)>1e-9 then error('Curved stretch markers are not supported yet: '..s.name,0) end end
     if math.abs(s.markers[1].pos)>1e-6 or math.abs(s.markers[#s.markers].pos-s.len*s.rate)>1e-5 then
-      error('Existing stretch markers need explicit markers at both item edges: '..s.name,0)
+      -- позиции в сообщении: по отчёту сразу видно, что не так (нет якоря на краю или маркеры за краями айтема)
+      error(string.format('Existing stretch markers need explicit markers at both item edges: %s (first marker %.4f s, last %.4f s, item %.4f s)',
+        s.name,s.markers[1].pos/s.rate,s.markers[#s.markers].pos/s.rate,s.len),0)
     end
     for i=2,#s.markers do if s.markers[i].src<=s.markers[i-1].src then error('Non-monotonic source markers: '..s.name,0) end end
   end

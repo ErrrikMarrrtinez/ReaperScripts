@@ -6,7 +6,7 @@
   Ruin Vocals works without it (Lua / EEL engines); with it installed the C++ engines are used by default.
   Restart REAPER after installing or updating this package.
 @changelog
-  Classic Align engine (parallel features, matching and planning) and the Pitch analyzer in one extension; macOS (Apple Silicon and Intel) builds added
+  Rebuilt native binaries
 @provides
   [win64] reaper_vocaligner_native.dll
   [darwin-arm64] reaper_vocaligner_native-arm64.dylib
