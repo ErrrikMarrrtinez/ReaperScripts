@@ -5,6 +5,9 @@
 -- Tracks, Source и параметры инструмента, которые двигаются мышью в любом направлении. Подсказки — облачка оболочки.
 local import=...;local PitchUI=import('pitch/ui');local Link=import('pitch/link');local Workspace=import('pitch/workspace')
 local Curve=import('pitch/curve');local Scale=import('pitch/scale');local Progress=import('progress');local M={}
+local Hotkeys=import('hotkeys');local Poly=import('pitch/poly');local PolyExport=import('pitch/poly_export');local Glyph=import('pitch/glyph');local Audio=import('audio')
+local PolyRec,PolyEditor -- запись Polyphonic и редактор текущего кадра (для слоёв холста)
+local VIEW_SECTION -- задаётся ниже, рядом с показом нот
 local function clamp(x,a,b) return math.max(a,math.min(b,x)) end
 
 -- Инструменты: порядок и названия (id = e.tool); в «⋯» — остальные, Bounds пока недоступен
@@ -120,21 +123,29 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
   host.tooltip('pitch_back',bh,bcx,y+fh,'Back to tools','',wx,ww,0.35,0.2)
   x=x+fh+G
 
-  -- Analyze: только пока item не проанализирован; полный сброс — в меню справа
   local now=e.r.time_precise()
   local freeze=(e.job~=nil and e.job.kind=='apply') or now<stable.until_t -- bypass/правка: кнопки не мигают
   if e.job~=nil and e.job.kind=='apply' then stable.until_t=now+0.3 end
-  if not freeze then stable.analyzed=e.data~=nil and not e.stale and not e.no_selection end
-  local analyzed=stable.analyzed
-  local show_busy=busy and not freeze
-  if not analyzed then
-    im.SetCursorScreenPos(ctx,x,y)
-    if show_busy then im.BeginDisabled(ctx,true) end
-    if im.Button(ctx,'Analyze',0,fh) then e:analyze() end
-    if show_busy then im.EndDisabled(ctx) end
-    host.tooltip('pitch_analyze',im.IsItemHovered(ctx),(im.GetItemRectMin(ctx)+im.GetItemRectMax(ctx))/2,y+fh,'',
-      'Analyze selected audio items; with no item selection, analyze the active track. Reanalysis keeps editor corrections when their source geometry still matches.',wx,ww)
-    x=im.GetItemRectMax(ctx)+G
+  local poly=e.mode=='poly'
+  -- Режим анализа вместо прежней Analyze: Melodic / Polyphonic. Сам анализ — большая кнопка поверх редактора
+  -- (body); выбор режима при выделенном аудио сразу запускает свежий анализ в этом режиме
+  do
+    local label=poly and 'Polyphonic (no edit)' or 'Melodic'
+    local bw=math.max(text_w('Polyphonic (no edit)'),text_w('Melodic'))+30
+    im.SetCursorScreenPos(ctx,x,y);im.InvisibleButton(ctx,'##pitch_mode',bw,fh)
+    local hv=im.IsItemHovered(ctx) and not busy
+    if hv then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
+    im.DrawList_AddRectFilled(dl,x,y,x+bw,y+fh,hv and host.pill_hover or host.pill,8)
+    local tw,th=im.CalcTextSize(ctx,label)
+    im.DrawList_AddText(dl,math.floor(x+10),math.floor(y+(fh-th)/2),busy and 0x8A8A96FF or 0xE6E6F0FF,label)
+    local ax,ay=x+bw-12,y+fh/2;im.DrawList_AddTriangleFilled(dl,ax-3.5,ay-1.8,ax+3.5,ay-1.8,ax,ay+2.6,0xA8A8B6FF)
+    if im.IsItemClicked(ctx,0) and not busy then
+      local pa,why=Poly.available(e.r)
+      host.dropdown('pitch_mode',x+bw/2,y+fh,{
+        {label='Melodic',checked=not poly,action=function() e:set_mode('melodic') end},
+        {label='Polyphonic (no edit)',checked=poly,disabled=not pa,action=function() e:set_mode('poly') end}})
+    end
+    x=x+bw+G
   end
   if e.job and not e.job.committed and e.job.kind=='analysis' then
     im.SetCursorScreenPos(ctx,x,y);if im.Button(ctx,'Cancel',0,fh) then e:cancel() end
@@ -142,6 +153,7 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
   end
 
   -- Bypass редактора (иконка питания, как в глобальном BYPASS ALL): показывает оригинальные ноты и отключает ReaPitch
+  if not poly then
   if not freeze then
     stable.can=e.state~=nil and e.state.fx_guid~=nil and not e.stale and not e.no_selection and not busy and not e.gesture
     stable.engaged=e.state~=nil and e.state.bypassed==true
@@ -164,6 +176,7 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
   end
   host.tooltip('pitch_bypass',byh,x+fh/2,y+fh,'','Bypass',wx,ww,TIP_DELAY,0.2)
   x=x+fh+G
+  end
 
   -- Транспорт одной секцией: Play/Pause (по реальному состоянию) | Repeat (тёмно-оранжевый, когда включён)
   local proj=e.project or 0
@@ -199,9 +212,16 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
   local root_w=math.max(text_w('C#'),text_w('Bb'))+14;local mode_w=math.max(text_w('Major'),text_w(mode_text))+20;local snap_w=fh+4 -- секция лада по ширине текста: имя помещается целиком
   local scale_w=root_w+mode_w+snap_w
   local right={}
-  if e.tool=='curve' then right[#right+1]={'copy',button_w('Copy')};right[#right+1]={'paste',button_w('Paste')} end
-  if e.twins and #e.twins>0 then right[#right+1]={'sync',fh} end -- есть копии открытого айтема
-  right[#right+1]={'auto',button_w('ATune')}
+  local bpm_src=(poly and e.poly and e.poly.bpm) or (not poly and (e.key_bpm or (e.poly and e.poly.bpm)))
+  local bpm_text=bpm_src and bpm_src>0 and string.format('%.1f BPM',bpm_src) or (poly and '— BPM') or nil
+  if poly then
+    right[#right+1]={'bpm',button_w('000.0 BPM')} -- Polyphonic: тональность — в контроле скейла, темп — рядом
+  else
+    if e.tool=='curve' then right[#right+1]={'copy',button_w('Copy')};right[#right+1]={'paste',button_w('Paste')} end
+    if e.twins and #e.twins>0 then right[#right+1]={'sync',fh} end -- есть копии открытого айтема
+    right[#right+1]={'auto',button_w('ATune')}
+    if bpm_text then right[#right+1]={'bpm',button_w('000.0 BPM')} end -- темп из анализа тональности
+  end
   right[#right+1]={'scale',scale_w}
   local total=-6;for _,r in ipairs(right) do total=total+r[2]+6 end
   local count=#TOOLS+1;local cwid=count*BTN_W
@@ -211,6 +231,7 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
 
   -- Контейнер инструментов по центру: одна плашка, кнопки впритык (выбранная — акцентная заливка)
   local locked=busy or e.gesture
+  if not poly then
   im.DrawList_AddRectFilled(dl,cx0,y,cx0+cwid,y+fh,host.pill,8)
   if busy then im.BeginDisabled(ctx,true) end
   local in_more=false;for _,t in ipairs(MORE) do if e.tool==t[1] then in_more=true end end
@@ -238,6 +259,7 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
     else host.tooltip('pitch_tool_'..tool[1],hov,bx+BTN_W/2,y+fh,'',tool[2]..'\t'..i,wx,ww,TIP_DELAY,0.2) end
   end
   if busy then im.EndDisabled(ctx) end
+  end
 
   for _,r in ipairs(right) do
     local kind=r[1];im.SetCursorScreenPos(ctx,rx,y)
@@ -265,6 +287,14 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
       host.icon(dl,e.snap and SP.magnet or SP.magnet_off,c+snap_w/2,y+fh/2,(ICON_PX-1)*grow('snap',snap_hov),e.snap and 0xFFFFFFFF or (snap_hov and 0xE0E0EAFF or 0x9A9AA8FF))
       if root_click then
         local items={}
+        if e.poly and e.poly.keys and #e.poly.keys>0 then
+          -- Polyphonic: найденные тональности (лучшая и альтернативы); выбор фиксирует её как ручную
+          for k,key in ipairs(e.poly.keys) do local root,sc=Poly.key_scale(key)
+            if root then items[#items+1]={label=(k==1 and 'Detected: ' or 'Alternative: ')..Poly.key_name(key),action=function() if not locked then e:set_scale(root,sc) end end} end
+          end
+          items[#items+1]={sep=true}
+        end
+        items[#items+1]={label='Analyze key…',action=function() e.key_modal={} end};items[#items+1]={sep=true}
         for i=1,12 do items[#items+1]={label=Scale.root_name(i-1,e.scale),checked=i-1==(e.root or 0),action=function() if not locked then e:set_scale(i-1,e.scale or 1) end end} end
         host.dropdown('root',(a+b)/2,y+fh,items)
       end
@@ -275,6 +305,40 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
       end
       if snap_click and not locked then e:set_scale(e.root or 0,e.scale or 1,not e.snap) end
       host.tooltip('pitch_scale',snap_hov,c+snap_w/2,y+fh,'','Snap to the key',wx,ww,0.35,0.2)
+    elseif kind=='bpm' then
+      -- темп из Polyphonic; подсказка — уверенность и альтернативы (половинный/двойной темп)
+      im.SetCursorScreenPos(ctx,rx,y);im.InvisibleButton(ctx,'##pitch_bpm',r[2],fh)
+      local hv=im.IsItemHovered(ctx)
+      im.DrawList_AddRectFilled(dl,rx,y,rx+r[2],y+fh,host.pill,8)
+      local tw,th=im.CalcTextSize(ctx,bpm_text)
+      im.DrawList_AddText(dl,math.floor(rx+(r[2]-tw)/2),math.floor(y+(fh-th)/2),e.poly and 0xE6E6F0FF or 0x8A8A96FF,bpm_text)
+      local tip='Tempo of the analyzed item'
+      if e.poly then
+        local alts={};for _,b in ipairs(e.poly.bpm_alt or {}) do alts[#alts+1]=string.format('%.1f',b) end
+        tip=string.format('Detected tempo, confidence %d%%%s. Key: %s%s.',math.floor((e.poly.bpm_conf or 0)*100+.5),#alts>0 and ('; also possible: '..table.concat(alts,', ')) or '',
+          Poly.key_name(e.poly.keys and e.poly.keys[1]),e.scale_origin=='manual' and ' (the key control keeps your manual choice)' or '')
+      end
+      host.tooltip('pitch_bpm',hv,rx+r[2]/2,y+fh,'',tip..' Click: set the project tempo, note display.',wx,ww,TIP_DELAY,0.2)
+      if hv then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
+      if im.IsItemClicked(ctx,0) then
+        local d=M.poly_detail(e.r)
+        local items={}
+        if (bpm_src or 0)>0 then
+          local function tempo_item(bpm,label)
+            local v=math.floor(bpm+.5)
+            return {label=string.format(label,v),action=function()
+              e.r.Undo_BeginBlock2(e.project or 0);e.r.SetCurrentBPM(e.project or 0,v,true);e.r.Undo_EndBlock2(e.project or 0,'Vocaligner: set project tempo',-1)
+              e.r.UpdateTimeline();e.message=string.format('Project tempo set to %d BPM',v) end}
+          end
+          items[#items+1]=tempo_item(bpm_src,'Set project tempo: %d BPM')
+          for _,alt in ipairs(e.poly and e.poly.bpm_alt or {}) do items[#items+1]=tempo_item(alt,'Set project tempo: %d BPM (alternative)') end
+          items[#items+1]={sep=true}
+        end
+        for _,it in ipairs({
+          {label='Notes: clean',checked=d=='clean',action=function() e.r.SetExtState(VIEW_SECTION,'poly_notes','clean',true) end},
+          {label='Notes: all detected',checked=d=='all',action=function() e.r.SetExtState(VIEW_SECTION,'poly_notes','all',true) end}}) do items[#items+1]=it end
+        host.dropdown('pitch_poly_notes',rx+r[2]/2,y+fh,items)
+      end
     elseif kind=='sync' then
       -- Sync: правки открытого айтема применяются ко всем его копиям; зелёная, когда включена
       im.SetCursorScreenPos(ctx,rx,y);im.InvisibleButton(ctx,'##pitch_sync',fh,fh)
@@ -309,9 +373,15 @@ end
 function M.menu_items(im,ctx,app)
   local e=app.pitch
   local can=e.data~=nil and not e.stale and not e.no_selection and not e:busy()
+  -- Сброс нужен именно когда анализ устарел или правки не читаются (stale): ему данные редактора не нужны,
+  -- только сохранённое состояние айтема
+  local can_reset=e.snapshot~=nil and not e.no_selection and not e:busy()
   return {
-    {label='Reset corrections',disabled=not can,action=function() e:reset_all(Workspace.targets(e)) end},
-    {label='Reset full',disabled=not can,action=function() e:reset_all(Workspace.targets(e),true) end},
+    {label='Reset corrections',disabled=not can_reset,action=function() e:reset_all(Workspace.targets(e)) end},
+    {label='Reset full',disabled=not can_reset,action=function() e:reset_all(Workspace.targets(e),true) end},
+    {label='Reset analysis (selected takes)',disabled=not can_reset,action=function() e:reset_analysis() end},
+    {label='Compact project data',disabled=e:busy(),action=function() e:compact_project() end},
+    {label='Apply ATune to selected items',disabled=not can or e.mode=='poly',action=function() e:apply_auto_selected() end},
     {sep=true},
     {label='Copy report',action=function() im.SetClipboardText(ctx,e:diagnostics()) end},
     {label='Export case',disabled=not can,action=function() e:export_case() end},
@@ -333,7 +403,7 @@ end
 function M.ghost_rows(im,ctx,app,dropdown)
   local e=app.pitch;local count=0;local sel_w=text_w_of(im,ctx,'Source')
   if e.workspace then
-    for _,row in ipairs(e.workspace.tracks) do if (row.analyzed or 0)>0 then sel_w=math.max(sel_w,(im.CalcTextSize(ctx,short_name(row))))end end
+    for _,row in ipairs(e.workspace.tracks) do if (row.analyzed or 0)+(row.poly or 0)>0 then sel_w=math.max(sel_w,(im.CalcTextSize(ctx,short_name(row))))end end
   end
   -- строка-кнопка со скруглением; цвет — по цвету трека REAPER; возвращает клик ЛКМ и клик ПКМ
   local function track_rgb(row)
@@ -371,7 +441,7 @@ function M.ghost_rows(im,ctx,app,dropdown)
     im.DrawList_AddLine(im.GetWindowDrawList(ctx),sx,sy+2,sx+rw,sy+2,0xFFFFFF22,1)
   end
   if e.workspace then
-    for _,row in ipairs(e.workspace.tracks) do if (row.analyzed or 0)>0 then
+    for _,row in ipairs(e.workspace.tracks) do if (row.analyzed or 0)+(row.poly or 0)>0 then
       count=count+1
       local changed,on=im.Checkbox(ctx,'##pitch_ghost_'..row.guid,row.visible)
       if changed then Workspace.visible(e,on,row) end
@@ -617,7 +687,7 @@ end
 function M.ghost_size(im,ctx,app,spacing)
   local e=app.pitch;local fh=im.GetFrameHeight(ctx);local sel_w=(im.CalcTextSize(ctx,'Source'));local n=0
   if e.workspace then
-    for _,row in ipairs(e.workspace.tracks) do if (row.analyzed or 0)>0 then
+    for _,row in ipairs(e.workspace.tracks) do if (row.analyzed or 0)+(row.poly or 0)>0 then
       n=n+1;sel_w=math.max(sel_w,(im.CalcTextSize(ctx,short_name(row))))
     end end
   end
@@ -627,15 +697,278 @@ function M.ghost_size(im,ctx,app,spacing)
 end
 function M.ghost_count(app)
   local n=0;local e=app.pitch
-  if e.workspace then for _,row in ipairs(e.workspace.tracks) do if (row.analyzed or 0)>0 then n=n+1 end end end
+  if e.workspace then for _,row in ipairs(e.workspace.tracks) do if (row.analyzed or 0)+(row.poly or 0)>0 then n=n+1 end end end
   return math.max(n,1)
 end
 
 -- Тело вкладки: прогресс, сообщения и холст. Подсказки холста уводятся из-под курсора в облачко оболочки.
 local tip_text,tip_last
 local KEYS={'Key_1','Key_2','Key_3','Key_4','Key_5','Key_6'}
+-- Polyphonic: показ найденных нот (анализ не меняется). Clean — то, что читается как партитура:
+--  1) обрывки одной высоты с зазором до 1/8 доли (не меньше 60 мс) склеиваются в одну ноту;
+--  2) короче 1/4 доли (не меньше 70 мс) и неуверенные, а также совсем слабые одиночки — прячутся;
+--  3) роль ноты по аккорду в её середине: тон аккорда — цвет аккорда из полосы, бас (нижний тон аккорда) — ярче,
+--     неаккордовые и ноты под N.C. — серым фоном. All — все найденные ноты без склейки, цвет по высоте.
+VIEW_SECTION='Vocaligner Pitch View 1'
+function M.poly_detail(r) return r.GetExtState(VIEW_SECTION,'poly_notes')=='all' and 'all' or 'clean' end
+function M.poly_view(rec,detail)
+  local key=detail;if rec._view and rec._view_key==key then return rec._view end
+  local beat=(rec.bpm and rec.bpm>30) and 60/rec.bpm or .5
+  local gap,min_d=math.max(.06,beat/8),math.max(.07,beat/4)
+  local list={}
+  if detail=='all' then
+    for i,n in ipairs(rec.notes) do list[i]={s=n.s,e=n.e,p=n.p,c=n.c} end
+  else
+    local by={}
+    for _,n in ipairs(rec.notes) do local l=by[n.p];if not l then l={};by[n.p]=l end;l[#l+1]=n end
+    for _,l in pairs(by) do
+      table.sort(l,function(x,y)return x.s<y.s end)
+      local cur
+      for _,n in ipairs(l) do
+        if cur and n.s-cur.e<=gap then cur.e=math.max(cur.e,n.e);cur.c=math.max(cur.c,n.c);cur.parts=cur.parts+1
+        else if cur then list[#list+1]=cur end;cur={s=n.s,e=n.e,p=n.p,c=n.c,parts=1} end
+      end
+      if cur then list[#list+1]=cur end
+    end
+    local kept={}
+    for _,n in ipairs(list) do local d=n.e-n.s
+      if not ((d<min_d and n.c<.6) or n.c<.2) then kept[#kept+1]=n end
+    end
+    list=kept
+  end
+  table.sort(list,function(x,y)return x.s<y.s or (x.s==y.s and x.p<y.p) end)
+  -- роль по аккорду в середине ноты (аккорды отсортированы — бинарный поиск)
+  local chords=rec.chords
+  local function chord_at(t) local lo,hi=1,#chords
+    while lo<=hi do local m=(lo+hi)//2;local c=chords[m];if t<c.s then hi=m-1 elseif t>=c.e then lo=m+1 else return c end end end
+  local maxd=0
+  for _,n in ipairs(list) do
+    maxd=math.max(maxd,n.e-n.s)
+    local c=chord_at((n.s+n.e)*.5);n.role='other'
+    if c and c.root>=0 then
+      local pc=n.p%12;local tones=Poly.TONES[(c.quality or 0)+1] or Poly.TONES[1]
+      for _,iv in ipairs(tones) do if (c.root+iv)%12==pc then n.role='tone' end end
+      local bass=(c.bass and c.bass>=0) and c.bass or c.root
+      if n.role=='tone' and pc==bass and n.p<55 then n.role='bass' end
+      n.chord=c
+    elseif c then n.role='nc' end
+  end
+  rec._view,rec._view_key,rec._view_maxd=list,key,maxd
+  return list
+end
+-- цвет аккорда (полоса и его ноты): палитра по корню, приглушённая к серому, чтобы не рябило
+local function chord_color(root,alpha)
+  local c=Glyph.color(60+root,false,255)
+  local r,g,b=(c>>24)&255,(c>>16)&255,(c>>8)&255
+  r,g,b=math.floor(r*.72+70*.28),math.floor(g*.72+70*.28),math.floor(b*.72+80*.28)
+  return (r<<24)|(g<<16)|(b<<8)|alpha
+end
+M.chord_color=chord_color
+-- Аккорды цельными блоками, как после экспорта в MIDI (бас от C2 и голоса от C3 — те же ноты, что в poly_export.chord_midi);
+-- поверх них рисуются тонкие «шумные» линии найденных нот
+function M.poly_chord_blocks(im,dl,rec,a,b,g,row)
+  local h=math.max(3,row*.72)
+  for _,c in ipairs(rec.chords or {}) do
+    if c.root and c.root>=0 and c.e>=a and c.s<=b and c.e-c.s>.05 then
+      local x1,x2=g.tx(c.s),g.tx(c.e)
+      local function block(p,alpha)
+        local yy=g.py(p)
+        if yy+h>=g.top and yy-h<=g.bottom then
+          im.DrawList_AddRectFilled(dl,x1+1,yy-h/2,math.max(x1+3,x2-1),yy+h/2,chord_color(c.root,alpha),3)
+        end
+      end
+      block(36+((c.bass and c.bass>=0) and c.bass or c.root),0x70)
+      for _,iv in ipairs(Poly.TONES[(c.quality or 0)+1] or Poly.TONES[1]) do block(48+c.root+iv,0x58) end
+    end
+  end
+end
+function M.poly_notes(im,dl,ctx,g)
+  local rec=g.rec or PolyRec;if not rec then return end
+  local v=g.v;local a,b=v.start,v.start+v.span
+  local detail=g.detail or (PolyEditor and M.poly_detail(PolyEditor.r)) or 'clean'
+  local notes=M.poly_view(rec,detail);local maxd=rec._view_maxd or 0
+  local lo,hi=1,#notes+1;local from=a-maxd
+  while lo<hi do local mid=(lo+hi)//2;if notes[mid].s<from then lo=mid+1 else hi=mid end end
+  -- тонкие линии вместо блоков: длительность читается линией, атака — точкой в начале; бас толще, фон — тоньше
+  local row=g.height/v.rows;local th=math.max(2,math.min(4.5,row*.22))
+  M.poly_chord_blocks(im,dl,rec,a,b,g,row)
+  for i=lo,#notes do local n=notes[i];if n.s>b then break end
+    if n.e>=a then
+      local x1,x2=g.tx(n.s),g.tx(n.e);local yy=g.py(n.p)
+      if yy+th>=g.top and yy-th<=g.bottom then
+        if x2-x1<2 then x2=x1+2 end
+        local k=math.min(1,n.c);local col,w,dot
+        if detail=='all' then col=Glyph.color(n.p,false,math.floor(70+140*k));w=th;dot=true
+        elseif n.role=='bass' then col=chord_color(n.chord.root,math.floor(210+45*k));w=th*1.35;dot=true
+        elseif n.role=='tone' then col=chord_color(n.chord.root,math.floor(140+90*k));w=th;dot=true
+        else col=0x9A9AA600|math.floor(45+45*k);w=th*.6 end -- неаккордовые / под N.C. — фоном
+        im.DrawList_AddRectFilled(dl,x1,yy-w/2,x2,yy+w/2,col,w/2)
+        if dot and x2-x1>w*2 then im.DrawList_AddCircleFilled(dl,x1+w*.6,yy,w*.85,col|0xFF) end
+      end
+    end
+  end
+  -- доли: тонкие тики у нижнего края вида
+  for _,t in ipairs(rec.beats) do if t>=a and t<=b then local xx=g.tx(t);im.DrawList_AddLine(dl,xx,g.bottom-6,xx,g.bottom,0xFFFFFF40,1) end end
+end
+-- Окно «Analyze key»: выделенный айтем (имя и волна), Analyze и Close. Быстрый Polyphonic-анализ: тональность
+-- становится тональностью проекта (как ручной выбор), темп — в плашку BPM. Без подсказок и пояснений.
+function M.key_modal(host,im,ctx,e,bx0,by0,cw,ch)
+  local km=e.key_modal;local r=e.r;local dl=im.GetForegroundDrawList(ctx)
+  local W,H=360,150;local X,Y=math.floor(bx0+(cw-W)/2),math.floor(by0+math.max(40,(ch-H)*.35))
+  im.DrawList_AddRectFilled(dl,X-1000,Y-1000,X+W+1000,Y+H+1000,0x00000050)
+  im.DrawList_AddRectFilled(dl,X,Y,X+W,Y+H,0x202020F8,12);im.DrawList_AddRect(dl,X+.5,Y+.5,X+W-.5,Y+H-.5,0x4A4A4AFF,12,0,1)
+  im.DrawList_AddText(dl,X+16,Y+12,0xE6E6F0FF,'Analyze key')
+  local project=r.EnumProjects(-1);local item
+  for i=0,r.CountSelectedMediaItems(project)-1 do local it=r.GetSelectedMediaItem(project,i);local tk=r.GetActiveTake(it);if tk and not r.TakeIsMIDI(tk) then item=it;break end end
+  local bx,by,bw,bh=X+16,Y+38,W-32,52
+  im.DrawList_AddRectFilled(dl,bx,by,bx+bw,by+bh,item and 0x2C2C2CFF or 0x262626FF,8)
+  if item then
+    if km.item~=item then
+      km.item=item;km.peaks=nil;km.name=r.GetTakeName(r.GetActiveTake(item))
+      local ok,st=pcall(Audio.state,r,project,item);if ok then st.channels=r.GetMediaSourceNumChannels(st.source);local good,p=pcall(Audio.peaks,r,st);km.peaks=good and p or nil end
+    end
+    local lv=km.peaks and km.peaks.peaks and km.peaks.peaks[1];local vals=lv and lv.values
+    if vals and #vals>1 then
+      local top=math.max(1e-6,km.peaks.peak or 1);local mid=by+bh/2+6;local n=#vals;local cols=math.floor(bw-16)
+      for c=0,cols-1,2 do local v=vals[math.min(n,math.floor(c/cols*n)+1)];local a=math.max(-v[1],v[2])/top*(bh/2-12)
+        im.DrawList_AddLine(dl,bx+8+c,mid-a,bx+8+c,mid+a,0xE8955A90,1) end
+    end
+    im.DrawList_AddText(dl,bx+8,by+4,0xFFFFFFFF,km.name or 'item')
+  else
+    local t='Select an item';local tw=im.CalcTextSize(ctx,t);im.DrawList_AddText(dl,bx+(bw-tw)/2,by+bh/2-7,0x8A8A96FF,t)
+  end
+  local function button(id,x,label,enabled,accent)
+    local w,h=96,28;local y=Y+H-40;local mx,my=im.GetMousePos(ctx)
+    local hov=enabled and mx>=x and mx<=x+w and my>=y and my<=y+h
+    im.DrawList_AddRectFilled(dl,x,y,x+w,y+h,not enabled and 0x2A2A2AFF or (accent and (hov and 0xC86A2AFF or 0xA9551EFF) or (hov and 0x3A3A3AFF or 0x303030FF)),8)
+    local tw,th=im.CalcTextSize(ctx,label);im.DrawList_AddText(dl,x+(w-tw)/2,y+math.floor((h-th)/2),enabled and 0xFFFFFFFF or 0x6A6A74FF,label)
+    if hov then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
+    return hov and im.IsMouseClicked(ctx,0)
+  end
+  local running=e.key_job~=nil
+  if button('close',X+W-16-96,'Close',true,false) then e.key_modal=nil;return end
+  if button('analyze',X+W-16-96-8-96,running and '…' or 'Analyze',item~=nil and not running and not e:busy(),true) then
+    local target=item
+    -- вокал с Melodic-анализом: тональность по уже найденным нотам всех выделенных айтемов — мгновенно, без чтения звука.
+    -- Полифонический анализ — только если нот нет (айтем не анализировался)
+    local lists,ws={},e.workspace
+    for i=0,r.CountSelectedMediaItems(project)-1 do
+      local it=r.GetSelectedMediaItem(project,i)
+      if it==e.item and e.notes and #e.notes>0 then lists[#lists+1]=e.notes
+      else local entry=ws and ws.by_item[it];if entry and entry.state and entry.state.notes then lists[#lists+1]=entry.state.notes end end
+    end
+    local k=#lists>0 and import('pitch/key_detect').from_notes(lists)
+    if k then
+      local root,sc=Poly.key_scale(k);e:set_scale(root,sc)
+      e.message=string.format('Key %s (from %d sung notes)',Poly.key_name(k),k.notes)
+      e.key_modal=nil;return
+    end
+    if not Poly.available(r) then e:fail('Analyze the item (Melodic) first: the key is found from its pitch notes.');return end
+    e.key_job=import('job').new(r,function(job)
+      local rec,s=Poly.analyze_item(r,project,target,job,'Key')
+      job:call(Poly.save,r,s.take,rec)
+      return rec
+    end,.012)
+  end
+  if e.key_job then
+    local j=e.key_job;j:step()
+    if j.done then
+      e.key_job=nil
+      if j.error then e:fail(j.error) else
+        local rec=j.result;local root,sc=Poly.key_scale(rec.keys and rec.keys[1])
+        if root then e:set_scale(root,sc) end
+        e.key_bpm=rec.bpm;if item==e.item then e.poly=rec end
+        e.message=string.format('Key %s · %.1f BPM',Poly.key_name(rec.keys and rec.keys[1]),rec.bpm or 0)
+        e.key_modal=nil
+      end
+    end
+  end
+end
+-- полоса аккордов над линейкой: регионы-плашки с именем; наведение — подсказка, ПКМ — меню экспорта
+function M.poly_lane(im,dl,ctx,g)
+  local rec=g.rec or PolyRec;if not rec or g.lane<=0 then return end
+  -- верх полосы (5 px) свободен под соединительную линию тайм-селекшна: она идёт НАД аккордами
+  local y1,y2=g.y+5,g.y+g.lane-1;local th=im.GetTextLineHeight(ctx) or 13;local hover
+  im.DrawList_PushClipRect(dl,g.left,g.y,g.right,g.y+g.lane+1,true)
+  for _,c in ipairs(rec.chords) do
+    local x1,x2=g.tx(c.s),g.tx(c.e)
+    if x2>=g.left and x1<=g.right then
+      local nc=c.root<0
+      local col=nc and 0x2E2E2EFF or chord_color(c.root,0xD8)
+      im.DrawList_AddRectFilled(dl,x1+1,y1,x2-1,y2,col,4)
+      local name=Poly.chord_name(c);local tw=im.CalcTextSize(ctx,name)
+      if x2-x1<=tw+8 then name=Poly.chord_name(c,true);tw=im.CalcTextSize(ctx,name) end -- узкий регион: короткое имя
+      if x2-x1>tw+8 then im.DrawList_AddText(dl,math.floor(math.max(x1+4,math.min(g.left+4,x2-tw-4))),math.floor(y1+(y2-y1-th)/2)-1,nc and 0x8A8A96FF or 0xF4F4F8FF,name) end
+      if g.hovered and g.mx>=x1 and g.mx<=x2 and g.my>=y1 and g.my<=y2 then hover=c end
+    end
+  end
+  im.DrawList_PopClipRect(dl)
+  local ed=g.editor or PolyEditor
+  if g.hovered and g.my>=g.y and g.my<=y2 and g.mx>=g.left and g.mx<=g.right and im.IsMouseClicked(ctx,1) then ed.chord_menu={x=g.mx,y=g.my} end
+  -- левая кнопка на плашке: потянуть — аккорд уходит в проект MIDI-айтемом (M.chord_drag); клик без движения ничего не делает
+  if hover and hover.root and hover.root>=0 and im.IsMouseClicked(ctx,0) and not ed.chord_press then
+    ed.chord_press={chord=hover,x=g.mx,y=g.my,fresh=true}
+  end
+end
+-- Перетаскивание аккорда: призрак MIDI-айтема (плашка с именем и мини-нотами) плавно едет за курсором и вырастает из плашки;
+-- по отпусканию над таймлайном REAPER — MIDI-айтем в месте под курсором (трек под курсором, иначе новый трек).
+local function ease(t) t=math.max(0,math.min(1,t));return 1-(1-t)*(1-t)*(1-t) end
+function M.chord_drag(host,im,ctx,e)
+  local cp=e.chord_press;if not cp then return end
+  cp.fresh=nil
+  local r=e.r;local mx,my=im.GetMousePos(ctx);local now=r.time_precise()
+  if im.IsMouseDown(ctx,0) then
+    if not cp.active and (math.abs(mx-cp.x)>5 or math.abs(my-cp.y)>5) then cp.active=true;cp.t0=now;cp.px,cp.py=cp.x,cp.y;cp.last=now end
+    if cp.active then
+      local dt=math.min(.05,now-(cp.last or now));cp.last=now
+      local f=math.min(1,dt*16) -- пружина: призрак догоняет курсор
+      cp.px=cp.px+(mx-cp.px)*f;cp.py=cp.py+(my-cp.py)*f
+      local k=ease((now-cp.t0)/.16) -- появление: из размера плашки до полного
+      local c=cp.chord;local pitches=PolyExport.chord_pitches(c)
+      local W,H=math.floor(96+54*k),math.floor(22+40*k)
+      local x,y=math.floor(cp.px+14),math.floor(cp.py+10)
+      -- призрак — отдельное безрамочное окно: оно может выйти за пределы окна скрипта и ехать над таймлайном REAPER
+      local flags=(im.WindowFlags_NoDecoration or 0)|(im.WindowFlags_NoInputs or 0)|(im.WindowFlags_NoSavedSettings or 0)|(im.WindowFlags_NoFocusOnAppearing or 0)|(im.WindowFlags_NoBackground or 0)|(im.WindowFlags_NoNav or 0)|(im.WindowFlags_TopMost or 0)
+      im.SetNextWindowPos(ctx,x,y);im.SetNextWindowSize(ctx,W+8,H+8)
+      local visible=im.Begin(ctx,'##vocaligner_chord_ghost',nil,flags)
+      if visible then
+        local dl=im.GetWindowDrawList(ctx);local wx,wy=im.GetWindowPos(ctx);wx,wy=wx+2,wy+2
+        im.DrawList_AddRectFilled(dl,wx+3,wy+4,wx+W+3,wy+H+4,0x00000070,6)
+        im.DrawList_AddRectFilled(dl,wx,wy,wx+W,wy+H,chord_color(c.root,0xE6),6)
+        im.DrawList_AddRect(dl,wx+.5,wy+.5,wx+W-.5,wy+H-.5,0xFFFFFF90,6,0,1)
+        im.DrawList_AddText(dl,wx+7,wy+3,0xFFFFFFFF,Poly.chord_name(c))
+        -- мини-пианоролл: ноты аккорда полосками, как в MIDI-айтеме
+        local lo,hi=1e9,-1e9;for _,p in ipairs(pitches) do lo=math.min(lo,p[1]);hi=math.max(hi,p[1]) end
+        local top,bot=wy+20,wy+H-5;local span=math.max(12,hi-lo)
+        if bot-top>8 then for _,p in ipairs(pitches) do
+          local yy=bot-(p[1]-lo)/span*(bot-top-3)
+          im.DrawList_AddRectFilled(dl,wx+6,yy-1.5,wx+W-6,yy+1.5,0xFFFFFFCC,1.5)
+        end end
+        im.End(ctx)
+      end
+    end
+  else
+    e.chord_press=nil
+    if not cp.active then return end
+    -- отпустили: внутри окна скрипта — отмена; над таймлайном REAPER — вставка
+    local wx,wy=im.GetWindowPos(ctx);local ww,wh=im.GetWindowSize(ctx)
+    if mx>=wx and mx<=wx+ww and my>=wy and my<=wy+wh then return end
+    local sx,sy=r.GetMousePosition()
+    local at
+    if r.BR_PositionAtMouseCursor then at=r.BR_PositionAtMouseCursor(true);if at and at<0 then at=nil end end
+    local track=r.GetTrackFromPoint and select(1,r.GetTrackFromPoint(sx,sy))
+    if not at then
+      if r.BR_PositionAtMouseCursor then e.message='Drop the chord onto the project timeline';return end
+      at=r.GetCursorPositionEx(e.project or 0);e.message='Dropped at the edit cursor (install SWS for exact placement under the mouse)'
+    end
+    local good,why=pcall(PolyExport.drop_chord,e,cp.chord,at,track)
+    if good then e.message=string.format('%s dropped at %.2f s',Poly.chord_name(cp.chord),at) else e:fail(why) end
+  end
+end
 function M.body(host,im,ctx,app)
   local e=app.pitch
+  local show_chords=e.r.GetExtState('Vocaligner Pitch View 1','show_chords')=='1'
+  PolyRec=(e.mode=='poly' or show_chords) and e.poly or nil;PolyEditor=e
   local error=e.error and e.error:match('^[^\r\n]+'):gsub('^.*:%d+: ','')
   -- прогресс рисуем поверх верхнего края тела вкладки, не занимая места в раскладке
   do local wx,wy=im.GetWindowPos(ctx);local ww=im.GetWindowSize(ctx);local job=e.job
@@ -656,7 +989,84 @@ function M.body(host,im,ctx,app)
   tip_text=nil
   -- прокси ленивый: каждая функция берётся из im один раз и кладётся в прокси (без лишнего поиска на каждый вызов)
   local proxy=setmetatable({SetTooltip=function(_,text) tip_text=text end},{__index=function(t,k) local v=im[k];rawset(t,k,v);return v end})
-  PitchUI.canvas(proxy,ctx,e,cw,ch)
+  local bx0,by0=im.GetCursorScreenPos(ctx)
+  -- закреплённая «Analyze selected» поверх холста (не скроллится с нотами): только если выделенному аудио нужен анализ
+  local selected=e.r.CountSelectedMediaItems(e.r.EnumProjects(-1))
+  local show_analyze=selected>0 and e:needs_analysis() and not e:busy()
+  local abw,abh=math.min(cw-40,260),40;local abx,aby=bx0+(cw-abw)/2,by0+math.max(70,ch*.32)
+  local mx,my=im.GetMousePos(ctx)
+  local over=show_analyze and mx>=abx and mx<=abx+abw and my>=aby and my<=aby+abh
+  if e.key_modal then over=true end -- окно анализа тональности поверх: холст не принимает клики
+  e.block_click=over
+  do -- ПКМ по линейке (над сеткой): Show chords + экспорт; без анализа — ничего
+    local rtop,rbot=by0,by0+26+(e.poly_lane or 0)
+    if e.poly and not e.key_modal and mx>=bx0+42 and mx<=bx0+cw-12 and my>=rtop and my<=rbot and im.IsMouseClicked(ctx,1) and im.IsWindowHovered(ctx,im.HoveredFlags_ChildWindows or 0) then
+      e.chord_menu={x=mx,y=my}
+    end
+  end
+  local poly=e.mode=='poly'
+  local saved
+  if poly then
+    -- Polyphonic: холст — только просмотр. Мелодические ноты/кривые и инструменты правки на время кадра скрыты;
+    -- найденные ноты рисует слой poly_draw, аккорды — полоса над линейкой
+    saved={e.data,e.notes,e.partial,e.state,e.display}
+    e.data=nil;e.notes={};e.partial=nil;e.state=nil;e.display=nil
+    e.poly_fit=e.poly and e.poly.notes or nil
+    e.poly_lane=e.poly and #e.poly.chords>0 and 22 or 0
+    e.poly_draw=M.poly_notes;e.poly_lane_draw=M.poly_lane
+  else
+    e.poly_draw=nil;e.poly_fit=nil
+    -- Melodic: полоса аккордов, если у айтема есть Polyphonic-анализ и она включена (ПКМ по линейке)
+    if show_chords and e.poly and #e.poly.chords>0 then e.poly_lane=22;e.poly_lane_draw=M.poly_lane else e.poly_lane=0;e.poly_lane_draw=nil end
+  end
+  local ok,err=pcall(PitchUI.canvas,proxy,ctx,e,cw,ch)
+  M.chord_drag(host,im,ctx,e)
+  if saved then e.data,e.notes,e.partial,e.state,e.display=saved[1],saved[2],saved[3],saved[4],saved[5] end
+  if not ok then error(err,0) end
+  -- плейхед ушёл в другой проанализированный айтем этого трека — он становится активным (не во время правки)
+  do
+    local proj=e.project or 0;local ps=e.r.GetPlayStateEx and e.r.GetPlayStateEx(proj) or 0
+    if (ps&1)~=0 and e.snapshot and e.track_row and not e:busy() and not e.gesture and not e.drag then
+      local t=e.r.GetPlayPositionEx(proj);local s=e.snapshot
+      -- только при ВХОДЕ плейхеда в новый айтем: выбранный кликом айтем не перехватывается обратно тем, что под плейхедом
+      local under
+      for _,entry in ipairs(e.track_row.items) do
+        if entry.state and entry.state.analysis and t>=entry.pos and t<entry.pos+entry.len and Workspace.same_lane(e,entry) then under=entry.item;break end
+      end
+      under=under or false
+      if under~=e.follow_item then
+        e.follow_item=under
+        if under and under~=e.item and (t<s.pos-.02 or t>s.pos+s.len+.02) then e:activate(under) end
+      end
+    elseif (ps&1)==0 then e.follow_item=nil end
+  end
+  if show_analyze then
+    local dl=im.GetWindowDrawList(ctx)
+    im.DrawList_AddRectFilled(dl,abx+2,aby+3,abx+abw+2,aby+abh+3,0x00000060,12) -- тень
+    im.DrawList_AddRectFilled(dl,abx,aby,abx+abw,aby+abh,over and 0xC86A2AFF or 0xA9551EFF,12)
+    local label=(poly and 'Analyze selected · Polyphonic' or 'Analyze selected')..(selected>1 and string.format(' (%d)',selected) or '')
+    local tw,th=im.CalcTextSize(ctx,label)
+    im.DrawList_AddText(dl,math.floor(abx+(abw-tw)/2),math.floor(aby+(abh-th)/2),0xFFFFFFFF,label)
+    if over then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
+    if over and im.IsMouseClicked(ctx,0) then e:analyze_mode() end
+  end
+  if e.key_modal then M.key_modal(host,im,ctx,e,bx0,by0,cw,ch) end
+  if e.chord_menu then
+    -- ПКМ по полосе аккордов: экспорт (в пределах тайм-селекшна, если он есть, иначе весь анализ)
+    local m=e.chord_menu;e.chord_menu=nil
+    local range;if e.tsel and e.snapshot then range={e.tsel[1]-e.snapshot.pos,e.tsel[2]-e.snapshot.pos} end
+    local suffix=range and ' (time selection)' or ''
+    local function run(fn,what) local good,n=pcall(fn,e,range);if good then e.message=string.format('%s: %d exported',what,n) else e:fail(n) end end
+    host.dropdown('pitch_chords',m.x,m.y,{
+      {label='Show chords',checked=e.mode=='poly' or show_chords,disabled=e.mode=='poly',action=function() e.r.SetExtState('Vocaligner Pitch View 1','show_chords',show_chords and '0' or '1',true) end},
+      {sep=true},
+      {label='Export chords to regions'..suffix,action=function() run(PolyExport.regions,'Chord regions') end},
+      {label='Export chords to a text track'..suffix,action=function() run(PolyExport.text_track,'Chord text items') end},
+      {label='Export chords to a MIDI track'..suffix,action=function() run(PolyExport.chord_midi,'Chord MIDI') end},
+      {sep=true},
+      {label='Export detected notes to MIDI'..suffix,action=function() run(PolyExport.notes_midi,'Detected notes') end},
+      {label='Write key and tempo to the item notes',action=function() local good,why=pcall(PolyExport.write_item_note,e.r,e.item,e.poly);if not good then e:fail(why) end end}})
+  end
   if tip_text then tip_last=tip_text end
   if tip_last then
     local mx,my=im.GetMousePos(ctx)
@@ -665,29 +1075,29 @@ function M.body(host,im,ctx,app)
 
   -- горячие клавиши оригинального редактора + 1..5 = инструменты контейнера
   if im.IsWindowFocused(ctx,im.FocusedFlags_RootAndChildWindows) and not im.IsAnyItemActive(ctx) and not e:busy() then
-    local mods=im.GetKeyMods(ctx);local ctrl=(mods&im.Mod_Ctrl)~=0;local alt=(mods&im.Mod_Alt)~=0
-    if mods==0 then
-      for i,k in ipairs(KEYS) do if im[k] and im.IsKeyPressed(ctx,im[k],false) then e.tool=TOOLS[i][1] end end
+    local alt=Hotkeys.alt(im,ctx)
+    if e.mode~='poly' then
+      for i=1,#TOOLS do if Hotkeys.pressed(im,ctx,'tool'..i) then e.tool=TOOLS[i][1] end end
     end
     -- W: курсор редактирования (и воспроизведения, если идёт play) — в начало тайм-селекшна
-    if mods==0 and im.IsKeyPressed(ctx,im.Key_W,false) then
+    if Hotkeys.pressed(im,ctx,'cursor_start') then
       -- W: в начало тайм-селекшна, а если его нет — в начало активного тейка
       local at=e.tsel and e.tsel[1] or (e.snapshot and e.snapshot.pos)
       if at then e.r.SetEditCurPos2(e.project or 0,at,true,true);e.goto_time=at-(e.snapshot and e.snapshot.pos or 0) end -- + скролл редактора к этому месту
     end
     -- Esc: сначала сбрасывается тайм-селекшн, затем выделение нот
-    if im.IsKeyPressed(ctx,im.Key_Escape,false) then
+    if Hotkeys.pressed(im,ctx,'clear') then
       if e.tsel then e.r.GetSet_LoopTimeRange2(e.project or 0,true,false,0,0,false);e.tsel=nil
       elseif e:has_selection() then e.selected={} end
     end
-    if ctrl and im.IsKeyPressed(ctx,im.Key_Z,false) then e:undo((mods&im.Mod_Shift)~=0) end
-    if ctrl and im.IsKeyPressed(ctx,im.Key_A,false) then for _,n in ipairs(e.notes or {}) do e.selected[n.id]=true end end
-    if im.IsKeyPressed(ctx,im.Key_Delete,false) then e:reset_selected() end
-    if ctrl and im.IsKeyPressed(ctx,im.Key_C,false) then e:copy_shape()
-    elseif im.IsKeyPressed(ctx,im.Key_C,false) then e.tool=e.tool=='notes' and 'curve' or 'notes' end
-    if ctrl and im.IsKeyPressed(ctx,im.Key_V,false) then e:paste_shape(alt) end
-    if im.IsKeyPressed(ctx,im.Key_UpArrow,false) then e:nudge(1,alt) end
-    if im.IsKeyPressed(ctx,im.Key_DownArrow,false) then e:nudge(-1,alt) end
+    if Hotkeys.pressed(im,ctx,'undo') then e:undo(false) elseif Hotkeys.pressed(im,ctx,'redo') then e:undo(true) end
+    if Hotkeys.pressed(im,ctx,'select_all') then for _,n in ipairs(e.notes or {}) do e.selected[n.id]=true end end
+    if Hotkeys.pressed(im,ctx,'reset_notes') then e:reset_selected() end
+    if Hotkeys.pressed(im,ctx,'copy_shape') then e:copy_shape()
+    elseif Hotkeys.pressed(im,ctx,'tool_toggle') then e.tool=e.tool=='notes' and 'curve' or 'notes' end
+    if Hotkeys.pressed(im,ctx,'paste_shape') then e:paste_shape(alt) end
+    if Hotkeys.pressed(im,ctx,'nudge_up') then e:nudge(1,alt) end
+    if Hotkeys.pressed(im,ctx,'nudge_down') then e:nudge(-1,alt) end
   end
 end
 return M

@@ -2,7 +2,7 @@
 local import=...;local SE=import('click/sample_edits');local Wave=import('click/wave')
 local Detector=import('click/detector');local Spectral=import('click/spectral');local Repair=import('click/repair');local Job=import('job')
 local M={};M.__index=M
-local Diagnostics=import('click/diagnostics');local Session=import('click/session')
+local Diagnostics=import('click/diagnostics');local Session=import('click/session');local Own=import('click/own')
 function M.new(r,engine,fft,repair)
  local cfg={};for k,v in pairs(import('click/settings').defaults)do cfg[k]=v end
  return setmetatable({r=r,engine=engine,fft=fft,repair=repair,cfg=cfg,mode='click',events={},message='Select one audio item and analyze.',excluded={}},M)
@@ -82,8 +82,28 @@ function M:analyze()
  self:launch(function(job)
   local r=self.r
   local s=job:call(function()
-   local project=r.EnumProjects(-1,'');assert(r.CountSelectedMediaItems(project)==1,'Select exactly one audio item for the prototype')
-   local item=r.GetSelectedMediaItem(project,0);local take=r.GetActiveTake(item);assert(take and not r.TakeIsMIDI(take),'An audio take is required')
+   local project=r.EnumProjects(-1,'');local count=r.CountSelectedMediaItems(project)
+   assert(count>0,'Select an audio item')
+   -- несколько выделенных: тот, что под тайм-селекшном (больше всего перекрытия), иначе под курсором, иначе первый аудио
+   local item
+   if count==1 then item=r.GetSelectedMediaItem(project,0)
+   else
+    local ta,tb=r.GetSet_LoopTimeRange2(project,false,false,0,0,false);local cur=r.GetCursorPositionEx(project)
+    local best,score,first_audio=nil,-1,nil
+    for i=0,count-1 do
+     local it=r.GetSelectedMediaItem(project,i);local tk=r.GetActiveTake(it)
+     if tk and not r.TakeIsMIDI(tk) then
+      first_audio=first_audio or it
+      local a=r.GetMediaItemInfo_Value(it,'D_POSITION');local b=a+r.GetMediaItemInfo_Value(it,'D_LENGTH')
+      local sc=-1
+      if tb-ta>1e-6 then sc=math.max(0,math.min(b,tb)-math.max(a,ta)) elseif cur>=a and cur<b then sc=1 end
+      if sc>score then best,score=it,sc end
+     end
+    end
+    item=(score>0 and best) or first_audio
+   end
+   assert(item,'An audio take is required')
+   local take=r.GetActiveTake(item);assert(take and not r.TakeIsMIDI(take),'An audio take is required')
    assert(r.GetTakeNumStretchMarkers(take)==0,'Stretch markers are not supported by this prototype')
    assert(r.GetMediaItemTakeInfo_Value(take,'D_PLAYRATE')==1,'Use a take with playback rate 1.0 for this prototype')
    assert(r.GetMediaItemTakeInfo_Value(take,'D_PITCH')==0,'Pitched takes are not supported by this prototype')
@@ -97,6 +117,8 @@ function M:analyze()
    -- Правки прошлого запуска скрипта (сессия REAPER): наши точки — не исходник. Под ними возвращаем то,
    -- что было до нас, а сами точки помечаем своими, чтобы следующая запись их заменила, а сброс снял.
    local saved=Session.load(r,guid)
+   -- после перезапуска REAPER сессии нет: какие точки наши — из компактной записи в тейке (click/own.lua)
+   if not (saved and type(saved.owned)=='table') then saved=Own.load(r,take,s.baseline,SE) end
    if saved and saved.path==s.path and type(saved.owned)=='table' then
     for ch,pts in pairs(saved.owned) do
      s.baseline.channels[ch]=s.baseline.channels[ch] or {}
@@ -200,6 +222,13 @@ function M:apply(restore)
    parsed=parsed or SE.parse(actual,s.guid);local owned={}
    for ch,pts in pairs(desired)do owned[ch]={};for idx in pairs(pts)do owned[ch][idx]=SE.get(parsed,ch,idx)end end
    s.expected,s.owned=actual,owned
+   -- запись «какие точки наши» в тейк: сброс после перезапуска REAPER снимет только их
+   local take=self.r.GetActiveTake(s.item)
+   if take then
+    local base={};for ch,pts in pairs(owned) do base[ch]={};local manual=s.baseline.channels[ch];for idx in pairs(pts) do base[ch][idx]=manual and manual[idx] or nil end end
+    local good=pcall(Own.save,self.r,take,s.path,owned,base)
+    if good then local yes,now=self.r.GetItemStateChunk(s.item,'',false);if yes then s.expected=now end end
+   end
    return count
   end)
   return count

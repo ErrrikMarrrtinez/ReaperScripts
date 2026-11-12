@@ -1,6 +1,6 @@
 @description Vocaligner native analyzers (C++)
 @author ErrrikMarrrtinez
-@version 1.0.0
+@version 1.0.2
 @about
   Optional C++ extension for Ruin Vocals (Vocaligner): parallel Classic Align and fast Pitch analysis.
   Ruin Vocals works without it (Lua / EEL engines); with it installed the C++ engines are used by default.

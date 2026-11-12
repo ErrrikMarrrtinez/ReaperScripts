@@ -31,7 +31,8 @@ function M.reference(e,track_guid,item_guid)
   local entries={}
   for _,entry in ipairs(row.items) do
     local guid=item_guid and e.r.GetSetMediaItemInfo_String and select(2,e.r.GetSetMediaItemInfo_String(entry.item,'GUID','',false))
-    if entry.state and entry.state.analysis and entry.item~=e.item and (not item_guid or guid==item_guid) then
+    -- на треке с fixed lanes референс — только играющие лейны (неиграющие тейки в компе не слышны)
+    if entry.state and entry.state.analysis and entry.item~=e.item and entry.plays~=false and (not item_guid or guid==item_guid) then
       local vis=Workspace.visual(e,entry,true)
       if vis and vis.data then entries[#entries+1]={pos=entry.pos,len=entry.len,data=vis.data} end
     end

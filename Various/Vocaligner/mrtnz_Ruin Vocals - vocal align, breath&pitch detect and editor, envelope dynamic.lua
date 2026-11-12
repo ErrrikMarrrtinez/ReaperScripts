@@ -1,6 +1,6 @@
 -- @description Ruin Vocals: vocal align, breath&pitch detect and editor, envelope dynamic
 -- @author mrtnz
--- @version 0.18.4
+-- @version 0.18.5
 -- @link Documentation https://github.com/ErrrikMarrrtinez/ReaperScripts/tree/master/Various/Vocaligner
 -- @about
 --   Vocal timing, take-volume cleanup and a vocal pitch editor in one ReaImGui window.
@@ -16,7 +16,13 @@
 --   analysis; restart REAPER afterwards. Without it everything runs on the Lua / EEL engines.
 --   For embedding, load init.lua with dofile.
 -- @changelog
---   Align: Add edge anchors now also removes stretch markers left outside a trimmed item, so such items can be selected as reference or dubs; the error message shows the marker positions
+--   Pitch: new Polyphonic (no edit) mode - chords, key, tempo and detected notes (needs the Vocaligner Native extension); chord lane with exports to regions, text track and MIDI; drag a chord into the project as a MIDI item; Analyze key... from the scale menu (from sung notes, instant); BPM pill sets the project tempo
+--   Pitch: ATune now applies to every selected analyzed item on any track, not only the open one (also Pitch menu - Apply ATune to selected items)
+--   Pitch: items on REAPER fixed lanes / free positioning are treated per lane; same-track items are fully drawn and a click on them activates and edits in one go; the playhead no longer steals the active item
+--   Pitch: Reset analysis, and Reset corrections now works for out-of-date analysis; Reanalyze keeps your corrections on items that were extended or glued; ReaPitch Formant envelope is only created after a formant edit
+--   Settings - Hotkeys: shortcuts can now be rebound (and reset)
+--   Projects are much smaller: Vocaligner data is compressed in one layer, unused analyses and duplicate bypass blocks are cleaned once per session, Pitch menu - Compact project data also removes inaudible sample edits; DeClick no longer stores its session in the project (analyze again after reopening; Reset removes only its own edits)
+--   Align: no error after applying when edited items overlap
 -- @provides
 --   [main=main] .
 --   [nomain] align_ui.lua
@@ -45,10 +51,13 @@
 --   [nomain] dtw.lua
 --   [nomain] eel.lua
 --   [nomain] envelope.lua
+--   [nomain] hotkeys.lua
 --   [nomain] init.lua
 --   [nomain] job.lua
 --   [nomain] navigator.lua
+--   [nomain] pack.lua
 --   [nomain] progress.lua
+--   [nomain] project_data.lua
 --   [nomain] session_cache.lua
 --   [nomain] THIRD_PARTY_NOTICES.txt
 --   [nomain] timing.lua
@@ -60,6 +69,7 @@
 --   [nomain] waveform.lua
 --   [effect] jsfx/Vocaligner Pitch Meter.jsfx > Vocaligner/Vocaligner Pitch Meter.jsfx
 --   [main=main] mrtnz_Ruin Vocals - Export Pitch Meter.lua
+--   [main=main] mrtnz_Ruin Vocals - Detect key and tempo.lua
 --   [nomain] align/*.lua
 --   [nomain] align/advanced/*.lua
 --   [nomain] align/hybrid/*.lua

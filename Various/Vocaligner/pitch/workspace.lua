@@ -6,6 +6,29 @@ local function track_of(r,project,item)
   if not valid(r,project,item) then return nil end
   return r.GetMediaItemTrack and r.GetMediaItemTrack(item) or r.GetMediaItem_Track and r.GetMediaItem_Track(item)
 end
+-- Лейн айтема по реальному API REAPER 7: fixed lanes (I_FREEMODE==2) — I_FIXEDLANE; free item positioning (I_FREEMODE==1) —
+-- подлейн по F_FREEMODE_Y/F_FREEMODE_H; обычный трек — 0. plays: играет ли лейн (C_LANEPLAYS; у обычного трека — всегда).
+-- Айтемы разных лейнов одного трека — это РАЗНЫЕ тейки одной фразы, а не последовательность одного голоса.
+local function lane_info(r,track,item)
+  local mode=r.GetMediaTrackInfo_Value and r.GetMediaTrackInfo_Value(track,'I_FREEMODE') or 0
+  if mode==2 then
+    local lane=r.GetMediaItemInfo_Value(item,'I_FIXEDLANE') or 0
+    local plays=r.GetMediaItemInfo_Value(item,'C_LANEPLAYS') or 1
+    return math.floor(lane+.5),plays~=0,mode
+  elseif mode==1 then
+    local y=r.GetMediaItemInfo_Value(item,'F_FREEMODE_Y') or 0;local h=r.GetMediaItemInfo_Value(item,'F_FREEMODE_H') or 1
+    return h>0 and math.floor(y/h+.5) or 0,true,mode
+  end
+  return 0,true,0
+end
+M.lane_info=lane_info
+-- лейн открытого айтема (для выбора «своих» айтемов: тот же трек И тот же лейн)
+function M.lane_of(e,item)
+  local entry=e.workspace and e.workspace.by_item[item or e.item];return entry and entry.lane or 0
+end
+function M.same_lane(e,entry)
+  return entry.track==e.track_row and (entry.lane or 0)==M.lane_of(e)
+end
 local function audio_take(r,project,item)
   if not valid(r,project,item) then return nil end
   local take=r.GetActiveTake(item)
@@ -38,6 +61,7 @@ function M.scan(e,project)
         local _,text=r.GetSetMediaItemTakeInfo_String(take,Store.key,'',false)
         local prior=old and old.by_item[item]
         entry.offs=r.GetMediaItemTakeInfo_Value(take,'D_STARTOFFS');entry.rate=r.GetMediaItemTakeInfo_Value(take,'D_PLAYRATE')
+        entry.lane,entry.plays,row.lane_mode=lane_info(r,track,item);if entry.lane>(row.max_lane or 0) then row.max_lane=entry.lane end
         if prior and prior.take==take and prior.text==text then entry.state=prior.state
           -- тот же звук и то же состояние: готовый призрак (декодированный анализ, ноты, силуэты) переживает пересканирование
           if prior.pos==entry.pos and prior.len==entry.len and prior.offs==entry.offs and prior.rate==entry.rate then
@@ -45,6 +69,12 @@ function M.scan(e,project)
           end
         elseif text and text~='' then local ok,state=pcall(Store.read,r,take);if ok then entry.state=state else entry.error=tostring(state) end end
         entry.text=text
+        -- Polyphonic-анализ (только подсветка-призрак; в ATune-референсы не попадает: там считается row.analyzed)
+        local _,ptext=r.GetSetMediaItemTakeInfo_String(take,'P_EXT:VocalignerPoly1','',false)
+        if ptext and ptext~='' then
+          entry.poly=true;entry.poly_text=ptext;row.poly=(row.poly or 0)+1
+          if prior and prior.poly_text==ptext then entry.poly_rec=prior.poly_rec end
+        end
         if entry.state and entry.state.analysis then row.analyzed=row.analyzed+1 end
         row.items[#row.items+1]=entry;ws.items[#ws.items+1]=entry;ws.by_item[item]=entry
       end
@@ -131,7 +161,7 @@ function M.activate_track(e,row)
   if e:busy() or e.gesture then return end
   local r=e.r;local project=r.EnumProjects(-1);local cursor=r.GetCursorPositionEx and r.GetCursorPositionEx(project) or 0
   local item=row.items[1] and row.items[1].item
-  for _,entry in ipairs(row.items)do if cursor>=entry.pos and cursor<entry.pos+entry.len then item=entry.item;break end end
+  for _,entry in ipairs(row.items)do if cursor>=entry.pos and cursor<entry.pos+entry.len and entry.plays~=false then item=entry.item;break end end
   e.focus_track=row.track;e.focus_project=project;e.focus_native=selection_key(r,project);e.focus_item=item
   e:refresh(true)
 end
@@ -140,7 +170,11 @@ function M.activate(e,item)
   local r=e.r;local project=r.EnumProjects(-1);if not valid(r,project,item) then return end
   e.focus_item=item;e.focus_project=project;local signature={}
   for i=0,r.CountSelectedMediaItems(project)-1 do signature[#signature+1]=tostring(r.GetSelectedMediaItem(project,i)) end
-  e.focus_selection=table.concat(signature,'|');e:refresh(true)
+  e.focus_selection=table.concat(signature,'|')
+  -- явный выбор айтема держится, пока не изменится выделение в REAPER: без этого при выделении на нескольких треках
+  -- выбор перебивался последним тронутым треком / айтемом под курсором
+  e.focus_track=track_of(r,project,item);e.focus_native=selection_key(r,project)
+  e:refresh(true)
 end
 function M.restore_focus(e,project,guid)
   local r=e.r;if not guid or r.EnumProjects(-1)~=project then return false end
@@ -182,7 +216,10 @@ function M.targets(e,track)
   -- Selection is prioritized; append selected tracks in REAPER order. Explicit
   -- track-only actions still use the focused editor track, not unrelated tracks.
   local function append_track(row)
-    if row then for _,v in ipairs(row.items)do add(v.item)end end
+    if not row then return end
+    -- на треке с лейнами «весь трек» = лейн открытого айтема, а не все лейны сразу
+    local lane=(row==e.track_row and (row.max_lane or 0)>0 and e.item) and M.lane_of(e) or nil
+    for _,v in ipairs(row.items)do if lane==nil or (v.lane or 0)==lane then add(v.item) end end
   end
   if track then append_track(e.track_row)
   elseif r.CountSelectedTracks and r.GetSelectedTrack and e.workspace then

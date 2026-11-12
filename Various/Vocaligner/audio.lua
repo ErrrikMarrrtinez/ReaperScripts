@@ -112,7 +112,10 @@ end
 -- Several consecutive items on one track act as one role (one timeline with
 -- silent gaps). The composite keeps the first item's handles for read-only
 -- inspection; every write path and every change check goes through `parts`.
-local function compose(parts,project)
+-- `strict` — проверка перекрытий только при выборе айтемов (capture_group). Повторное чтение уже собранной группы
+-- (Audio.current после выравнивания) её не делает: выравнивание само двигает края дублей, и перекрытие соседних
+-- частей может вырасти сверх лимита — это результат нашей же записи, а не стопка дублей.
+local function compose(parts,project,strict)
   table.sort(parts,function(a,b)return a.pos<b.pos end)
   local first,last=parts[1],parts[#parts]
   local s={composite=true,parts=parts,item=first.item,take=first.take,source=first.source,project=project,markers={},
@@ -129,7 +132,7 @@ local function compose(parts,project)
     -- plays it. A larger overlap looks like stacked takes, not a sequence.
     if owner and p.pos<reach-1e-9 then
       local amount=math.min(reach,p.pos+p.len)-p.pos;local shorter=math.min(owner.len,p.len)
-      if amount>math.min(2,shorter*.5)+1e-9 then
+      if strict and amount>math.min(2,shorter*.5)+1e-9 then
         error(string.format('Selected items on one track overlap by %.2f s (%s and %s), more than consecutive edits allow (half the shorter item, at most 2 s). Select one take per position, or turn off "Group items per track".',amount,owner.name,p.name),0)
       end
       overlap=overlap+amount
@@ -151,7 +154,7 @@ function M.capture_group(r,project,items,is_dub)
     if track and t~=track then error('Grouped items must be on one track: '..s.name,0)end;track=t
     if parts[1].channels~=s.channels then error('Grouped items must have the same channel count: '..s.name,0)end
   end
-  local s=compose(parts,project);s.track=track;return s
+  local s=compose(parts,project,true);s.track=track;return s
 end
 -- Read the same items again (a role whose geometry changed since capture).
 function M.recapture(r,s,is_dub)

@@ -1006,10 +1006,10 @@ local function edit_page(im,ctx,c,d,color,dis,x,y,aw,ah,wx,wy,ww,wh,round)
   Transport.draw(im,dl,tr,tx,g.px0,g.right,wy0,wy1)
   -- горячие клавиши ручного режима
   if data and v and im.IsWindowFocused(ctx,im.FocusedFlags_RootAndChildWindows) and not im.IsAnyItemActive(ctx) then
-    local mods=im.GetKeyMods(ctx)
-    if im.IsKeyPressed(ctx,im.Key_F,false) and mods==0 then v.start=LO;v.span=HI-LO;Transport.hold(d,c.r) end
-    if (mods&im.Mod_Ctrl)~=0 and im.IsKeyPressed(ctx,im.Key_Z,false) then c:edits_undo(d,(mods&im.Mod_Shift)~=0) end
-    if (mods&im.Mod_Ctrl)~=0 and im.IsKeyPressed(ctx,im.Key_Y,false) then c:edits_undo(d,true) end
+    local Hotkeys=import('hotkeys')
+    if Hotkeys.pressed(im,ctx,'deess_fit') then v.start=LO;v.span=HI-LO;Transport.hold(d,c.r) end
+    if Hotkeys.pressed(im,ctx,'deess_undo') then c:edits_undo(d,false) end
+    if Hotkeys.pressed(im,ctx,'deess_redo') or Hotkeys.pressed(im,ctx,'redo') then c:edits_undo(d,true) end
   end
   -- ввод
   if free and v then

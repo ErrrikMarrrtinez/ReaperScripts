@@ -61,6 +61,33 @@ function M.pack(w,job)
   for i=1,#base.lo do rows[i]=string.pack('<ff',base.lo[i],base.hi[i]);if job and i%2048==0 then job:checkpoint() end end
   return table.concat(rows)
 end
+-- Компактная волна для проекта: 8 бит на lo и на hi (корень амплитуды от пика: разрешение ~ -96 дБ от пика —
+-- для отрисовки с запасом), плоскости lo и hi раздельно — так их лучше сжимает LZ. Было 8 байт на миллисекунду, стало 2.
+function M.pack_q(w,job)
+  if not w then return nil end
+  local base=w.levels[1];local n=#base.lo;local peak=0
+  for i=1,n do local a,b=-base.lo[i],base.hi[i];if a>peak then peak=a end;if b>peak then peak=b end end
+  peak=math.max(peak,1e-9)
+  local char,floor,sqrt=string.char,math.floor,math.sqrt
+  local lo,hi={},{}
+  for i=1,n do
+    lo[i]=char(floor(255*sqrt(math.max(0,-base.lo[i])/peak)+.5));hi[i]=char(floor(255*sqrt(math.max(0,base.hi[i])/peak)+.5))
+    if job and i%4096==0 then job:checkpoint() end
+  end
+  return table.concat(lo)..table.concat(hi),peak
+end
+function M.unpack_q(bytes,peak,len,job)
+  if not bytes then return nil end
+  assert(type(bytes)=='string' and #bytes%2==0 and type(peak)=='number' and peak>0 and peak<1e6,'Invalid Pitch waveform')
+  local n=#bytes//2;assert(n<=600001 and n<=math.ceil(len*1000)+1,'Invalid Pitch waveform')
+  local w=M.new();local byte=string.byte;local k=peak/65025
+  for i=1,n do
+    if job and i%8192==0 then job:checkpoint() end
+    local a,b=byte(bytes,i),byte(bytes,n+i)
+    M.push(w,-a*a*k,b*b*k)
+  end
+  return w
+end
 function M.unpack(bytes,len,job)
   if not bytes then return nil end
   assert(type(bytes)=='string' and #bytes%8==0 and #bytes/8<=600001 and #bytes/8<=math.ceil(len*1000)+1,'Invalid Pitch waveform')

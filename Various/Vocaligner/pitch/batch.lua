@@ -12,7 +12,7 @@ local function capture(r,project,item,job)
   job:checkpoint(nil,'Checking audio source')
   return job:call(Analysis.capture,r,project,item)
 end
-local function inherited_notes(previous,s,data)
+local function inherited_notes(previous,s,data,fresh)
   -- Geometry is independent of the analysis processing fingerprint. A changed
   -- gain, stretch setting or take pitch may be deliberately reanalysed.
   local old=Notes.copy(previous.geometry)
@@ -21,7 +21,19 @@ local function inherited_notes(previous,s,data)
   end
   old.render_key=s.render_key
   local mapped,notes=Store.adapt({frames={},hop=data.hop,len=old.len,model=data.model},previous.notes,old,s)
-  if not mapped then return nil,'Item range changed. Use Reanalyze and reset corrections.' end
+  if not mapped then
+    -- айтем открыл звук за краями старого анализа (продлён, переклеен, сдвинут офсет): правки остаются на своих
+    -- местах в звуке, на новых участках — свежие ноты сегментации (только там, где старых нот нет)
+    local delta=(s.offset-old.offset)/s.rate
+    notes=Store.shift_notes(previous.notes,delta,s.len,data.hop,#data.frames)
+    local next_id=0;for _,n in ipairs(previous.notes)do next_id=math.max(next_id,n.id or 0,n.split_group or 0)end
+    for _,f in ipairs(fresh or {}) do
+      local free=true
+      for _,n in ipairs(notes) do if f.start<n.finish-1e-6 and f.finish>n.start+1e-6 then free=false;break end end
+      if free then next_id=next_id+1;local v=Notes.copy(f);v.id=next_id;notes[#notes+1]=v end
+    end
+    table.sort(notes,function(a,b)return a.start<b.start end)
+  end
   for _,n in ipairs(notes) do n.first=math.max(1,math.floor(n.start/data.hop)+1);n.last=math.min(#data.frames,math.ceil(n.finish/data.hop)) end
   return notes
 end
@@ -55,7 +67,7 @@ function M.start(e,mode,items)
           waveform_hop_ms=1,waveform_bins=#data.waveform.levels[1].lo}
         local state=Notes.copy(previous);local fx,reason=job:call(FX.owned,r,s,state);assert(not reason,reason)
         local retain=mode~='reset' and fx~=nil
-        if retain then notes,reason=inherited_notes(previous,s,data);assert(notes,reason) end
+        if retain then notes,reason=inherited_notes(previous,s,data,notes);assert(notes,reason) end
         stats.notes=#notes
         state.notes=notes;state.version=1;state.curve_version=retain and (previous.curve_version or 1) or 4
         state.scale={root=e.root,mode=e.scale,snap=e.snap};state.hold_ms=e.hold_ms

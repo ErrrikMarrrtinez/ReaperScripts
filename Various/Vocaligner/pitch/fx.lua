@@ -89,8 +89,10 @@ function M.rebind(r,s,state)
     local current=M.envelopes(r,s.take,fx);local shift=old.offset-s.offset;local same=true
     for _,p in ipairs({3,7}) do
       local a,b=state.fx_envelopes and state.fx_envelopes[p],current[p]
-      if not a or not b or not Envelope.equivalent(Envelope.shift(a.chunk,shift),b.chunk,s.len*s.rate,
-        Envelope.shift_points(a.points,shift),b.points) then same=false;break end
+      if a or b then -- нет ни там, ни там (Formant без правок) — совпадение
+        if not a or not b or not Envelope.equivalent(Envelope.shift(a.chunk,shift),b.chunk,s.len*s.rate,
+          Envelope.shift_points(a.points,shift),b.points) then same=false;break end
+      end
     end
     if same then state.fx_guid=r.TakeFX_GetFXGUID(s.take,fx);state.fx_fingerprint=M.fingerprint(r,s.take,fx);state.fx_static=M.fingerprint(r,s.take,fx,true);state.fx_envelopes=current;return true end
   end
@@ -103,8 +105,8 @@ function M.recheck(r,s,state,fx)
   local current=M.envelopes(r,s.take,fx);local names={[3]='Shift',[7]='Formant'}
   for _,p in ipairs({3,7}) do
     local a,b=state.fx_envelopes and state.fx_envelopes[p],current[p]
-    if not a or not b then return false,names[p]..' envelope was '..(b and 'added' or 'removed') end
-    if not Envelope.equivalent(a.chunk,b.chunk,s.len*s.rate,a.points,b.points) then
+    if (a or b) and (not a or not b) then return false,names[p]..' envelope was '..(b and 'added' or 'removed') end
+    if a and b and not Envelope.equivalent(a.chunk,b.chunk,s.len*s.rate,a.points,b.points) then
       return false,string.format('%s envelope: %d points saved, %d now',names[p],#a.points,#b.points)
     end
   end
@@ -201,7 +203,12 @@ function M.apply(r,s,state,prepared)
   local fx=M.ensure(r,s,state)
   local pitch=M.mapping(r,s.take,fx,3);local formant=M.mapping(r,s.take,fx,7)
   local pitch_write=envelope(r,s,fx,3,prepared.pitch,pitch)
-  local formant_write=envelope(r,s,fx,7,prepared.formant,formant)
+  -- Formant: пока нет ни одной правки форманты, огибающая не создаётся (в REAPER не появляется лишняя дорожка);
+  -- уже созданная пишется как обычно — в том числе обратно в ноль
+  local formant_write;local flat=true
+  for _,p in ipairs(prepared.formant) do if math.abs(p.value)>1e-6 then flat=false;break end end
+  if flat and not r.TakeFX_GetEnvelope(s.take,fx,7,false) then formant_write={inserted=0,deleted=0,total=0}
+  else formant_write=envelope(r,s,fx,7,prepared.formant,formant) end
   state.fx_fingerprint=M.fingerprint(r,s.take,fx)
   state.fx_static=M.fingerprint(r,s.take,fx,true);state.fx_envelopes=M.envelopes(r,s.take,fx)
   state.mapping={pitch=pitch,formant=formant}

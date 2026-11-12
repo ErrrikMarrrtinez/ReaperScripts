@@ -3,7 +3,7 @@
 -- с группами Artifacts / Dynamics, кастомные тултипы и модальное облачко Settings.
 -- Тот же контракт, что у ui.lua: draw(im, ctx, app) -> open. Оригинальный ui.lua не тронут.
 -- Новые страницы: Breath (ui2/breath.lua) и DeClick (ui2/declick.lua); остальные вкладки рисуются оригинальными телами.
-local import=...;local Settings=import('compressor/settings');local CompUI=import('compressor/ui')
+local import=...;local Settings=import('compressor/settings');local CompUI=import('compressor/ui');local Hotkeys=import('hotkeys')
 local CleanerUI=import('cleaner_ui');local AlignUI=import('align_ui');local PitchUI=import('pitch/ui');local Wave=import('waveform')
 local Breath=import('ui2/breath');local Declick=import('ui2/declick');local Dynamics=import('ui2/dynamics');local Master=import('ui2/master');local Pitch2=import('ui2/pitch');local Sampler=import('ui2/sampler')
 local root=debug.getinfo(1,'S').source:match([[^@(.+[\/])]])
@@ -539,6 +539,12 @@ local function settings_modal()
           if ImGui.IsItemHovered(ctx) then ImGui.SetTooltip(ctx,'While the view zooms or scrolls, ready note shapes and the curve are reused instead of rebuilt; full detail returns over a few frames after it stops. Keeps zooming smooth on long items and busy tracks.') end
           if fc then S.fast_motion=v;reaper.SetExtState('Vocaligner ui','fast_motion',v and '1' or '0',true) end
           _,v=ImGui.Checkbox(ctx,'Auto-scroll (with Aim)',S.autoscroll);S.autoscroll=v
+          do -- где живёт Polyphonic-анализ: в проекте (на тейке, по умолчанию) или только до закрытия REAPER
+            local Poly=import('pitch/poly');local on=Poly.store_in_project(app.r)
+            local pc,pv=ImGui.Checkbox(ctx,'Store polyphonic analysis in the project',on)
+            if ImGui.IsItemHovered(ctx) then ImGui.SetTooltip(ctx,'On: chords, key, tempo and detected notes are saved with the item in the project. Off: kept only until REAPER closes.') end
+            if pc then Poly.set_store_in_project(app.r,pv) end
+          end
           -- где стоит курсор при автоскролле: слева (22%), по центру (50%) или справа (78%)
           ImGui.TextDisabled(ctx,'Cursor position');ImGui.SameLine(ctx)
           if ImGui.RadioButton(ctx,'Left',S.scroll_pos==1) then S.scroll_pos=1 end
@@ -848,7 +854,7 @@ local function body(bx,by,bw,bh,flat)
   end
   if flat then ImGui.PopStyleVar(ctx);ImGui.PopStyleColor(ctx) end
   if ImGui.IsWindowFocused(ctx,ImGui.FocusedFlags_RootAndChildWindows) then
-    if ImGui.IsKeyPressed(ctx,ImGui.Key_Space,false) and (not ImGui.IsAnyItemActive(ctx) or ImGui.IsMouseDown(ctx,0)) then app.r.Main_OnCommandEx(40044,0,app.r.EnumProjects(-1)) end
+    if Hotkeys.pressed(ImGui,ctx,'play') and (not ImGui.IsAnyItemActive(ctx) or ImGui.IsMouseDown(ctx,0)) then app.r.Main_OnCommandEx(40044,0,app.r.EnumProjects(-1)) end
     if ImGui.IsKeyPressed(ctx,ImGui.Key_Escape,false) and not pop.open then
       if app.tab=='pitch' then if app.pitch:busy() or app.pitch.gesture then app.pitch:cancel() end elseif app.tab=='declick' then Declick.clear_range(app) else app.cleaner:clear_range() end
     end
@@ -967,19 +973,10 @@ end
 
 
 -- ===== окно «Hotkeys»: отдельное ImGui-окно в стиле основного (открывается из Settings) =====
-local HOTKEYS={
-  {'Tools',{{'1 … 6','Edit, Transition, Modulation, Curve, Split, Draw'},{'C','Toggle Edit / Curve'},{'S','Split the note at the cursor'},{'J','Join the note with the next one'}}},
-  {'De-ess manual edit',{{'F','Fit the whole item'},{'Drag up / down','Weaker / stronger reduction of one sibilant'},
-    {'Drag an edge','Change the sibilant length'},{'Right click','Turn a sibilant on / off'},{'Ctrl + drag','Draw the reduction of one sibilant'},
-    {'Double click','Reset the edits of a sibilant'},{'Ctrl+Z / Ctrl+Shift+Z','Undo / redo sibilant edits'}}},
-  {'View',{{'F','Focus: note centered, cursor at the autoscroll position; press again: fit everything'},
-    {'W','Edit cursor to the start of the time selection (or of the active take)'},{'Esc','Clear time selection, then note selection'},
-    {'Wheel','Zoom in / out around the cursor'},{'Shift / Alt + wheel','Scroll horizontally'},{'Ctrl + wheel','Vertical zoom'},
-    {'Middle drag','Pan'},{'Double click on ruler','Clear time selection'}}},
-  {'Edit',{{'Ctrl + A','Select all notes'},{'Ctrl + Z','Undo (with Shift: redo)'},{'Delete','Reset selected notes'},
-    {'↑ / ↓','Nudge selected notes (Alt: fine)'},{'Ctrl + C / Ctrl + V','Copy / paste the curve shape (Alt: relative)'},
-    {'Alt + drag','Bypass snap while dragging'},{'Shift + drag','Fine adjustment'},{'Right drag','Rectangle selection'}}},
-  {'Global',{{'Space','Play / stop'}}},
+local HOTKEYS_MOUSE={
+  {'Wheel','Zoom in / out around the cursor'},{'Shift / Alt + wheel','Scroll horizontally'},{'Ctrl + wheel','Vertical zoom'},
+  {'Middle drag','Pan'},{'Right drag','Rectangle selection'},{'Alt + drag','Bypass snap while dragging'},{'Shift + drag','Fine adjustment'},
+  {'Double click on ruler','Clear time selection'},{'Right click on ruler','Chord menu (with a Polyphonic analysis)'},
 }
 local function hotkeys_window()
   if not S.hotkeys_open then return end
@@ -1009,21 +1006,55 @@ local function hotkeys_window()
     ImGui.SetCursorScreenPos(ctx,wx+8,wy+TBH+8)
     ImGui.PushStyleColor(ctx,ImGui.Col_ChildBg,0);ImGui.PushStyleVar(ctx,ImGui.StyleVar_WindowPadding,12,6)
     if ImGui.BeginChild(ctx,'##hk_body',ww-16,wh-TBH-16,0,ImGui.WindowFlags_NoMove) then
-      for gi,group in ipairs(HOTKEYS) do
+      -- настраиваемые клавиши: клик по плашке — нажать новую комбинацию (Esc — отмена), ПКМ — убрать клавишу, двойной клик — по умолчанию
+      local rr=app.r
+      if S.hk_capture then
+        local b=Hotkeys.capture(ImGui,ctx)
+        if b then
+          if b.key=='Escape' and b.mods==0 then S.hk_capture=nil else Hotkeys.set(rr,S.hk_capture,b);S.hk_capture=nil end
+        end
+      end
+      local x0,y0=ImGui.GetCursorScreenPos(ctx);local cw=ww-16-24
+      do -- Reset all
+        local label='Reset all';local tw=ImGui.CalcTextSize(ctx,label)+20
+        ImGui.SetCursorScreenPos(ctx,x0+cw-tw,y0);ImGui.InvisibleButton(ctx,'##hk_reset_all',tw,22)
+        local hov=ImGui.IsItemHovered(ctx);local on=Hotkeys.changed(rr)>0
+        ImGui.DrawList_AddRectFilled(dl,x0+cw-tw,y0,x0+cw,y0+22,hov and on and 0x3A3A3AFF or PILL,7)
+        ImGui.DrawList_AddText(dl,x0+cw-tw+10,y0+4,on and 0xE6E6F0FF or 0x6A6A74FF,label)
+        if on and ImGui.IsItemClicked(ctx,0) then Hotkeys.reset(rr);S.hk_capture=nil end
+        ImGui.SetCursorScreenPos(ctx,x0,y0+30)
+      end
+      for gi,group in ipairs(Hotkeys.groups()) do
         if gi>1 then ImGui.Dummy(ctx,1,6) end
         ImGui.TextDisabled(ctx,group[1])
-        for _,row in ipairs(group[2]) do
-          local x,y=ImGui.GetCursorScreenPos(ctx)
-          local kw=ImGui.CalcTextSize(ctx,row[1])+16;local rh=ImGui.GetTextLineHeight(ctx)+8
-          ImGui.DrawList_AddRectFilled(dl,x,y,x+kw,y+rh,PILL,7)
-          ImGui.DrawList_AddText(dl,x+8,y+4,0xE6E6F0FF,row[1])
-          ImGui.SetCursorScreenPos(ctx,x+150,y+4)
-          ImGui.PushTextWrapPos(ctx,ImGui.GetCursorPosX(ctx)+ (ww-16-12-150-12))
-          ImGui.TextColored(ctx,0xB8B8C4FF,row[2])
-          ImGui.PopTextWrapPos(ctx)
-          local _,ey=ImGui.GetCursorScreenPos(ctx)
-          ImGui.SetCursorScreenPos(ctx,x,math.max(y+rh+4,ey+4))
+        for _,a in ipairs(group[2]) do
+          local id=a[1];local x,y=ImGui.GetCursorScreenPos(ctx);local rh=ImGui.GetTextLineHeight(ctx)+8
+          ImGui.DrawList_AddText(dl,x+2,y+4,0xB8B8C4FF,a[3])
+          local capturing=S.hk_capture==id
+          local text=capturing and 'Press keys…' or Hotkeys.label(rr,id)
+          if text=='none' then text='—' end
+          local kw=math.max(86,ImGui.CalcTextSize(ctx,text)+18);local kx=x+cw-kw
+          ImGui.SetCursorScreenPos(ctx,kx,y);ImGui.InvisibleButton(ctx,'##hk_'..id,kw,rh)
+          local hov=ImGui.IsItemHovered(ctx)
+          if hov then ImGui.SetMouseCursor(ctx,ImGui.MouseCursor_Hand) end
+          if ImGui.IsItemClicked(ctx,0) then
+            if ImGui.IsMouseDoubleClicked(ctx,0) then Hotkeys.reset(rr,id);S.hk_capture=nil else S.hk_capture=capturing and nil or id end
+          elseif ImGui.IsItemClicked(ctx,1) then Hotkeys.set(rr,id,nil);S.hk_capture=nil end
+          local changed=not Hotkeys.is_default(rr,id)
+          ImGui.DrawList_AddRectFilled(dl,kx,y,kx+kw,y+rh,capturing and 0xA9551EFF or (hov and 0x3A3A3AFF or PILL),7)
+          local tw=ImGui.CalcTextSize(ctx,text)
+          ImGui.DrawList_AddText(dl,kx+(kw-tw)/2,y+4,capturing and 0xFFFFFFFF or (changed and 0xF0B070FF or 0xE6E6F0FF),text)
+          ImGui.SetCursorScreenPos(ctx,x,y+rh+4)
         end
+      end
+      ImGui.Dummy(ctx,1,6);ImGui.TextDisabled(ctx,'Mouse')
+      for _,row in ipairs(HOTKEYS_MOUSE) do
+        local x,y=ImGui.GetCursorScreenPos(ctx);local rh=ImGui.GetTextLineHeight(ctx)+8
+        ImGui.DrawList_AddText(dl,x+2,y+4,0xB8B8C4FF,row[2])
+        local kw=ImGui.CalcTextSize(ctx,row[1])+18
+        ImGui.DrawList_AddRectFilled(dl,x+cw-kw,y,x+cw,y+rh,PILL,7)
+        ImGui.DrawList_AddText(dl,x+cw-kw+9,y+4,0x8A8A96FF,row[1])
+        ImGui.SetCursorScreenPos(ctx,x,y+rh+4)
       end
       ImGui.Dummy(ctx,0,0) -- после SetCursorScreenPos нужен элемент, иначе EndChild ругается на расширение границ
       ImGui.EndChild(ctx)

@@ -9,7 +9,47 @@ local function restore_after_failure(r,item,chunk,why)
   return why
 end
 function M.new(app)
-  return setmetatable({app=app,r=app.r,selected={},snap=false,root=0,scale=1,tool='notes',hold_ms=100,cache={},twins={},sync_on=app.r.GetExtState('Vocaligner ui','pitch_sync')~='0',message='Select audio items or a track, then Analyze.'},M)
+  return setmetatable({app=app,r=app.r,selected={},snap=false,root=0,scale=1,tool='notes',hold_ms=100,cache={},twins={},sync_on=app.r.GetExtState('Vocaligner ui','pitch_sync')~='0',message='Select audio items or a track, then Analyze.',
+    mode=app.r.GetExtState('Vocaligner Pitch View 1','mode')=='poly' and 'poly' or 'melodic'},M)
+end
+-- ===== режим анализа: Melodic (монофонический, правка) | Polyphonic (ноты-подсветка, аккорды, тональность, темп; только просмотр)
+local Poly=import('pitch/poly')
+function M:set_mode(mode)
+  mode=mode=='poly' and 'poly' or 'melodic'
+  if self:busy() or self.gesture then return end
+  local changed=mode~=self.mode
+  self.mode=mode;self.r.SetExtState('Vocaligner Pitch View 1','mode',mode,true);self.display=nil
+  -- выбор режима при выделенном аудио — сразу свежий анализ этих айтемов в новом режиме
+  if changed and not self.no_selection and self.r.CountSelectedMediaItems(self.r.EnumProjects(-1))>0 then self:analyze_mode() end
+end
+function M:analyze_mode(items)
+  if self.mode=='poly' then return Poly.start(self,items or Workspace.targets(self)) end
+  return self:analyze(nil,items)
+end
+-- нужен ли анализ выбранному айтему в текущем режиме (кнопка «Analyze selected» поверх редактора)
+function M:needs_analysis()
+  if self.no_selection or not self.snapshot then return false end
+  if self.mode=='poly' then return self.poly==nil end
+  return self.data==nil or self.stale==true
+end
+-- ===== тональность проекта: root/scale/snap/origin в данных проекта. origin 'manual' — выбрано руками и не
+-- переписывается анализом; 'detected' — взято из Polyphonic и меняется следующим анализом
+local VIEW='Vocaligner Pitch View 1'
+function M:project_scale(project)
+  local ok,v=self.r.GetProjExtState(project or self.project or 0,VIEW,'scale')
+  local root,scale,snap,origin=tostring(v):match('^(%d+),(%d+),(%d),(%a+)$')
+  if not root then return nil end
+  return {root=tonumber(root)%12,scale=math.max(1,math.min(#Scale.scales,tonumber(scale))),snap=snap=='1',origin=origin}
+end
+function M:save_project_scale(origin)
+  self.scale_origin=origin
+  self.r.SetProjExtState(self.project or 0,VIEW,'scale',string.format('%d,%d,%d,%s',self.root or 0,self.scale or 1,self.snap and 1 or 0,origin))
+end
+function M:apply_detected_key(rec)
+  if self.scale_origin=='manual' or not rec or not rec.keys or not rec.keys[1] then return end
+  local root,scale=Poly.key_scale(rec.keys[1]);if not root then return end
+  if root==self.root and scale==self.scale and self.scale_origin=='detected' then return end
+  self.root,self.scale=root,scale;self.auto_mask=nil;self:save_project_scale('detected')
 end
 function M:fail(why)
   self.error=tostring(why);self.message=self.error
@@ -98,7 +138,7 @@ function M:refresh(force)
   local item=Workspace.focus(self,project)
   if not item then
     self:cancel_gesture()
-    self.no_selection=true;self.project=project;self.item=nil;self.take=nil;self.snapshot=nil;self.data=nil;self.notes={};self.state=nil;self.selected={};self.view=nil;self.display=nil
+    self.no_selection=true;self.project=project;self.item=nil;self.take=nil;self.snapshot=nil;self.data=nil;self.notes={};self.state=nil;self.selected={};self.view=nil;self.display=nil;self.poly=nil
     self.partial=nil;self.prepared_cache=nil;self.contour_cache=nil;self.source_display=nil;self.glyphs=nil;self.saved_text=nil
     self.algorithm_value=nil;self.algorithm_error=nil;self.last_analysis=nil;self.last_analysis_id=nil
     self.error=nil;self.stale=nil;self.last_reported_error=nil;self.vocal_origin=nil
@@ -161,6 +201,10 @@ function M:refresh(force)
       self.message=s.name
     end
     if self.state.scale then self.root=self.state.scale.root;self.scale=self.state.scale.mode;self.snap=self.state.scale.snap==true end
+    -- тональность проекта главнее тональности тейка (одна подсветка/скейл на весь проект)
+    local ps=self:project_scale(project);if ps then self.root,self.scale,self.snap,self.scale_origin=ps.root,ps.scale,ps.snap,ps.origin else self.scale_origin=nil end
+    self.poly=Poly.load(r,take,s)
+    if self.poly then self:apply_detected_key(self.poly) end
     self.algorithm_error=nil
     if self.state.fx_guid then
       local fx=FX.find(r,take,self.state.fx_guid)
@@ -190,20 +234,24 @@ function M:analyze(mode,items)
   return import('pitch/batch').start(self,mode,items or Workspace.targets(self))
 end
 function M:activate(item)return Workspace.activate(self,item) end
-function M:reset_all(items,clear)
+-- «Reset analysis»: выбранные тейки забывают всё — Melodic-анализ, правки, ReaPitch и Polyphonic-анализ; дальше Analyze с нуля
+function M:reset_analysis(items) self:reset_all(items or Workspace.targets(self),true,true) end
+function M:reset_all(items,clear,poly)
   if self:busy() or self.gesture or self.no_selection then return end
   local r=self.r;local project=r.EnumProjects(-1);items=items or {self.item}
   self.job=Job.new(r,function(job)
     for i,item in ipairs(items) do
       job:call(function()
         local s=Analysis.capture(r,project,item);local state=Store.read(r,s.take)
-        if not state then return end
+        if not state and not (poly and Poly.has(r,s.take)) then return end
+        state=state or {notes={}}
         local ok,chunk=r.GetItemStateChunk(item,'',false);assert(ok,'Cannot snapshot Pitch reset')
         r.Undo_BeginBlock2(project);r.PreventUIRefresh(1)
         local success,why=xpcall(function()
           FX.remove(r,s,state)
           for _,n in ipairs(state.notes)do Expression.reset(n);n.formant=0 end
           Store.write(r,s.take,not clear and state or nil) -- clear: полный сброс, анализ item забывается
+          if poly then Poly.clear(r,s.take) end
         end,debug.traceback)
         if not success then why=restore_after_failure(r,item,chunk,why)end
         r.PreventUIRefresh(-1);r.Undo_EndBlock2(project,'Vocaligner: reset pitch corrections',-1);r.UpdateArrange();assert(success,why)
@@ -211,7 +259,7 @@ function M:reset_all(items,clear)
       job:checkpoint(i/#items,'Reset pitch corrections')
     end
   end,.008)
-  self.job.kind='reset';self.prepared_cache=nil;self.error=nil;if clear then self.view=nil;self.fit_pending=true end
+  self.job.kind='reset';self.prepared_cache=nil;self.error=nil;if poly then self.poly=nil;self.key_bpm=nil end;if clear then self.view=nil;self.fit_pending=true end
 end
 -- ===== связь копий =====
 -- Копия айтема (например, скопированный припев) несёт то же состояние и тот же анализ. Если связь включена, правки
@@ -443,10 +491,58 @@ function M:apply_auto_queue()
   self.state.auto=Auto.config(self.state)
   for field,value in pairs(q) do if value==false then value=nil end;self.state.auto[field]=value end
   self:auto_rebuild(true);self.display=nil
-  self:commit(before,'auto pitch')
+  self:commit(before,'auto pitch');self:queue_auto_batch()
+end
+-- ATune на остальные выделенные айтемы (любые треки): после записи открытого — те же настройки на каждый
+function M:queue_auto_batch()
+  if not self.job or not self.state then return end
+  local a=Auto.config(self.state);local items=import('pitch/auto_batch').targets(self,a)
+  if #items>0 then self.auto_batch_pending={items=items,a=a} end
+end
+function M:apply_auto_selected()
+  if self:busy() or not self.state then return end
+  local a=Auto.config(self.state);local AutoBatch=import('pitch/auto_batch')
+  local items=AutoBatch.targets(self,a)
+  if #items==0 then self.message='Select other analyzed items to apply ATune';return end
+  AutoBatch.start(self,items,a)
+end
+-- ===== данные скрипта в проекте =====
+-- Фон, один раз за сессию REAPER на проект: удалить неиспользуемые анализы и перепаковать старые значения (без Undo,
+-- айтемы не трогаются). Шаг — только пока редактор свободен; открытый айтем не перепаковывается.
+function M:compact_tick()
+  local PD=import('project_data')
+  if not self.compact_job then
+    if self.job or self.gesture or self.app.job then return end
+    local project=self.r.EnumProjects(-1);if not project or PD.done(self.r,project) then return end
+    PD.mark(self.r,project)
+    self.compact_job=Job.new(self.r,function(job) return PD.compact(self.r,project,job,{skip=function(item) return item==self.item end}) end,.004)
+    self.compact_job.project=project
+  end
+  if self:busy() or self.gesture then return end
+  local job=self.compact_job;job:step()
+  if job.done then
+    self.compact_job=nil
+    local st=job.result
+    if job.error then self.app:report('Project data compaction skipped: '..tostring(job.error))
+    elseif st and (st.removed>0 or st.repacked>0 or st.pool_removed>0) then self.app:report(PD.report(st)) end
+  end
+end
+-- Меню: то же сразу + убрать неслышимые правки сэмплов (вне звучащей части айтемов; одно действие Undo)
+function M:compact_project()
+  if self:busy() or self.gesture then return end
+  local PD=import('project_data');local project=self.r.EnumProjects(-1)
+  if self.compact_job then self.compact_job:cancel();self.compact_job=nil end
+  PD.mark(self.r,project)
+  self.job=Job.new(self.r,function(job)
+    local st=PD.compact(self.r,project,job:scope(0,.6,'Compacting project data'),{skip=function(item) return item==self.item end})
+    local tr=PD.trim_sample_edits(self.r,project,job:scope(.6,1,'Removing inaudible sample edits'),{margin=1})
+    return {st=st,tr=tr}
+  end,.008)
+  self.job.kind='compact'
 end
 function M:tick()
   if self.preload_job then self:preload() end
+  self:compact_tick()
   -- очередь применяется, как только редактор свободен: сразу после отпускания или, если отпускание не пришло, через 0.5 с тишины
   if self.auto_queue and not self:busy() and not self.auto_before and (self.auto_queue_final or self.r.time_precise()-(self.auto_queue_at or 0)>.5) then self:apply_auto_queue() end
   if self.auto_due and self.r.time_precise()>=self.auto_due then self.auto_due=nil;self:auto_rebuild();self.display=nil end
@@ -471,12 +567,22 @@ function M:tick()
         if (b.skipped or 0)>0 then self.message=self.message..string.format('; %d sources unavailable — Copy report',b.skipped) end
         if b.failed>0 then self.error=b.errors[1] end
       end
+      if job.auto_batch then
+        local b=job.auto_batch;self.message=string.format('ATune applied to %d more item%s%s',b.done,b.done==1 and '' or 's',#b.failed>0 and ('; '..#b.failed..' failed — Copy report') or '')
+        if #b.failed>0 then self.error=b.failed[1] end
+      end
+      if job.kind=='compact' and not job.error and job.result then
+        local PD=import('project_data');local x=job.result
+        self.message=PD.report(x.st)..(x.tr.items>0 and string.format(' Inaudible sample edits removed in %d item(s): %.1f MB.',x.tr.items,x.tr.bytes/1048576) or '')
+      end
       if job.kind=='export' and not job.error then self.last_case=job.result;self.message='Pitch case saved: '..job.result end
       if job.kind=='vocal_render' and not job.error then
         self.last_vocal=job.result;self.last_vocal.work_ms=job.work_ms;self.last_vocal.max_step_ms=job.max_step_ms
         self.message='Vocal render is the active take. Edit source returns to the original notes; Undo removes this take.'
       end
       if job.error then self:fail(job.error) end
+      local pend=self.auto_batch_pending;self.auto_batch_pending=nil
+      if pend and not job.error and not job.cancelled then import('pitch/auto_batch').start(self,pend.items,pend.a) end
     end
   elseif self.app.tab=='pitch' then self:refresh()
   else self:preload() end
@@ -484,6 +590,8 @@ end
 function M:diagnostics()
   local lines={'PITCH: '..(self.analysis_backend or (self.engine and self.engine.label) or 'not initialized'),self.message or ''}
   if self.native_fallback then lines[#lines+1]='C++ fallback: '..self.native_fallback end
+  lines[#lines+1]='Mode: '..(self.mode or 'melodic')..' | project key '..(self.scale_origin or 'per item')
+  if self.poly then local p=self.poly;lines[#lines+1]=string.format('Polyphonic: %d notes, %d chords, %.1f BPM (conf %.2f), key %s, tuning %+.1f c, %.0f ms native',#p.notes,#p.chords,p.bpm or 0,p.bpm_conf or 0,import('pitch/poly').key_name(p.keys[1]),p.tuning or 0,p.stats and p.stats.ms or 0) end
   lines[#lines+1]='Display: predicted source F0 + requested correction; yellow Check line = measured output when enabled.'
   if self.last_vocal then local v=self.last_vocal;lines[#lines+1]=string.format('Vocal render v%d: %d regions, %d source / %d output periods, %.0f ms work, %.1f ms max step; %s',v.version,v.regions,v.source_pulses,v.output_pulses,v.work_ms or 0,v.max_step_ms or 0,v.path)end
   if self.check_on then lines[#lines+1]=import('pitch/check').report(self) end
@@ -622,7 +730,7 @@ function M:set_auto(field,value,final)
       if value==nil then q[field]=false else q[field]=value end
       self.auto_queue_final=true;self.gesture=false
       if b then self.state=b;self.notes=b.notes;self.display=nil end
-    else self:commit(b,'auto pitch') end
+    else self:commit(b,'auto pitch');self:queue_auto_batch() end
   end
 end
 -- Pitch Meter (JSFX «Vocaligner Pitch Meter») на айтеме: вкл — добавить, если нет, и включить; выкл — отключить FX
@@ -662,6 +770,7 @@ function M:set_scale(root,mode,snap)
   if snap==nil then snap=self.snap end;snap=snap==true
   self.root,self.scale,self.snap=root,mode,snap
   self.auto_mask=nil -- новая тональность — разовая маска нот сбрасывается
+  self:save_project_scale('manual')
   if not self.data or self.stale or self.no_selection then return end
   local before=Notes.copy(self.state)
   self.state.scale={root=root,mode=mode,snap=snap}

@@ -6,9 +6,14 @@
 --   * Bypass выключен: «обработанное» возвращается. Если айтем меняли руками, пока bypass был включён, его не трогаем:
 --     обработку придётся сделать заново.
 -- Cleanup-огибающие, правки сэмплов DeClick, ReaPitch, тайминг Align — всё это часть chunk, отдельной логики на стадию нет.
+-- Хранение: chunk режется на текст и блоки правок сэмплов (<SPLS>); блоки уходят в общий пул проекта по хэшу
+-- содержимого ('b:<хэш>') — одинаковые (разрезанные айтемы несут одни и те же SPLS) лежат один раз. Остальное —
+-- сжатыми байтами одним слоем (pack.lua). Старые значения (экранированный текст) читаются как раньше.
+local import=...;local Pack=import('pack');local Codec=import('codec')
 local M={}
 local SECTION='VocalignerBypass'
-local LIMIT=1500000     -- не кладём в проект chunk больше ~1.5 МБ
+local LIMIT=16*1024*1024 -- chunk больше не кладём (с пулом и сжатием в проекте он занимает в разы меньше)
+local POOL_MIN=2048      -- блоки SPLS короче — прямо в значении
 M.busy=false
 
 local function esc(s) return (s:gsub('[\\\r\n]',{['\\']='\\\\',['\r']='\\r',['\n']='\\n'})) end
@@ -37,11 +42,70 @@ local function items(r,project,selected_only)
   end
   return out
 end
+local pool_text={}  -- ref -> текст блока (содержимое неизменно: ключ = хэш)
+local pool_known={} -- project -> {ref=true}: блок уже лежит в проекте
+local function pool_get(r,project,ref)
+  local t=pool_text[ref];if t then return t end
+  local ok,v=r.GetProjExtState(project,SECTION,'b:'..ref);assert(ok~=0 and v~='','Bypass data is incomplete (missing block)')
+  t=Pack.unwrap(v);assert(Pack.hash64(t)==ref,'Bypass data is damaged');pool_text[ref]=t;return t
+end
+-- значение из проекта -> chunk (новый формат или старый экранированный текст)
+function M.decode(r,project,raw)
+  if not Pack.is_wrapped(raw) then return unesc(raw) end
+  local v=Codec.decode(Pack.unwrap(raw));assert(type(v)=='table' and v.v==1 and type(v.parts)=='table','Invalid bypass data')
+  local out={}
+  for i,p in ipairs(v.parts) do out[i]=type(p)=='string' and p or pool_get(r,project,p.ref) end
+  return table.concat(out)
+end
+-- ссылки на пул в значении (для сборки мусора пула)
+function M.refs(raw,set)
+  if not Pack.is_wrapped(raw) then return set end
+  local ok,v=pcall(function() return Codec.decode(Pack.unwrap(raw)) end)
+  if ok and type(v)=='table' and type(v.parts)=='table' then for _,p in ipairs(v.parts) do if type(p)=='table' and p.ref then set[p.ref]=true end end end
+  return set
+end
+-- chunk -> части: текст и блоки <SPLS ...> ... > целыми строками
+function M.split(chunk)
+  local parts={};local pos=1
+  while true do
+    local s=chunk:find('<SPLS',pos,true);if not s then break end
+    local ls=s;while ls>1 and chunk:sub(ls-1,ls-1)~='\n' do ls=ls-1 end
+    local _,c=chunk:find('\n[ \t]*>[^\n]*',s)
+    if not c then break end
+    if ls>pos then parts[#parts+1]=chunk:sub(pos,ls-1) end
+    parts[#parts+1]={text=chunk:sub(ls,c)};pos=c+1
+  end
+  if pos<=#chunk then parts[#parts+1]=chunk:sub(pos) end
+  return parts
+end
+function M.encode(r,project,chunk)
+  local known=pool_known[project] or {};pool_known[project]=known
+  local parts={}
+  for _,p in ipairs(M.split(chunk)) do
+    if type(p)=='table' and #p.text>=POOL_MIN then
+      local ref=Pack.hash64(p.text)
+      if not known[ref] then
+        local ok,v=r.GetProjExtState(project,SECTION,'b:'..ref)
+        if ok==0 or v=='' then Pack.put_proj(r,project,SECTION,'b:'..ref,p.text) end
+        known[ref]=true;pool_text[ref]=p.text
+      end
+      parts[#parts+1]={ref=ref}
+    else
+      local t=type(p)=='table' and p.text or p
+      if type(parts[#parts])=='string' then parts[#parts]=parts[#parts]..t else parts[#parts+1]=t end
+    end
+  end
+  return Codec.encode({v=1,parts=parts})
+end
 local function get(r,project,key)
   local ok,value=r.GetProjExtState(project,SECTION,key)
-  if ok~=0 and value~='' then return unesc(value) end
+  if ok~=0 and value~='' then return M.decode(r,project,value) end
 end
-local function put(r,project,key,value) r.SetProjExtState(project,SECTION,key,value and esc(value) or '') end
+local function put(r,project,key,value)
+  if not value then r.SetProjExtState(project,SECTION,key,'');return end
+  Pack.put_proj(r,project,SECTION,key,M.encode(r,project,value))
+end
+M.get,M.put,M.SECTION=get,put,SECTION
 
 -- Запомнить оригинал выделенных айтемов, если он ещё не запомнен. Вызывается перед записью скрипта — а в редакторе
 -- высоты тона это каждая правка, поэтому уже известные айтемы пропускаются по таблице в памяти: без чтения
@@ -75,7 +139,7 @@ local function original_norm(r,project,guid)
   local ok,raw=r.GetProjExtState(project,SECTION,'o:'..guid)
   if ok==0 or raw=='' then orig_norm[guid]=nil;return nil end
   local c=orig_norm[guid]
-  if not c or c.raw~=raw then c={raw=raw,norm=norm(unesc(raw))};orig_norm[guid]=c end
+  if not c or c.raw~=raw then c={raw=raw,norm=norm(M.decode(r,project,raw))};orig_norm[guid]=c end
   return c.norm
 end
 function M.invalidate() status_cache={} end

@@ -1,5 +1,5 @@
 -- @noindex
-local import=...;local Codec=import('codec');local Notes=import('pitch/notes');local Wave=import('pitch/waveform');local M={}
+local import=...;local Codec=import('codec');local Pack=import('pack');local Notes=import('pitch/notes');local Wave=import('pitch/waveform');local M={}
 M.section='Vocaligner Pitch 1';M.key='P_EXT:VocalignerPitch1'
 local chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 local function validate_capture(records)
@@ -51,7 +51,9 @@ local function unpack_points(value)
   end
   return value
 end
-function M.encode(data,job)
+-- Новый формат: VC7-байты, сжатые и упакованные одним слоем (pack.lua). Старый (12-битный base64) читается как раньше.
+function M.encode(data,job) return Pack.wrap(Codec.encode(pack_points(data),job),job) end
+function M.encode_legacy(data,job)
   tables()
   local s=Codec.encode(pack_points(data),job);local out={};local n=#s;local full=n-n%3
   for i=1,full,3 do
@@ -66,6 +68,7 @@ function M.encode(data,job)
 end
 -- job (необязательно): проверка и распаковка кусками с job:checkpoint() — фоновая загрузка призраков (pitch/workspace)
 function M.decode(s,job)
+  if Pack.is_wrapped(s) then return unpack_points(Codec.decode(Pack.unwrap(s,job),job)) end
   assert(#s<=8*1024*1024 and #s%4==0,'Invalid Pitch project data')
   if job then
     for a=1,#s,131072 do assert(not s:sub(a,a+131071):find('[^%w+/=]'),'Invalid Pitch project data');job:checkpoint() end
@@ -157,8 +160,11 @@ function M.read(r,take)
   end
   return value,text
 end
+-- Значение тейка (любой ключ P_EXT) в новом формате, с проверкой чтением обратно
+function M.put_take(r,take,key,value,job) return Pack.put_take(r,take,key,Codec.encode(pack_points(value),job),job) end
 function M.write(r,take,value)
-  local text=value and M.encode(value) or ''
+  if value then return M.put_take(r,take,M.key,value) end
+  local text=''
   local ok=r.GetSetMediaItemTakeInfo_String(take,M.key,text,true)
   -- REAPER может вернуть false при очистке ключа пустой строкой: проверяем по факту, что значение пропало
   if not ok and value==nil then local _,now=r.GetSetMediaItemTakeInfo_String(take,M.key,'',false);ok=now=='' or now==nil end
@@ -175,20 +181,41 @@ function M.save_analysis(r,s,data,job)
     if job and i%256==0 then job:checkpoint() end
   end
   local key=s.pitch_key..'|'..data.model
-  local packed=M.encode({version=1,key=key,geometry=M.geometry(s),hop=data.hop,len=data.len,model=data.model,frames=table.concat(rows),waveform=Wave.pack(data.waveform,job)},job)
+  local wq,wpeak=Wave.pack_q(data.waveform,job)
+  local bytes=Codec.encode({version=1,key=key,geometry=M.geometry(s),hop=data.hop,len=data.len,model=data.model,frames=table.concat(rows),waveform_q=wq,wpeak=wpeak},job)
   -- Immutable by content, so project Undo may leave an unused analysis, never
   -- overwrite the one referenced by another item or an earlier edit state.
-  local id=M.hash(key)..'-'..M.hash(packed)
-  local write=function()assert(r.SetProjExtState(s.project,M.section,id,packed)>0,'Could not save Pitch analysis') end
+  local id=M.hash(key)..'-'..M.hash(bytes)
+  local text=Pack.wrap(bytes,job)
+  local write=function()
+    assert(r.SetProjExtState(s.project,M.section,id,text)>0,'Could not save Pitch analysis')
+    local _,back=r.GetProjExtState(s.project,M.section,id)
+    if back~=text then Pack._raw_ok(false);text=Pack.wrap(bytes,nil,true);r.SetProjExtState(s.project,M.section,id,text) end
+  end
   if job then job:call(write) else write() end
+  M.created(r,id)
   return id
+end
+-- Анализы, созданные в этой сессии REAPER: сборщик мусора их не трогает (Undo может вернуть ссылку на них).
+-- Список живёт в ExtState без сохранения на диск: переживает перезапуск скрипта, но не REAPER.
+local GC_SECTION='Vocaligner pitch gc'
+function M.created(r,id)
+  if not (r.GetExtState and r.SetExtState) then return end
+  local cur=r.GetExtState(GC_SECTION,'created')
+  if not cur:find(id,1,true) then r.SetExtState(GC_SECTION,'created',cur..id..',',false) end
+end
+function M.created_set(r)
+  local out={};if not r.GetExtState then return out end
+  for id in r.GetExtState(GC_SECTION,'created'):gmatch('[^,]+') do out[id:lower()]=true end
+  return out
 end
 function M.load_analysis(r,project,id,job)
   if not id then return nil end
   local ok,text=r.GetProjExtState(project,M.section,id);if ok==0 or text=='' then return nil end
   local v=M.decode(text,job);assert(v.version==1 and type(v.frames)=='string' and #v.frames%20==0,'Invalid Pitch analysis')
   assert(#v.frames/20<=40000 and v.hop==.016,'Unsupported Pitch analysis')
-  local data={frames={},hop=v.hop,len=v.len,model=v.model,waveform=Wave.unpack(v.waveform,v.len,job)}
+  local wave=v.waveform_q and Wave.unpack_q(v.waveform_q,v.wpeak,v.len,job) or Wave.unpack(v.waveform,v.len,job)
+  local data={frames={},hop=v.hop,len=v.len,model=v.model,waveform=wave}
   for at=1,#v.frames,20 do
     if job and at%20480==1 then job:checkpoint() end
     local p,c,db,lo,hi=string.unpack('<fffff',v.frames,at)
@@ -203,9 +230,13 @@ function M.adapt(data,notes,old,current)
   if delta<-.00001 or delta+current.len>old.len+.00001 then return nil,'The item exposes audio outside the saved analysis; analyze again.' end
   local out={frames={},hop=data.hop,len=current.len,model=data.model,_source=data,_offset=delta}
   for _,f in ipairs(data.frames) do if f.t>=delta-data.hop*.5 and f.t<delta+current.len then local v=Notes.copy(f);v.t=math.max(0,f.t-delta);out.frames[#out.frames+1]=v end end
+  return out,M.shift_notes(notes,delta,current.len,data.hop,#out.frames)
+end
+-- Ноты (со всеми правками) в новое время айтема: сдвиг на delta, обрезка по [0,len]; ноты вне диапазона отбрасываются
+function M.shift_notes(notes,delta,len,hop,nframes)
   local adapted={}
-  for _,n in ipairs(notes) do if n.finish>delta and n.start<delta+current.len then
-    local v=Notes.copy(n);v.start=math.max(0,n.start-delta);v.finish=math.min(current.len,n.finish-delta)
+  for _,n in ipairs(notes) do if n.finish>delta and n.start<delta+len then
+    local v=Notes.copy(n);v.start=math.max(0,n.start-delta);v.finish=math.min(len,n.finish-delta)
     for _,p in ipairs(v.anchors or {}) do p.t=p.t-delta end
     for _,p in ipairs(v.target_anchors or {})do p.t=p.t-delta end
     for _,q in ipairs(v.link and v.link.curve_notes or {})do q.start=q.start-delta;q.finish=q.finish-delta;for _,p in ipairs(q.points)do p.t=p.t-delta end end
@@ -213,9 +244,9 @@ function M.adapt(data,notes,old,current)
     for _,s in ipairs(v.drawings or {})do for _,q in ipairs(s.curve_notes or {})do q.start=q.start-delta;q.finish=q.finish-delta;for _,p in ipairs(q.points)do p.t=p.t-delta end end end
     for _,key in ipairs({'phase_origin','expression_start','expression_finish'}) do if v[key] then v[key]=v[key]-delta end end
     if v.auto_freeze then v.auto_freeze.t0=v.auto_freeze.t0-delta end
-    v.first=math.max(1,math.floor(v.start/data.hop)+1);v.last=math.min(#out.frames,math.ceil(v.finish/data.hop))
+    v.first=math.max(1,math.floor(v.start/hop)+1);v.last=math.min(nframes,math.ceil(v.finish/hop))
     adapted[#adapted+1]=v
   end end
-  return out,adapted
+  return adapted
 end
 return M

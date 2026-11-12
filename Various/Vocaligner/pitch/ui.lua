@@ -1,5 +1,5 @@
 -- @noindex
-local import=...;local Notes=import('pitch/notes');local Curve=import('pitch/curve');local Link=import('pitch/link');local FX=import('pitch/fx');local Scale=import('pitch/scale');local Expression=import('pitch/expression');local Progress=import('progress');local Contour=import('pitch/contour');local Draw=import('pitch/draw');local Wave=import('pitch/waveform');local Algorithm=import('pitch/algorithm');local Workspace=import('pitch/workspace');local Glyph=import('pitch/glyph');local Transport=import('transport');local Audio=import('audio');local Poly=import('pitch/polyline');local Analysis=import('pitch/analysis');local Check=import('pitch/check');local M={}
+local import=...;local Hotkeys=import('hotkeys');local Notes=import('pitch/notes');local Curve=import('pitch/curve');local Link=import('pitch/link');local FX=import('pitch/fx');local Scale=import('pitch/scale');local Expression=import('pitch/expression');local Progress=import('progress');local Contour=import('pitch/contour');local Draw=import('pitch/draw');local Wave=import('pitch/waveform');local Algorithm=import('pitch/algorithm');local Workspace=import('pitch/workspace');local Glyph=import('pitch/glyph');local Transport=import('transport');local Audio=import('audio');local Poly=import('pitch/polyline');local Analysis=import('pitch/analysis');local Check=import('pitch/check');local M={}
 local colors={bg=0x121212FF,black=0x151515FF,row=0x1F1F1EFF,row_scale=0x232323FF,line=0x161616FF,beat=0x2C2C2CFF,text=0xD6DBE5FF,muted=0x7E8695FF,
   blue=0x4269DFFF,purple=0x9D4EDCFF,selected=0xDC77E9FF,curve=0xF6F3FFFF,raw=0xAAAAAF60,accent=0x7FCCCBFF}
 local black={[1]=true,[3]=true,[6]=true,[8]=true,[10]=true}
@@ -16,6 +16,7 @@ local function fit_values(e,w,h,all)
   e.view_extent=nil
   local samples,total={},0;local ghost_lo,ghost_hi
   for _,n in ipairs(e.notes or {}) do local weight=n.finish-n.start;samples[#samples+1]={p=Scale.center(n)+(n.shift or 0),w=weight};total=total+weight end
+  if #samples==0 then for _,n in ipairs(e.poly_fit or {}) do samples[#samples+1]={p=n.p,w=n.e-n.s};total=total+(n.e-n.s) end end -- Polyphonic: по найденным нотам
   if #samples==0 then for _,f in ipairs(e.data and e.data.frames or {}) do if f.confidence>=.8 then samples[#samples+1]={p=f.pitch,w=1};total=total+1 end end end
   if e.workspace and not (e.state and e.state.bypassed) then
     for _,row in ipairs(e.workspace.tracks)do if row.visible and row~=e.track_row then
@@ -329,7 +330,8 @@ function M.canvas(im,ctx,e,w,h)
   local canvas_started=e.r.time_precise()
   local x,y=im.GetCursorScreenPos(ctx);local dl=im.GetWindowDrawList(ctx)
   w=math.max(180,w);h=math.max(140,h)
-  local keyw,ruler,overview,bar=42,26,21,12
+  local lane=e.poly_lane or 0 -- Polyphonic: полоса аккордов поверх линейки
+  local keyw,ruler,overview,bar=42,26+lane,21,12
   local gap=3 -- зазор между холстом и нижней полосой
   local left,right,top,bottom=x+keyw,x+w-bar,y+ruler,y+h-overview-gap
   local width,height=math.max(1,right-left),math.max(1,bottom-top)
@@ -412,7 +414,7 @@ function M.canvas(im,ctx,e,w,h)
   local function tx(t)return left+(t-v.start)/v.span*width end
   local function py(p)return top+(v.top-p)/v.rows*height end
   local function time(px)return v.start+(px-left)/width*v.span end
-  e.poly=e.poly or {};local pview=e.pview or {};e.pview=pview
+  e.plines=e.plines or {};local pview=e.pview or {};e.pview=pview
   -- тайм-селекшн проекта REAPER (общий с остальными вкладками): секунды от начала текущего item
   local ts_a,ts_b
   if e.snapshot then
@@ -422,7 +424,7 @@ function M.canvas(im,ctx,e,w,h)
   local mx,my=im.GetMousePos(ctx);local mt=time(mx)
   local mods=im.GetKeyMods(ctx);local shift=(mods&im.Mod_Shift)~=0;local ctrl=(mods&im.Mod_Ctrl)~=0;local alt=(mods&im.Mod_Alt)~=0
   im.InvisibleButton(ctx,'##pitch_canvas',w,h,im.ButtonFlags_MouseButtonLeft|im.ButtonFlags_MouseButtonRight|im.ButtonFlags_MouseButtonMiddle)
-  local hovered=im.IsItemHovered(ctx);local active=im.IsItemActive(ctx)
+  local hovered=im.IsItemHovered(ctx) and not e.block_click;local active=im.IsItemActive(ctx) -- block_click: мышь над закреплённой кнопкой поверх холста
   if e.drag then update_drag(e,mx,my,alt,shift) end
   local transport=Transport.read(e.r,e.project)
   -- Автоскролл как в FL: пока идёт воспроизведение, курсор держится на выбранной позиции ширины (слева 22% / центр / справа 78%; работает при включённом aim), вид едет вместе с ним.
@@ -544,7 +546,7 @@ function M.canvas(im,ctx,e,w,h)
       if xx>=left and xx<=right then
         im.DrawList_AddLine(dl,xx,top,xx,bottom,colors.beat,0.9+0.7*zoomf)
         im.DrawList_AddLine(dl,xx,top-6,xx,top,0x6A6A6AFF,1)
-        if g.label then small_text(im,dl,ctx,xx,y+(top-y)*.42,0xA8A8A8FF,g.label) end
+        if g.label then small_text(im,dl,ctx,xx,y+lane+(top-y-lane)*.42,0xA8A8A8FF,g.label) end
       end
     end end
     for _,g in ipairs(grid) do if g.kind~=1 then
@@ -560,10 +562,11 @@ function M.canvas(im,ctx,e,w,h)
       if xx>=left and xx<=right then
         im.DrawList_AddLine(dl,xx,top,xx,bottom,colors.beat,1)
         im.DrawList_AddLine(dl,xx,top-6,xx,top,0x6A6A6AFF,1)
-        small_text(im,dl,ctx,xx,y+(top-y)*.42,0xA8A8A8FF,string.format(v.span<4 and '%.2f' or '%.1f',t+(e.track_row and e.snapshot and e.snapshot.pos or 0)))
+        small_text(im,dl,ctx,xx,y+lane+(top-y-lane)*.42,0xA8A8A8FF,string.format(v.span<4 and '%.2f' or '%.1f',t+(e.track_row and e.snapshot and e.snapshot.pos or 0)))
       end
     end
   end
+  if e.poly_lane_draw then e.poly_lane_draw(im,dl,ctx,{tx=tx,time=time,left=left,right=right,y=y,lane=lane,top=top,hovered=hovered,mx=mx,my=my}) end
   local data=e.data or e.partial;local frames=data and data.frames or {}
   local peak=Wave.peak(data)
   im.DrawList_PushClipRect(dl,left,top,right,bottom,true)
@@ -600,8 +603,10 @@ function M.canvas(im,ctx,e,w,h)
   if not bypassed and e.workspace and e.snapshot then
     Workspace.pump(e) -- фоновая загрузка призраков соседних айтемов
     for _,row in ipairs(e.workspace.tracks)do
-      local same=row==e.track_row
-      if same or row.visible then for _,entry in ipairs(row.items)do if entry.item~=e.item then
+      local rowsame=row==e.track_row
+      if rowsame or row.visible then for _,entry in ipairs(row.items)do if entry.item~=e.item then
+        -- «свои» (полноцветные, кликабельные) — только айтемы ТОГО ЖЕ лейна; другие лейны трека (другие тейки) — бледный призрак
+        local same=rowsame and (entry.lane or 0)==Workspace.lane_of(e)
         local offset=entry.pos-e.snapshot.pos
         local gsh=(e.ghost_shift and e.ghost_shift[row.guid]) or 0 -- только отображение: сдвиг призрака на октаву
         local function gpy(p) return py(p+gsh) end
@@ -611,6 +616,18 @@ function M.canvas(im,ctx,e,w,h)
             im.DrawList_AddLine(dl,ax,top,bx,top,0x7FCCCB50,2)
             if bx-ax>60 then im.DrawList_AddText(dl,ax+4,top+3,0x7FCCCB90,entry.name) end
             if mx>=ax and mx<=bx and my>=top and my<=top+18 then workspace_hit=entry end
+          end
+          if entry.poly and not entry.state then
+            -- Polyphonic-призрак: найденные ноты другой дорожки бледными блоками (подсветка, не правка и не ATune)
+            if entry.poly_rec==nil then entry.poly_rec=import('pitch/poly').load(e.r,entry.take,nil) or false end
+            local rec=entry.poly_rec
+            if rec then
+              local half=clamp(height/v.rows*.30,2,12);local a0,a1=v.start-offset,v.start+v.span-offset
+              for _,n in ipairs(rec.notes) do if n.e>=a0 and n.s<=a1 then
+                local x1,x2=tx(offset+n.s),tx(offset+n.e);local yy=gpy(n.p)
+                if yy+half>=top and yy-half<=bottom then im.DrawList_AddRectFilled(dl,x1,yy-half,math.max(x1+2,x2),yy+half,same and 0x9AA6CC40 or 0xA8A0D030,3) end
+              end end
+            end
           end
           local visual=Workspace.visual(e,entry)
           if visual then
@@ -625,8 +642,12 @@ function M.canvas(im,ctx,e,w,h)
               local yy=gpy(Scale.center(n)+(n.shift or 0))
               if b>a and yy+half>=top and yy-half<=bottom then
                 local shape=Glyph.shape(visual.glyphs,n.id,visual.data,n.start,n.finish,v.start-offset,v.span,width,lite)
-                if gdense or nb-na<LOD.narrow then Glyph.rect(im,dl,shape,na,nb,yy,half,gfill,false,gline)
-                else Glyph.draw(im,dl,shape,gx,yy,half,gfill,false,gline,v.start-offset,v.start-offset+v.span,e.r,vstamp) end
+                -- айтемы своего трека — целиком, в цветах нот (чуть тише активного); клик по ноте делает айтем активным,
+                -- и он рисуется поверх. Другие дорожки — прежняя бледная подсветка
+                local fill,line=gfill,gline
+                if same then fill=Glyph.color(Scale.center(n)+(n.shift or 0),false,0xA8);line=nil end
+                if gdense or nb-na<LOD.narrow then Glyph.rect(im,dl,shape,na,nb,yy,half,fill,false,line)
+                else Glyph.draw(im,dl,shape,gx,yy,half,fill,false,line,v.start-offset,v.start-offset+v.span,e.r,vstamp) end
                 if same and mx>=a and mx<=b and math.abs(my-yy)<=half+3 then workspace_hit=entry end
               end
             end
@@ -643,7 +664,7 @@ function M.canvas(im,ctx,e,w,h)
                 c=Contour.build(visual.data,visual.notes,visual.version,qs,qspan,qw,v.rows/height*3,c);visual.contour=c
               else c=Contour.build(visual.data,visual.notes,visual.version,bs,bspan,bw,v.rows/height,c);visual.contour=c end
             end
-            if not Poly.stroke(im,dl,e.r,e.poly,tostring(entry)..':'..gsh,c,pview,offset,'pitch',gx,gpy,same and 0xA9BCEB85 or 0xB9A5E570,1,1) then
+            if not Poly.stroke(im,dl,e.r,e.plines,tostring(entry)..':'..gsh,c,pview,offset,'pitch',gx,gpy,same and 0xE6E6F0A0 or 0xB9A5E570,1,1) then
               local previous
               for _,p in ipairs(c)do
                 if p.run and previous and previous.run==p.run then
@@ -674,7 +695,7 @@ function M.canvas(im,ctx,e,w,h)
       end
     end
     original.source=Contour.source(e.data,v.start,v.span,width,original.source)
-    if not Poly.stroke(im,dl,e.r,e.poly,'original',original.source,pview,0,'raw',tx,py,0xCCD6E3B0,1.2,1.2) then
+    if not Poly.stroke(im,dl,e.r,e.plines,'original',original.source,pview,0,'raw',tx,py,0xCCD6E3B0,1.2,1.2) then
       local prior
       for _,p in ipairs(original.source)do
         if p.run and prior and prior.run==p.run then im.DrawList_AddLine(dl,tx(prior.t),py(prior.raw),tx(p.t),py(p.raw),0xCCD6E3B0,1.2)end
@@ -682,6 +703,7 @@ function M.canvas(im,ctx,e,w,h)
       end
     end
   else e.original_ghost=nil end
+  if e.poly_draw then e.poly_draw(im,dl,ctx,{tx=tx,py=py,left=left,right=right,top=top,bottom=bottom,v=v,width=width,height=height}) end
   local anim_now=e.r.time_precise()
   e.glyphs=e.glyphs or {};local glyph_used={};local badge;local last_label_right=-1e9;local hi_y,lo_y
   local hit,index,transition,boundary,anchor_hit
@@ -807,7 +829,7 @@ function M.canvas(im,ctx,e,w,h)
   end
   if e.show_source and data and not bypassed then
     e.source_display=Contour.source(data,v.start,v.span,width,e.source_display)
-    if not Poly.stroke(im,dl,e.r,e.poly,'source',e.source_display,pview,0,'raw',tx,py,0xAAAAAF48,1,1) then
+    if not Poly.stroke(im,dl,e.r,e.plines,'source',e.source_display,pview,0,'raw',tx,py,0xAAAAAF48,1,1) then
       local prior
       for _,p in ipairs(e.source_display)do
         if p.run and prior and prior.run==p.run then im.DrawList_AddLine(dl,tx(prior.t),py(prior.raw),tx(p.t),py(p.raw),0xAAAAAF48,1) end
@@ -815,7 +837,7 @@ function M.canvas(im,ctx,e,w,h)
       end
     end
   end
-  if not (display and Poly.stroke(im,dl,e.r,e.poly,'display',display,pview,0,'pitch',tx,py,bypassed and 0xF6F3FF65 or colors.curve,1.6,1.2)) then
+  if not (display and Poly.stroke(im,dl,e.r,e.plines,'display',display,pview,0,'pitch',tx,py,bypassed and 0xF6F3FF65 or colors.curve,1.6,1.2)) then
     local previous
     for _,p in ipairs(display or {}) do
       if p.run and previous and previous.run==p.run then
@@ -921,11 +943,13 @@ function M.canvas(im,ctx,e,w,h)
     if cb>ca then
       im.DrawList_AddRectFilled(dl,ca,top,cb,bottom,0x5AA9FF08)
       im.DrawList_AddRectFilled(dl,ca,y+1,cb,top,0x5AA9FF40)
-      im.DrawList_AddRectFilled(dl,ca,y+4,cb,y+6,0x8EC3FFFF,1) -- верхняя соединительная линия между ручками
+      -- верхняя соединительная линия между ручками; при полосе аккордов — над ней (верхние 5 px полосы свободны)
+      local ly=lane>0 and y+1 or y+4
+      im.DrawList_AddRectFilled(dl,ca,ly,cb,ly+2,0x8EC3FFFF,1)
     end
     for _,xx in ipairs({ax,bx}) do if xx>=left-4 and xx<=right+4 then
       im.DrawList_AddLine(dl,xx,y+1,xx,bottom,0x8EC3FFC0,1.5)
-      im.DrawList_AddRectFilled(dl,xx-3.5,y+4,xx+3.5,top-3,0x8EC3FFFF,3)
+      im.DrawList_AddRectFilled(dl,xx-3.5,lane>0 and y+1 or y+4,xx+3.5,top-3,0x8EC3FFFF,3)
     end end
     im.DrawList_PopClipRect(dl)
   end
@@ -1002,12 +1026,18 @@ function M.canvas(im,ctx,e,w,h)
       else local anchor=w.start+(mx-left)/width*w.span;w.span=clamp(w.span*math.exp(-wheel*.2),.15,maxlen);w.start=clamp(anchor-(mx-left)/width*w.span,lower,math.max(lower,upper-w.span)) end
       if smooth then v.tgt=w;v.last={v.start,v.span,v.top,v.rows} end
     end
+    -- клик по ноте соседнего айтема трека: он активируется, и тот же клик (кнопка ещё зажата) продолжается
+    -- правкой уже в нём — без второго клика
+    local replay=e.replay_click
+    if replay and (not im.IsMouseDown(ctx,0) or e.r.time_precise()-replay.at>1) then e.replay_click=nil;replay=nil end
+    if replay and e.item==replay.item and not e.drag and not e:busy() then e.replay_click=nil else replay=nil end
+    if replay and not (hit or anchor_hit or boundary or transition) then replay=nil end
     if im.IsMouseClicked(ctx,1) and mx>=left and mx<right and my>=top and my<bottom then
       e.drag={kind='select',button=1,x=mx,y=my,time=mt,pitch=v.top-(my-top)/height*v.rows,
         seconds=v.span/width,semitones=v.rows/height,pitch_padding=clamp(height/v.rows*.332,5.8,30)*v.rows/height,
         selected=(ctrl or shift) and Notes.copy(e.selected) or {}}
     elseif im.IsMouseClicked(ctx,2) then e.drag={kind='pan',button=2,x=mx,y=my,start=v.start,top=v.top,seconds=v.span/width,semitones=v.rows/height}
-    elseif im.IsMouseClicked(ctx,0) then
+    elseif (im.IsMouseClicked(ctx,0) or replay) and not (e.chord_press and e.chord_press.fresh) then
       if mx<left and my<top then
         if M.options.ghost_button then e.ghost_toggle=true
         else local center=v.top-v.rows*.5;v.rows=clamp(v.rows*(mx<x+23 and .8 or 1.25),3,100);v.top=center+v.rows*.5 end
@@ -1086,7 +1116,7 @@ function M.canvas(im,ctx,e,w,h)
           if e.tool=='curve' then value=Curve.anchor(n,at) end
           if before then e.drag={kind=e.tool,before=before,note=n.id,center=n.center+n.shift,x=mx,y=my,time=at,value=value,rate=n.vibrato_rate or 5.5,anchor=anchor_hit and anchor_hit.index,target_anchor=anchor_hit and anchor_hit.target,target=(raw_at(e,at) or n.center)+Curve.at(before and before.notes or e.notes,at,'shift',before and before.curve_version or 3,e.data),base=Notes.copy(e.notes),semitones=v.rows/height,seconds=v.span/width} end
         end
-      elseif workspace_hit and e.activate then e:activate(workspace_hit.item)
+      elseif workspace_hit and e.activate and not replay then e:activate(workspace_hit.item);e.replay_click={item=workspace_hit.item,at=e.r.time_precise()}
       elseif ctrl then
         e.drag={kind='select',button=0,x=mx,y=my,time=mt,pitch=v.top-(my-top)/height*v.rows,seconds=v.span/width,semitones=v.rows/height,selected=Notes.copy(e.selected)}
       else
@@ -1095,8 +1125,8 @@ function M.canvas(im,ctx,e,w,h)
         e.drag={kind='pan',button=0,x=mx,y=my,start=v.start,top=v.top,seconds=v.span/width,semitones=v.rows/height}
       end
     end
-    if im.IsKeyPressed(ctx,im.Key_S,false) and not ctrl then e:split(mt) end
-    if im.IsKeyPressed(ctx,im.Key_F,false) and not ctrl and not alt and e.data and e.snapshot then
+    if Hotkeys.pressed(im,ctx,'split') then e:split(mt) end
+    if Hotkeys.pressed(im,ctx,'fit') and e.data and e.snapshot then
       -- F: первый раз — как постоянный aim (нота по центру, курсор на позиции автоскролла), второй — fit (всё целиком)
       if not e.f_state then
         if focus_view(e,v,transport,lower,upper,M.options.smooth,height) then e.f_state='focus' end
@@ -1106,7 +1136,7 @@ function M.canvas(im,ctx,e,w,h)
         e.f_state=nil
       end
     end
-    if im.IsKeyPressed(ctx,im.Key_J,false) and index then e:join(index) end
+    if Hotkeys.pressed(im,ctx,'join') and index then e:join(index) end
   end
   if e.drag then
     local began=e.r.time_precise()
@@ -1322,15 +1352,15 @@ function M.draw(im,ctx,app)
   elseif error then im.TextWrapped(ctx,error..' · Report...') end
   local cw,ch=im.GetContentRegionAvail(ctx);M.canvas(im,ctx,e,cw,ch)
   if im.IsWindowFocused(ctx,im.FocusedFlags_RootAndChildWindows) and not im.IsAnyItemActive(ctx) and not e:busy() then
-    local mods=im.GetKeyMods(ctx);local ctrl=(mods&im.Mod_Ctrl)~=0;local alt=(mods&im.Mod_Alt)~=0
-    if ctrl and im.IsKeyPressed(ctx,im.Key_Z,false) then e:undo((mods&im.Mod_Shift)~=0) end
-    if ctrl and im.IsKeyPressed(ctx,im.Key_A,false) then for _,n in ipairs(e.notes or {}) do e.selected[n.id]=true end end
-    if im.IsKeyPressed(ctx,im.Key_Delete,false) then e:reset_selected() end
-    if ctrl and im.IsKeyPressed(ctx,im.Key_C,false) then e:copy_shape()
-    elseif im.IsKeyPressed(ctx,im.Key_C,false) then e.tool=e.tool=='notes' and 'curve' or 'notes' end
-    if ctrl and im.IsKeyPressed(ctx,im.Key_V,false) then e:paste_shape(alt) end
-    if im.IsKeyPressed(ctx,im.Key_UpArrow,false) then e:nudge(1,alt) end
-    if im.IsKeyPressed(ctx,im.Key_DownArrow,false) then e:nudge(-1,alt) end
+    local alt=Hotkeys.alt(im,ctx)
+    if Hotkeys.pressed(im,ctx,'undo') then e:undo(false) elseif Hotkeys.pressed(im,ctx,'redo') then e:undo(true) end
+    if Hotkeys.pressed(im,ctx,'select_all') then for _,n in ipairs(e.notes or {}) do e.selected[n.id]=true end end
+    if Hotkeys.pressed(im,ctx,'reset_notes') then e:reset_selected() end
+    if Hotkeys.pressed(im,ctx,'copy_shape') then e:copy_shape()
+    elseif Hotkeys.pressed(im,ctx,'tool_toggle') then e.tool=e.tool=='notes' and 'curve' or 'notes' end
+    if Hotkeys.pressed(im,ctx,'paste_shape') then e:paste_shape(alt) end
+    if Hotkeys.pressed(im,ctx,'nudge_up') then e:nudge(1,alt) end
+    if Hotkeys.pressed(im,ctx,'nudge_down') then e:nudge(-1,alt) end
   end
 end
 return M
