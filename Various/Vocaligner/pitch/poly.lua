@@ -85,7 +85,8 @@ end
 local Handle={};Handle.__index=Handle
 Handle.__gc=function(h)if not h.released then h.released=true;pcall(h.r.VN_PolyRelease,h.id)end end
 function Handle:release()if not self.released then self.released=true;self.r.VN_PolyRelease(self.id)end end
-function M.analyze_item(r,project,item,job,label)
+-- range (необязательно) — {a,b} в секундах проекта: только этот кусок айтема (темп по фрагменту); запись не сохраняется
+function M.analyze_item(r,project,item,job,label,range)
   local s=Audio.state(r,project,item)
   s.channels=r.GetMediaSourceNumChannels(s.source)
   if s.len<.1 or s.rate<=0 then error('The item is too short to analyze: '..s.name,0) end
@@ -97,7 +98,9 @@ function M.analyze_item(r,project,item,job,label)
   if math.abs(a0)>1e-4 then error('Unexpected take accessor time origin: '..s.name,0) end
   if math.abs(s.rate-1)>1e-6 and math.abs(a1-s.len*s.rate)<1e-4 and math.abs(a1-s.len)>1e-4 then scale=s.rate end
   local read_rate=math.floor(SR/scale+.5);local sr=read_rate*scale
-  local total=math.ceil(s.len*sr);local ch=s.channels;local block=math.min(65536,math.floor(131072/ch))
+  local t0,t1=0,s.len
+  if range then t0=math.max(0,range[1]-s.pos);t1=math.min(s.len,range[2]-s.pos);if t1-t0<3 then error('Select at least 3 seconds of the item to detect its tempo',0) end end
+  local total=math.ceil((t1-t0)*sr);local ch=s.channels;local block=math.min(65536,math.floor(131072/ch))
   local h=job:call(function()
     local id=r.VN_PolyCreate(r.new_array({22050,ch,total}));if not id or id<=0 then error(r.VN_PolyError(0),0) end
     return setmetatable({r=r,id=id},Handle)
@@ -108,7 +111,7 @@ function M.analyze_item(r,project,item,job,label)
     local count=math.min(block,total-at)
     job:call(function()
       buffer.clear()
-      local st=r.GetAudioAccessorSamples(aa,read_rate,ch,at/sr*scale,count,buffer)
+      local st=r.GetAudioAccessorSamples(aa,read_rate,ch,(t0+at/sr)*scale,count,buffer)
       if type(st)=='number' and st<0 then error('Audio read failed for '..s.name,0) end
       if r.VN_PolyAppend(h.id,buffer,count)~=1 then error(tostring(r.VN_PolyError(0))..' ('..s.name..')',0) end
     end)

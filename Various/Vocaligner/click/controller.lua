@@ -7,22 +7,23 @@ function M.new(r,engine,fft,repair)
  local cfg={};for k,v in pairs(import('click/settings').defaults)do cfg[k]=v end
  return setmetatable({r=r,engine=engine,fft=fft,repair=repair,cfg=cfg,mode='click',events={},message='Select one audio item and analyze.',excluded={}},M)
 end
-function M:cancel()if self.job then self.job:cancel();self.job=nil end end
+function M:cancel()if self.job then self.job:cancel();self.job=nil;self.loading=nil end end
 function M:launch(fn,done,operation)
- self:cancel();self.error=nil
+ self:cancel();self.error=nil;self.loading=nil
  self.recent_diagnostics=self.recent_diagnostics or {}
  if self.diag then table.insert(self.recent_diagnostics,self.diag:summary());if #self.recent_diagnostics>3 then table.remove(self.recent_diagnostics,1)end end
- self.diag=Diagnostics.new(self.r,operation or 'preview');self.diag:mark('start');self.job=Job.new(self.r,fn,self.budget or .025);self.finished=done
+ self.operation=operation or 'preview';self.diag=Diagnostics.new(self.r,operation or 'preview');self.diag:mark('start');self.job=Job.new(self.r,fn,self.budget or .025);self.finished=done
 end
 function M:fail(why)
- self.after_restore=nil
+ self.after_restore=nil;self.loading=nil
  self.error=tostring(why);self.message='Operation stopped; see error below.'
  if self.diag then self.diag:save(self.error)end
  self.last_failure=self.diag and self.diag:summary() or self.error
  if self.r.ShowConsoleMsg then self.r.ShowConsoleMsg(self:diagnostics()..'\n')end
 end
 function M:diagnostics()
- local lines={('DECLICK mode=%s ready=%s candidates=%d skipped=%d'):format(self.mode,tostring(self.ready),#self.events,self.skipped or 0)}
+ local lines={('DECLICK mode=%s ready=%s candidates=%d skipped=%d backend=%s'):format(self.mode,tostring(self.ready),#self.events,self.skipped or 0,
+  self.engine and self.engine.native and ((self.s and self.s.nio) and 'C++ (file reader + features)' or 'C++') or 'EEL/Lua')}
  if self.s then lines[#lines+1]=('source=%s | rate=%d channels=%d offset_samples=%d frames=%d'):format(self.s.path,self.s.sr,self.s.channels,self.s.first,self.s.count)end
  for _,control in ipairs(import('click/settings').controls[self.mode])do lines[#lines+1]=control[1]..'='..tostring(self.cfg[control[1]])end
  for _,summary in ipairs(self.recent_diagnostics or {})do lines[#lines+1]=summary end
@@ -47,9 +48,13 @@ function M:tick()
  end
 end
 function M:request()
+ -- Идёт анализ источника (долгое чтение файла): правки слайдеров его не прерывают — превью строится по его окончании
+ -- (finished зовёт request), с настройками на тот момент.
+ if self.job and self.operation=='analyze' then return end
  self:cancel();self.ready=false;self.pending=self.r.time_precise()+.15
 end
 local function readpcm(pcm,first,count)
+ if pcm.read then return pcm.read(first,count) end -- C++: окно читается из файла по запросу
  local out={};local last=first+count
  local index=math.floor(first/pcm.block_size)+1
  while first<last do
@@ -76,6 +81,25 @@ function M:reset_and_analyze()
   self.after_restore=function() self:analyze() end
   self:apply(true)
  else self:analyze() end
+end
+-- Освободить всё, что источник держит в C++ (ручка признаков = файл + пики + хеши, оценки Click). Повторный вызов безвреден.
+-- Вызывается при замене анализа: иначе ручки висели бы до сборщика мусора (много маленьких файлов подряд).
+local function release_source(s)
+ if not s then return end
+ for _,cached in pairs(s.scores or {}) do
+  local v=cached and cached.value;if type(v)=='table' and type(v.handle)=='table' and v.handle.release then pcall(v.handle.release,v.handle) end
+ end
+ if s.nio then pcall(s.nio.release,s.nio) end
+ if s.data and type(s.data)=='table' then local h=rawget(s.data,'handle');if type(h)=='table' and h.release then pcall(h.release,h) end end
+end
+M.release_source=release_source
+-- Плоский список правок SAMPLEEDITS окна анализа для C++: {канал, кадр файла, значение, ...}
+local function native_edits(s,channels)
+ local out={};local last=s.first+s.count
+ for ch,pts in pairs(s.baseline.channels) do
+  if ch<channels then for idx,v in pairs(pts) do if idx>=s.first and idx<last then out[#out+1]=ch;out[#out+1]=idx;out[#out+1]=v end end end
+ end
+ return out
 end
 function M:analyze()
  self.pending=nil;self.ready=false
@@ -129,7 +153,13 @@ function M:analyze()
    end
    return s
   end)
-  self.diag:mark('read source WAV');local w=Wave.open(s.path);job.resources[w]=Wave.close
+  -- C++ читает файл сам (WAV разбирается и декодируется в рабочих потоках, пики обзора и хеш исходника — там же);
+  -- нет API / файл не открылся — прежнее Lua-чтение с теми же проверками и сообщениями.
+  local native=self.engine and self.engine.native
+  self.diag:mark('read source WAV');local src=native and native.io and native:open(s.path,job)
+  local w
+  if src then w={sr=src.sr,channels=src.channels,frames=src.frames}
+  else w=Wave.open(s.path);job.resources[w]=Wave.close end
   assert(not s.baseline.rate or s.baseline.rate==w.sr,'Sample edit rate differs from source')
   assert(not s.baseline.a or s.baseline.a=='1' and s.baseline.b=='1','Enable existing sample edits before analysis')
   -- Item может выходить за источник (растянут за конец файла, сдвинут левее начала): анализируем и правим только
@@ -139,17 +169,39 @@ function M:analyze()
   assert(last-first>=128,('The part of the item inside its source file is too short (%d samples; item offset %.3f s, length %.3f s, source %.3f s)')
     :format(math.max(0,last-first),s.offset,s.len,w.frames/w.sr))
   s.pos=s.pos+(first/w.sr-s.offset);s.first=first;s.count=last-first;s.len=s.count/w.sr
-  assert(s.count*w.channels*8<=64*1024*1024,'Prototype PCM cache limit is 64 MB; split the item')
-  assert(s.count/w.sr<=30,'Prototype analysis limit is 30 seconds per item; split longer items')
+  -- C++ (click/native.lua): признаки потоком, обнаружение кусками в пуле — длинные item'ы (до 2 ч) без таблиц
+  -- на каждый кадр в Lua. Без расширения — прежние пределы прототипа (EEL/Lua держат всё в таблицах Lua).
+  if native then
+   assert(s.count/w.sr<=2*3600,'Analysis limit is 2 hours per item; split longer items')
+   -- PCM в Lua не держится (признаки в C++, отсчёты читаются из файла) — предела кеша PCM нет; память признаков ограничена в C++
+   if not src then assert(s.count*w.channels*8<=6*1024^3,'PCM cache limit is 6 GB; split the item') end
+  else
+   assert(s.count*w.channels*8<=64*1024*1024,'Prototype PCM cache limit is 64 MB; split the item')
+   assert(s.count/w.sr<=30,'Prototype analysis limit is 30 seconds per item; split longer items')
+  end
   s.sr,s.channels,s.source_frames=w.sr,w.channels,w.frames
+  if src then
+   -- Источник открыт в C++: признаки, пики и хеш считаются в пуле, Lua только ждёт и показывает прогресс.
+   -- self.loading открывает обзор волны, пока идёт анализ (пики готовы намного раньше признаков).
+   local pcm={sr=w.sr,channels=w.channels,len=s.count/w.sr,frames=s.count,native=true}
+   local h,hop=job:call(native.analyze_source,native,self.engine,src,s.first,s.count,native_edits(s,w.channels),job)
+   s.nio=h;s.pcm=pcm;pcm.read=function(first,count) return native:read(h,first,count,-2) end
+   self.loading=s;self.diag:mark('C++ source read + waveform features')
+   pcm.click_features=native:finish_source(job,h,hop,pcm)
+   s.data=Detector.features(pcm,self.engine,job);return s
+  end
   local pcm={sr=w.sr,channels=w.channels,len=s.count/w.sr,frames=s.count,blocks={},block_size=math.floor(32768/w.channels)}
+  -- признаки считаются в C++ параллельно с чтением файла
+  local stream=native and job:call(Detector.stream,pcm,self.engine,job)
   for first=0,s.count-1,pcm.block_size do
    local n=math.min(pcm.block_size,s.count-first);local values,raw=w:read(s.first+first,n,s.baseline)
-   local buffer=job:call(r.new_array,values);pcm.blocks[#pcm.blocks+1]={first=first,count=n,buffer=buffer,source_bytes=raw}
+   local buffer=job:call(r.new_array,values);local block={first=first,count=n,buffer=buffer,source_bytes=raw}
+   pcm.blocks[#pcm.blocks+1]=block
+   if stream then job:call(stream.push,stream,block) end
    job:checkpoint(first/s.count,'Reading source PCM')
   end
-  self.diag:mark('EEL waveform features');s.pcm=pcm;s.data=Detector.features(pcm,self.engine,job);return s
- end,function(s)self.s=s;self.excluded=self.resume_excluded or {};self.resume_excluded=nil;self:request();self.message='Source analyzed; locating candidates.'end,'analyze')
+  self.diag:mark(native and 'C++ waveform features' or 'EEL waveform features');s.pcm=pcm;s.data=Detector.features(pcm,self.engine,job);return s
+ end,function(s)if self.s~=s then release_source(self.s) end;self.s=s;self.loading=nil;self.excluded=self.resume_excluded or {};self.resume_excluded=nil;self:request();self.message='Source analyzed; locating candidates.'end,'analyze')
 end
 function M:preview()
  if not self.s then return end
@@ -205,11 +257,17 @@ function M:apply(restore)
  self:launch(function(job)
   assert(SE.supported(self.r.GetAppVersion()),'Sample repair requires REAPER 7.71 or newer')
   -- Re-read the immutable source before writing. No plugin/accessor samples are baked in.
-  self.diag:mark('verify original source bytes');local w=Wave.open(s.path);job.resources[w]=Wave.close
-  assert(w.frames==s.source_frames and w.channels==s.channels and w.sr==s.sr,'Source format changed; analyze again')
-  for _,b in ipairs(s.pcm.blocks)do
-   assert(w:read_raw(s.first+b.first,b.count)==b.source_bytes,'Source audio changed; analyze again')
-   job:checkpoint(nil,'Verifying source')
+  self.diag:mark('verify original source bytes')
+  if s.nio then
+   -- C++: файл открывается заново и сравниваются хеши окна анализа (тексты ошибок те же)
+   local native=self.engine.native;native:verify(s.nio,job)
+  else
+   local w=Wave.open(s.path);job.resources[w]=Wave.close
+   assert(w.frames==s.source_frames and w.channels==s.channels and w.sr==s.sr,'Source format changed; analyze again')
+   for _,b in ipairs(s.pcm.blocks)do
+    assert(w:read_raw(s.first+b.first,b.count)==b.source_bytes,'Source audio changed; analyze again')
+    job:checkpoint(nil,'Verifying source')
+   end
   end
   -- Проверка, сборка и запись — один вызов без yield: между ними REAPER не может изменить item.
   self.diag:mark('verify, serialize and write SAMPLEEDITS');local count=job:call(function()

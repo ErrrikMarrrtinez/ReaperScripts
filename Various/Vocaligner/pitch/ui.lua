@@ -431,7 +431,8 @@ function M.canvas(im,ctx,e,w,h)
   -- Ручной скролл/зум и перетаскивание вида приостанавливают его на ~1.2 с; при выключенном флаге работает прежнее «перелистывание».
   local now_t=e.r.time_precise();local dt=im.GetDeltaTime and im.GetDeltaTime(ctx) or 1/60
   if (e.drag and (e.drag.kind=='pan' or e.drag.kind=='overview' or e.drag.kind=='tsel')) or (hovered and im.GetMouseWheel(ctx)~=0) then e.scroll_hold=now_t+1.2 end
-  if M.options.autoscroll and e.aim and transport.running and transport.play and e.snapshot then
+  local follow=M.options.follow~=false -- Settings: следить за курсором редактирования/воспроизведения (без него и Aim не работает)
+  if follow and M.options.autoscroll and e.aim and transport.running and transport.play and e.snapshot then
     if not (e.scroll_hold and now_t<e.scroll_hold) then
       local want=clamp(transport.play-e.snapshot.pos-v.span*(M.options.scroll_pos or .22),lower,math.max(lower,upper-v.span))
       -- Точное слежение + затухающий сдвиг: при старте вид не прыгает (сдвиг = текущее расстояние до цели) и плавно сходится к позиции курсора.
@@ -441,7 +442,7 @@ function M.canvas(im,ctx,e,w,h)
       v.start=clamp(want-e.scroll_off,lower,math.max(lower,upper-v.span))
       v.tgt=nil
     else e.scroll_off=nil end
-  else
+  elseif follow then
     e.scroll_off=nil
     Transport.follow(e,e.r,transport,v,e.snapshot and e.snapshot.pos or 0,lower,upper,e.drag~=nil or hovered and (im.GetMouseWheel(ctx)~=0 or im.IsMouseClicked(ctx,0)))
   end
@@ -452,7 +453,7 @@ function M.canvas(im,ctx,e,w,h)
   if (hovered and im.GetMouseWheel(ctx)~=0) or (e.drag and (e.drag.kind=='pan' or e.drag.kind=='vertical' or e.drag.kind=='overview')) then
     e.aim_hold=now_t+1.5;e.aim_moving=false
   end
-  if e.aim and e.notes and #e.notes>0 and e.snapshot and not e.drag and not v.tgt and (not e.aim_hold or now_t>=e.aim_hold) then
+  if follow and e.aim and e.notes and #e.notes>0 and e.snapshot and not e.drag and not v.tgt and (not e.aim_hold or now_t>=e.aim_hold) then
     local t;local running=transport.running and transport.play
     if running then t=transport.play-e.snapshot.pos
     else
@@ -944,12 +945,11 @@ function M.canvas(im,ctx,e,w,h)
       im.DrawList_AddRectFilled(dl,ca,top,cb,bottom,0x5AA9FF08)
       im.DrawList_AddRectFilled(dl,ca,y+1,cb,top,0x5AA9FF40)
       -- верхняя соединительная линия между ручками; при полосе аккордов — над ней (верхние 5 px полосы свободны)
-      local ly=lane>0 and y+1 or y+4
-      im.DrawList_AddRectFilled(dl,ca,ly,cb,ly+2,0x8EC3FFFF,1)
+      im.DrawList_AddRectFilled(dl,ca,y+1,cb,y+3,0x8EC3FFFF,1) -- по самому верху, как и боковые линии
     end
     for _,xx in ipairs({ax,bx}) do if xx>=left-4 and xx<=right+4 then
       im.DrawList_AddLine(dl,xx,y+1,xx,bottom,0x8EC3FFC0,1.5)
-      im.DrawList_AddRectFilled(dl,xx-3.5,lane>0 and y+1 or y+4,xx+3.5,top-3,0x8EC3FFFF,3)
+      im.DrawList_AddRectFilled(dl,xx-3.5,y+1,xx+3.5,top-3,0x8EC3FFFF,3)
     end end
     im.DrawList_PopClipRect(dl)
   end
@@ -958,13 +958,13 @@ function M.canvas(im,ctx,e,w,h)
     local ax1,ax2,ay1,ay2=x+1,left,bottom,y+h-1 -- на пиксель левее и вплотную к клавишам сверху и справа
     local ah=hovered and mx>=ax1 and mx<=ax2 and my>=ay1 and my<=ay2
     e.aim_hv=(e.aim_hv or 0)+((ah and 1 or 0)-(e.aim_hv or 0))*0.3
-    local on=e.aim==true
+    local on=e.aim==true and M.options.follow~=false
     im.DrawList_AddRectFilled(dl,ax1,ay1,ax2,ay2,on and (ah and 0xA2530FFF or 0x944A10FF) or (ah and 0x363636FF or 0x262626FF),5,im.DrawFlags_RoundCornersBottomLeft) -- скруглён только левый нижний угол
     if M.options.icon and M.options.aim_icons then
       M.options.icon(dl,M.options.aim_icons[on and 1 or 2],(ax1+ax2)/2,(ay1+ay2)/2,14*(1+0.14*e.aim_hv),(on or ah) and 0xFFFFFFFF or 0xA8A8B6FF)
     end
     e.aim_btn={x1=ax1,x2=ax2,y1=ay1,y2=ay2}
-    if ah and not e.drag then im.SetTooltip(ctx,'Aim: keep the current note centered vertically') end
+    if ah and not e.drag then im.SetTooltip(ctx,M.options.follow~=false and 'Aim: keep the current note centered vertically' or 'Aim needs "Follow the cursor" (Settings)') end
   end
   -- Full-item overview doubles as a horizontal scrollbar.
   local oy=bottom+gap;im.DrawList_AddRectFilled(dl,left,oy,right,y+h,0x151313FF)
@@ -1041,7 +1041,7 @@ function M.canvas(im,ctx,e,w,h)
       if mx<left and my<top then
         if M.options.ghost_button then e.ghost_toggle=true
         else local center=v.top-v.rows*.5;v.rows=clamp(v.rows*(mx<x+23 and .8 or 1.25),3,100);v.top=center+v.rows*.5 end
-      elseif e.aim_btn and mx>=e.aim_btn.x1 and mx<=e.aim_btn.x2 and my>=e.aim_btn.y1 and my<=e.aim_btn.y2 then e.aim=not e.aim
+      elseif e.aim_btn and mx>=e.aim_btn.x1 and mx<=e.aim_btn.x2 and my>=e.aim_btn.y1 and my<=e.aim_btn.y2 then if M.options.follow~=false then e.aim=not e.aim end
       elseif mx<left then e.drag={kind='vertical',x=mx,y=my,top=v.top,semitones=v.rows/height,button=0}
       elseif my>=oy then
         if mx<viewa or mx>viewb then v.start=clamp(lower+(mx-left)/width*maxlen-v.span*.5,lower,math.max(lower,upper-v.span)) end

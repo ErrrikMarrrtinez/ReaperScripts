@@ -10,13 +10,21 @@ local function recipes(old,cfg,range)
  out[#out+1]={a=range[1],b=range[2],cfg=Config.copy(cfg)}
  return out
 end
+-- Отпечаток кривой (точные t и db). Кривая после сборки не меняется, поэтому отпечаток кешируется по таблице точек:
+-- на длинном айтеме это сотни тысяч string.pack, и стадии раньше повторяли их по 2–3 раза на один и тот же вход.
+local fingerprints=setmetatable({},{__mode='k'})
 local function fingerprint(curve,job)
+ local points=curve and curve.points or {}
+ local cached=fingerprints[points]
+ if cached and cached.count==#points then return cached.bytes end
  local parts={}
- for i,p in ipairs(curve and curve.points or {})do
-  parts[i]=string.pack('<dd',p.t,p.db);if i%512==0 then job:checkpoint() end
+ for i,p in ipairs(points)do
+  parts[i]=string.pack('<dd',p.t,p.db);if i%512==0 and job then job:checkpoint() end
  end
- return table.concat(parts)
+ local bytes=table.concat(parts);fingerprints[points]={count=#points,bytes=bytes}
+ return bytes
 end
+M.fingerprint=fingerprint
 local function stage_key(layer,kind,upstream,d,gain,job)
  local upstream_key=fingerprint(upstream,job)
  local parts={string.pack('<I4I4d',#upstream_key,#layer.recipes,gain or 1),upstream_key}
@@ -33,19 +41,28 @@ local function features(d,kind,data,upstream,job)
  if not upstream or upstream.max_db<1e-9 then return data end
  local key=fingerprint(upstream,job);d.chain_inputs=d.chain_inputs or {};local cached=d.chain_inputs[kind]
  if cached and cached.data==data and cached.key==key then return cached.audio end
+ local at=Curves.cursor(upstream) -- кадры идут по возрастанию t: значение кривой указателем, без поиска на каждом кадре
  local out=Config.copy(data);out.frames={};out.detector_blocks=nil;out.detector_features=nil
+ -- detector_aux (rms/noise_flat страниц) считаются от кадров: у копии с усилением они свои, а не из исходных кадров
+ out.detector_aux=nil;out.breath_native=nil
  out.breath_features=nil;out.breath_model_scores=nil;out.breath_adapted=nil;out.breath_events=nil
+ if data.frame_store then
+  -- колонки кадров (cleanup_frames.lua): усиление применяется страницами, без 360 тысяч таблиц-копий
+  out.frame_store=data.frame_store:derive(at,job);out.frames=out.frame_store.frames
+ else
  for i,f in ipairs(data.frames) do
-  local gain=10^(-Curves.value(upstream,f.t)/20);local n=Config.copy(f)
+  local gain=10^(-at(f.t)/20);local n=Config.copy(f)
   n.rms=(f.rms or 0)*gain;n.min=(f.min or 0)*gain;n.max=(f.max or 0)*gain
   n.noise_bands={};for b,v in ipairs(f.noise_bands or {})do n.noise_bands[b]=v*gain*gain end
   out.frames[i]=n;if job and i%256==0 then job:checkpoint() end
+ end
  end
  out=import('dsp').normalize(out,{cleanup_only=true},job)
  d.chain_inputs[kind]={data=data,key=key,audio=out};return out
 end
 function M.dynamic(c,d,cfg,mode,upstream,job)
- local pcm=PCM.ensure(c,d,job);local engine=c.app.engine.dynamics
+ local Native=import('compressor/native');local native=Native.active(c.r)
+ local pcm=PCM.ensure(c,d,job);local engine=not native and c.app.engine.dynamics
  local out={points={},max_db=0,hop=cfg[mode..'_interval_ms']/1000,levels={}}
  local s=d.snapshot;local run_cfg=Config.copy(cfg)
  run_cfg.input_gain=job:call(function()return math.abs(c.r.GetMediaItemInfo_Value(s.item,'D_VOL')*c.r.GetMediaItemTakeInfo_Value(s.take,'D_VOL'))end)
@@ -63,12 +80,23 @@ function M.dynamic(c,d,cfg,mode,upstream,job)
  for _,key in ipairs(keys)do follower_key[#follower_key+1]=tostring(cfg[mode..'_'..key]) end
  -- Use the complete upstream curve. Threshold/gain-only edits reuse the follower,
  -- but an earlier stage's timing or level change must invalidate it.
- local fingerprint={}
- for i,p in ipairs(upstream and upstream.points or {})do
-  fingerprint[i]=string.pack('<dd',p.t,p.db);if i%512==0 then job:checkpoint() end
- end
- follower_key[#follower_key+1]=table.concat(fingerprint);follower_key=table.concat(follower_key,'|')
+ follower_key[#follower_key+1]=fingerprint(upstream,job)
+ if native then follower_key[#follower_key+1]='cpp' end -- кэш C++ (уровни в DLL) и EEL не подменяют друг друга
+ follower_key=table.concat(follower_key,'|')
  local cache_name=mode..'_follower';local cached=d[cache_name]
+ if native then
+  -- C++: детектор в пуле потоков (уровни остаются в DLL), затем кривая стадии там же — передаточная (компрессор)
+  -- или гейт, Pre-comp/Pre-open, конечная точка и прореживание нулей. Формулы и порядок операций — как ниже.
+  if cached and cached.key==follower_key and cached.run then
+   out.levels=cached.levels;d.follower_reuses=(d.follower_reuses or 0)+1
+  else
+   local run,count=Native.follow(c,d,pcm,run_cfg,run_mode,upstream,job,'Processing '..Settings.labels[mode]..' · '..s.name)
+   out.levels=Native.levels(c.r,run,count,job)
+   d[cache_name]={key=follower_key,levels=out.levels,run=run}
+  end
+  out.points,out.max_db=Native.curve(c.r,d[cache_name].run,mode,cfg,d.audio.len,job)
+  return out
+ end
  if cached and cached.key==follower_key then
   out.levels=cached.levels
   if mode=='compressor' then out.points=engine:transfer(out.levels,cfg,job)end
@@ -168,7 +196,14 @@ function M.build(c,d,cfg,mode,range,job,remove)
  end
  d.stage_cache=stage_cache
  local combined=Curves.sum(d.audio,resolved,job);combined.force_envelope=next(resolved)~=nil;combined.chain_active=cfg.chain_active;combined.chain_visible=cfg.chain_visible
- local changed=Curves.changed(d.audio,d.applied_cleanup and d.applied_cleanup.points and d.applied_cleanup or import('curves').combine(d.audio,d.layers or {},job),combined,job)
+ -- Предыдущая кривая для сравнения. Нет применённой и нет слоёв — это нулевая кривая: две точки вместо прохода по всем кадрам
+ -- (значения те же, сравнение идёт по значениям на объединённой сетке времени).
+ local previous=d.applied_cleanup and d.applied_cleanup.points and d.applied_cleanup
+ if not previous then
+  if next(d.layers or {})==nil then previous={points={{t=0,db=0},{t=d.audio.len,db=0}},max_db=0,hop=d.audio.hop}
+  else previous=import('curves').combine(d.audio,d.layers,job) end
+ end
+ local changed=Curves.changed(d.audio,previous,combined,job)
  -- Even a unity stage has a recipe; keep it so later upstream edits can activate it.
  changed=changed or (original~=nil)~=(resolved[mode]~=nil) or cfg.chain_order~=(d.applied_cfg or {}).chain_order
  if original and original.recipes and not remove then

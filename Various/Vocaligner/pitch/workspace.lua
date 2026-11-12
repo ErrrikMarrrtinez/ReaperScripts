@@ -32,7 +32,12 @@ end
 local function audio_take(r,project,item)
   if not valid(r,project,item) then return nil end
   local take=r.GetActiveTake(item)
-  if take and (not r.ValidatePtr2 or r.ValidatePtr2(project,take,'MediaItem_Take*')) and not r.TakeIsMIDI(take) then return take end
+  if take and (not r.ValidatePtr2 or r.ValidatePtr2(project,take,'MediaItem_Take*')) and not r.TakeIsMIDI(take) then
+    -- пустой айтем, сабпроект без рендера, офлайн-файл: REAPER даёт нулевую длину источника — для редактора это не аудио
+    local src=r.GetMediaItemTake_Source and r.GetMediaItemTake_Source(take)
+    if src and r.GetMediaSourceLength then local len=r.GetMediaSourceLength(src);if not len or len<=0 then return nil end end
+    return take
+  end
 end
 local function selection_key(r,project)
   local parts={tostring(r.GetLastTouchedTrack and r.GetLastTouchedTrack()),tostring(r.GetSelectedTrack and r.GetSelectedTrack(project,0))}

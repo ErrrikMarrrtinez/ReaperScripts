@@ -63,9 +63,11 @@ function M.supports(mode,im,ctx) return COMP_V2 and Comp2.supports(mode) and Com
 function M.draw(im,ctx,app,color,wave)
   local c=app.cleaner;local d=c:current()
   local hard_busy=app.job~=nil or (c.job and c.job.kind~='preview' and not c.job.live) or false
+  c.row_top=nil
   -- Auto lives in Settings. Get only matters while capture is manual.
   if c.mode=='breath' then
     -- Breath: анализ по кнопке; свой Auto (следить за выделением в REAPER и обрабатывать сразу)
+    c.row_top=select(2,im.GetCursorScreenPos(ctx)) -- верхняя строка: справа в неё встают глаз и Manual edit
     im.BeginDisabled(ctx,hard_busy)
     if im.Button(ctx,'Analyze') then c:capture() end
     if im.IsItemHovered(ctx) then im.SetTooltip(ctx,'Analyze the selected audio items and find breaths.') end

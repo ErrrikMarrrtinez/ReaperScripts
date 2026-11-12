@@ -3,10 +3,13 @@ local import=...;local Audio=import('audio');local DSP=import('dsp');local Confi
 local resident={};local bytes=0;local limit=384*1024*1024
 local function key(s) return table.concat({s.guid,s.render_key,s.offset,s.len},'|') end
 function M.ensure(c,d,job)
+ -- C++ (compressor/native.lua): PCM держит DLL, захват волны и детектор считаются в пуле потоков
+ local Native=import('compressor/native')
+ if Native.active(c.r) then return Native.ensure(c,d,job) end
  assert(c.app.engine and c.app.engine.dynamics and c.app.engine.dynamics.fn,
   'Compressor / Gate require the ReaImGui EEL engine. '..tostring(c.app.engine and c.app.engine.dynamics and c.app.engine.dynamics.reason or 'Engine not initialized.'))
  local r=c.r;local s=job:call(Audio.capture,r,c.project,d.snapshot.item,'cleanup');local identity=key(s)
- if d.pcm and d.pcm.key==identity then return d.pcm end
+ if d.pcm and d.pcm.key==identity and not d.pcm.native then return d.pcm end
  local cache={key=identity,blocks={},channels=s.channels,len=s.len,bytes=0}
  local aa=job:call(r.CreateTakeAudioAccessor,s.take);assert(aa,'Cannot open dynamics audio accessor')
  job.resources[aa]=r.DestroyAudioAccessor
@@ -55,6 +58,7 @@ function M.ensure(c,d,job)
  if d.pcm then
   for i=#resident,1,-1 do if resident[i].owner==d then bytes=bytes-resident[i].cache.bytes;table.remove(resident,i) end end
  end
+ if d.pcm and d.pcm.native and d.pcm.source then d.pcm.source:release() end -- переход C++ -> EEL: PCM в DLL больше не нужен
  d.pcm=cache;bytes=bytes+cache.bytes;resident[#resident+1]={owner=d,cache=cache}
  return cache
 end
@@ -63,10 +67,18 @@ function M.light(c,d,job)
  local data={frames=pcm.frames,hop=.01,len=pcm.len,pos=d.snapshot.pos,snapshot=d.snapshot,
   dynamics_only=true,analysis_rate=pcm.sr,analysis_stats={backend='EEL dynamics / no FFT',read_ms=0,validation_ms=0,feature_ms=0,kernel_ms=0}}
  -- Only waveform normalization is required; no spectral feature construction.
- data.peaks={{hop=.01,values={}}};data.peak=0
- for i,f in ipairs(data.frames) do
-  data.peaks[1].values[i]={f.min,f.max};data.peak=math.max(data.peak,-f.min,f.max)
+ data.peaks={{hop=.01,values={}}};local peak=0;local values=data.peaks[1].values
+ if pcm.frame_store then
+  -- кадры волны в колонках (cleanup_frames.lua): пики — прокси и пик из колонок, таблиц на кадр нет
+  data.frame_store=pcm.frame_store;data.peaks[1].values=pcm.frame_store:base_values();data.peak=pcm.frame_store:peak(job)
+  return data
  end
+ for i,f in ipairs(data.frames) do
+  local lo,hi=f.min,f.max;values[i]={lo,hi}
+  if -lo>peak then peak=-lo end;if hi>peak then peak=hi end -- то же, что math.max(peak,-min,max)
+  if job and i%4096==0 then job:checkpoint() end -- 360 тысяч кадров часового айтема: не одним шагом
+ end
+ data.peak=peak
  return data
 end
 return M

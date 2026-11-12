@@ -72,8 +72,52 @@ loop(frames,
 );
 ]]
 local fields={'rms','zcr','noise_flat','breath_flat','breath_tonal','air','low','flat','min','max'}
+-- C++ (VN_DynSpectrum): тот же расчёт без VM; reuse_input — тот же вход, что в прошлом вызове, без повторной проверки
+function M:execute_cpp(samples,offset,channels,count,frames,hop,sr,native,reuse_input)
+  local r=self.r
+  local input=reuse_input and self.cpp_input or (native and samples or r.new_array(samples))
+  if not reuse_input then self.cpp_input=input end
+  -- параметры + те же таблицы окна/поворотов, что получает EEL (посчитаны math.cos в M.new)
+  local p=self.cpp_p
+  p[1],p[2],p[3],p[4],p[5],p[6],p[7]=offset,channels,count,frames,hop,sr,reuse_input and 0 or 1
+  local out=r.new_array(frames*42+1);local started=r.time_precise()
+  local ok=r.VN_DynSpectrum(input,p,out)
+  self.kernel_ms=(self.kernel_ms or 0)+(r.time_precise()-started)*1000
+  if ok~=1 then error(tostring(r.VN_DynError(0)),0) end
+  local values=out.table();if not reuse_input then self.cpp_peak=values[frames*42+1] end
+  self.calls=(self.calls or 0)+1
+  local result={}
+  for i=1,frames do
+    local f={cep={},spec={},chroma={},flux=0,noise_bands={}};local at=(i-1)*42
+    for j,key in ipairs(fields) do f[key]=values[at+j] end
+    for b=1,32 do f.noise_bands[b]=values[at+10+b] end
+    result[i]=f
+  end
+  return result,self.cpp_peak
+end
+-- Тот же расчёт, но без таблиц на кадр: возвращает массив строк VN_DynSpectrum (42 значения на кадр, затем пик входа) и
+-- пик. Для колонок cleanup_frames.lua: часовой айтем не создаёт 360 тысяч таблиц кадров.
+function M:execute_raw(samples,offset,channels,count,frames,hop,sr,native,reuse_input)
+  assert(self.cpp,'Raw spectrum rows need the C++ spectrum')
+  assert(frames>=1 and frames<=48 and channels>=1 and channels<=8,'Invalid spectrum block')
+  local r=self.r
+  local input=reuse_input and self.cpp_input or (native and samples or r.new_array(samples))
+  if not reuse_input then self.cpp_input=input end
+  local p=self.cpp_p
+  p[1],p[2],p[3],p[4],p[5],p[6],p[7]=offset,channels,count,frames,hop,sr,reuse_input and 0 or 1
+  local out=self.raw_out
+  if not out or self.raw_cap<frames*42+1 then out=r.new_array(frames*42+1);self.raw_out=out;self.raw_cap=frames*42+1 end
+  local started=r.time_precise()
+  local ok=r.VN_DynSpectrum(input,p,out)
+  self.kernel_ms=(self.kernel_ms or 0)+(r.time_precise()-started)*1000
+  if ok~=1 then error(tostring(r.VN_DynError(0)),0) end
+  if not reuse_input then self.cpp_peak=out[frames*42+1] end
+  self.calls=(self.calls or 0)+1
+  return out,self.cpp_peak
+end
 function M:execute(samples,offset,channels,count,frames,hop,sr,native,reuse_input)
   assert(frames>=1 and frames<=48 and channels>=1 and channels<=8 and #samples<=131072)
+  if self.cpp then return self:execute_cpp(samples,offset,channels,count,frames,hop,sr,native,reuse_input) end
   local im,fn=self.im,self.fn
   if not reuse_input then im.Function_SetValue_Array(fn,'input',native and samples or self.r.new_array(samples)) end
   for key,value in pairs({offset=offset,channels=channels,samples_count=count,frames=frames,hop=hop,sr=sr,reuse_input=reuse_input and 1 or 0}) do im.Function_SetValue(fn,key,value) end
@@ -127,10 +171,23 @@ function M.new(im,ctx,r)
     for _,key in ipairs(fields) do assert(math.abs(expected[key]-got[key])<1e-8,'Cleanup EEL self-check: '..key) end
     for b=1,32 do assert(math.abs(expected.noise_bands[b]-got.noise_bands[b])<1e-10,'Cleanup EEL spectrum self-check') end
     self.label='EEL cleanup DSP';self.calls=0;self.kernel_ms=0
+    -- C++ по умолчанию, если расширение есть и даёт тот же кадр (та же самопроверка, что у EEL)
+    if import('compressor/native').active(r) then
+      local good,cpp=pcall(function()
+        local p={0,0,0,0,0,0,0};for i=1,1024 do p[7+i]=window[i] end;for i=1,1024 do p[7+1024+i]=twiddle[i] end
+        self.cpp_p=r.new_array(p)
+        self.cpp=true;local f=self:execute(samples,-512,2,1200,1,320,32000)[1]
+        for _,key in ipairs(fields) do if not (math.abs(expected[key]-f[key])<1e-8) then return false end end
+        for b=1,32 do if not (math.abs(expected.noise_bands[b]-f.noise_bands[b])<1e-10) then return false end end
+        return true
+      end)
+      self.cpp=good and cpp or nil;self.cpp_input=nil;self.calls=0;self.kernel_ms=0
+      if self.cpp then self.label='C++ cleanup DSP' else self.cpp_reason='C++ cleanup DSP self-check failed; using EEL.' end
+    end
   end)
   if not ok then
     if self.fn and im.Detach then pcall(im.Detach,ctx,self.fn) end
-    self.fn=nil;self.reason=tostring(why)
+    self.fn=nil;self.reason=tostring(why);self.cpp=nil
   end
   return self
 end

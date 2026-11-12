@@ -2,9 +2,34 @@
 local M={}
 local abs, sqrt, log = math.abs, math.sqrt, math.log
 function M.clamp(x,a,b) return math.max(a,math.min(b,x)) end
-function M.percentile(values,q)
-  local t={};for i,v in ipairs(values) do t[i]=v end;table.sort(t)
-  return t[math.max(1,math.ceil(#t*q))] or 0
+-- k-й по возрастанию элемент без полной сортировки: быстрый выбор (3 части вокруг опорного — тишина даёт много равных
+-- значений), порядок k-го значения тот же, что у table.sort. Цикл отдаёт кадр интерфейсу через job:checkpoint(), поэтому
+-- 360 тысяч кадров часового айтема не держат главный поток одним шагом (table.sort — один вызов C, не прерывается).
+local function select_kth(t,k,job)
+  local lo,hi=1,#t
+  while lo<hi do
+    local a,b,c=t[lo],t[(lo+hi)//2],t[hi]
+    if a>b then a,b=b,a end;if b>c then b,c=c,b end;if a>b then a,b=b,a end
+    local pivot=b -- медиана трёх
+    local lt,i,gt=lo,lo,hi
+    while i<=gt do
+      local v=t[i]
+      if v<pivot then t[i]=t[lt];t[lt]=v;lt=lt+1;i=i+1
+      elseif v>pivot then t[i]=t[gt];t[gt]=v;gt=gt-1
+      else i=i+1 end
+      if job and i%2048==0 then job:checkpoint() end
+    end
+    if k<lt then hi=lt-1 elseif k>gt then lo=gt+1 else return pivot end
+  end
+  return t[k]
+end
+M.select_kth=select_kth
+-- values не меняется. С job — кооперативный выбор (результат тот же, что у сортировки), без job — прежняя сортировка.
+function M.percentile(values,q,job)
+  local t={};local n=#values
+  for i=1,n do t[i]=values[i];if job and i%4096==0 then job:checkpoint() end end
+  if not job or n<4096 then table.sort(t);return t[math.max(1,math.ceil(#t*q))] or 0 end
+  return select_kth(t,math.max(1,math.ceil(n*q)),job)
 end
 function M.median5(values,i)
   local t={};for k=math.max(1,i-2),math.min(#values,i+2) do t[#t+1]=values[k] end
@@ -138,18 +163,38 @@ function M.analyzer(cfg,r)
   return obj
 end
 function M.normalize(data,cfg,job)
-  local frames=data.frames;local levels,fluxes={},{}
-  for i,f in ipairs(frames) do levels[i]=f.rms;fluxes[i]=f.flux end
-  local top=M.percentile(levels,.95);local loudest=0;data.peak=0
-  for _,v in ipairs(levels) do loudest=math.max(loudest,v) end
+  local frames=data.frames;local store=data.frame_store;local n=store and store.n or #frames
+  local levels,fluxes={},{};local cleanup=cfg.cleanup_only
+  -- Разбор кадров идёт кусками с job:checkpoint(): на часовом айтеме это 360 тысяч кадров, и каждый цикл без точки
+  -- возврата был бы одним долгим шагом главного потока. Циклы сравнивают значения напрямую (то же, что math.max/abs).
+  -- Кадры в колонках (cleanup_frames.lua) читаются страницами, без таблицы на кадр.
+  if store then levels=store:rms_table(job)
+  else
+    for i=1,n do
+      local f=frames[i];levels[i]=f.rms
+      if not cleanup then fluxes[i]=f.flux end -- потоки признаков нужны только выравниванию (flux_scale ниже)
+      if job and i%4096==0 then job:checkpoint() end
+    end
+  end
+  local top=M.percentile(levels,.95,job);local loudest=0;data.peak=0
+  for i=1,n do local v=levels[i];if v>loudest then loudest=v end;if job and i%16384==0 then job:checkpoint() end end
   -- A short phrase in a long silent item must not disappear below the 95th percentile.
   if top<loudest*.05 then
-    local audible={};for _,v in ipairs(levels) do if v>loudest*.02 then audible[#audible+1]=v end end
-    top=M.percentile(audible,.8)
+    local audible={};for i=1,n do local v=levels[i];if v>loudest*.02 then audible[#audible+1]=v end;if job and i%16384==0 then job:checkpoint() end end
+    top=M.percentile(audible,.8,job)
   end
-  for _,f in ipairs(frames) do data.peak=math.max(data.peak,abs(f.min),abs(f.max)) end
+  local peak=0
+  if store then peak=store:peak(job)
+  else
+    for i=1,n do
+      local f=frames[i];local lo,hi=abs(f.min),abs(f.max)
+      if lo>peak then peak=lo end;if hi>peak then peak=hi end
+      if job and i%4096==0 then job:checkpoint() end
+    end
+  end
+  data.peak=peak
   if top<1e-7 then data.silent=true;return data end
-  local noise=M.percentile(levels,.15)
+  local noise=M.percentile(levels,.15,job)
   local gate=math.max(top*.012,math.min(top*.12,noise*2.5))
   data.gate=gate;data.level_top=top
   if not cfg.cleanup_only then
@@ -183,7 +228,13 @@ function M.normalize(data,cfg,job)
   data.gate=gate;data.level_top=top;data.active_count=count
   end
   local levels={{hop=data.hop,values={}}}
-  for i,f in ipairs(frames) do levels[1].values[i]={f.min,f.max};if job and i%1024==0 then job:checkpoint() end end
+  if store then
+    -- самый мелкий уровень — прокси над колонками (UI читает values[i] и #values), грубые уровни — таблицы пар как раньше
+    levels[1].values=store:base_values()
+    if n>512 then levels[2]={hop=levels[1].hop*4,values=store:coarse_values(job)} end
+  else
+    for i,f in ipairs(frames) do levels[1].values[i]={f.min,f.max};if job and i%1024==0 then job:checkpoint() end end
+  end
   while #levels[#levels].values>512 do
     local prev=levels[#levels];local nextp={hop=prev.hop*4,values={}}
     for i=1,#prev.values,4 do

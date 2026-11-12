@@ -1,5 +1,5 @@
 -- @noindex
-local import=...;local DSP=import('dsp');local Envelope=import('envelope');local M={}
+local import=...;local DSP=import('dsp');local Envelope=import('envelope');local Frames=import('cleanup_frames');local M={}
 local item_fields={'D_POSITION','D_LENGTH','B_LOOPSRC','B_MUTE','C_LOCK'}
 local take_fields={'D_STARTOFFS','D_PLAYRATE','D_PITCH','B_PPITCH','I_CHANMODE','D_VOL','I_PITCHMODE','I_STRETCHFLAGS','F_STRETCHFADESIZE'}
 function M.project_open(r,project)
@@ -286,7 +286,13 @@ function M.validate_accessor(r,s,aa)
   error('Audio changed during analysis. Capture again.',0)
 end
 function M.analyze(r,s,cfg,job,label,engine)
-  if s.len>cfg.max_seconds then error('Capture sections shorter than '..cfg.max_seconds..' seconds.',0) end
+  -- С C++ спектром (cleanup_dsp.cpp) предел длины выше: колонки кадров и PCM живут вне кучи Lua (cleanup_frames.lua,
+  -- компрессор в DLL). Без него остаётся прежний предел Lua-пути.
+  local engine_dsp=engine and engine.cleanup_dsp
+  local native_spectrum=cfg.cleanup_only and engine_dsp and engine_dsp.fn and engine_dsp.cpp and cfg.fft_size==1024
+    and math.ceil(cfg.sample_rate/1000)==32 and s.channels<=8
+  local limit=native_spectrum and math.max(cfg.max_seconds,cfg.native_max_seconds or 0) or cfg.max_seconds
+  if s.len>limit then error('Capture sections shorter than '..limit..' seconds.',0) end
   local valid,why=M.unchanged(r,s);if not valid then error(why,0) end
   -- One reader per item. A grouped role reads every item into one virtual
   -- timeline; the gaps between items stay digital silence.
@@ -329,6 +335,11 @@ function M.analyze(r,s,cfg,job,label,engine)
     accessor_scale=time_scale,analysis_rate=sr}
   local fast=cfg.cleanup_only and cfg.fft_size==1024 and math.ceil(sr/1000)==32 and s.channels<=8
     and engine and engine.cleanup_dsp and engine.cleanup_dsp.fn and engine.cleanup_dsp or nil
+  -- Кадры в колонках (cleanup_frames.lua): C++ спектр отдаёт строки массивом, таблиц на кадр нет. Короткие айтемы
+  -- (меньше store_min_frames кадров) остаются на таблицах — их поведение не меняется.
+  local store=fast and fast.cpp and num>=(cfg.store_min_frames or 30000) and Frames.new(r,'spectrum',num,hop,sr) or nil
+  if store then data.frames=store.frames;data.frame_store=store end
+  if s.len>cfg.max_seconds and not store then error('Capture sections shorter than '..cfg.max_seconds..' seconds.',0) end
   local stats={backend=fast and fast.label or 'Lua + native FFT',feature_ms=0,read_ms=0,validation_ms=0,kernel_ms=0}
   data.analysis_stats=stats
   local reads={calls=0,nil_status=0,no_audio=0,nonzero_blocks=0,peak=0,
@@ -399,7 +410,22 @@ function M.analyze(r,s,cfg,job,label,engine)
     elseif result==nil then reads.nil_status=reads.nil_status+1
     else error('Unexpected audio read status: '..tostring(result)..' ('..s.name..')',0) end
     local peak=0;local block
-    if fast then
+    if store then
+      for part=0,count-1,feature_batch do
+        local n=math.min(feature_batch,count-part)
+        local ok,out,input_peak=job:call(function()
+          local at=r.time_precise();local kernel=fast.kernel_ms or 0
+          local ok,out,input_peak=pcall(fast.execute_raw,fast,samples,start-read_start+part*hop,s.channels,read_count,n,hop,sr,true,part>0)
+          if ok then store:put_spectrum(out,n,first+part) end
+          stats.feature_ms=stats.feature_ms+(r.time_precise()-at)*1000
+          stats.kernel_ms=stats.kernel_ms+(fast.kernel_ms or 0)-kernel;return ok,out,input_peak
+        end)
+        -- кадры уже частично в колонках: смешивать с Lua-путём нельзя
+        if not ok then error('C++ spectrum failed: '..tostring(out),0) end
+        peak=input_peak
+      end
+      block=true
+    elseif fast then
       block={}
       for part=0,count-1,feature_batch do
         local ok,values,input_peak=job:call(function()
@@ -427,6 +453,9 @@ function M.analyze(r,s,cfg,job,label,engine)
     end
     reads.peak=math.max(reads.peak,peak)
     if peak>1e-12 then reads.nonzero_blocks=reads.nonzero_blocks+1 end
+    if store then
+      job:checkpoint((first+count)/num,label)
+    else
     for j=0,count-1 do
       local f=block and block[j+1] or job:call(function()
         local at=r.time_precise();local f=analyzer:frame(samples,start+j*hop-read_start,s.channels,read_count)
@@ -434,6 +463,7 @@ function M.analyze(r,s,cfg,job,label,engine)
       end)
       f.t=(first+j)*hop/sr;data.frames[#data.frames+1]=f
       if j%4==0 then job:checkpoint((first+j)/num,label) end
+    end
     end
   end
   for _,reader in ipairs(readers) do job.resources[reader.aa]=nil;r.DestroyAudioAccessor(reader.aa) end

@@ -115,9 +115,21 @@ local function apply_curves(mask,frames,edits,kind,hop,n)
 end
 -- Cached bands are source-level power, not an audio high-pass filter. The cutoff
 -- changes the detector weighting; attenuation is broadband take volume.
+-- C++ (compressor/native.lua, VN_DynDeess*/VN_DynSoften): глобальный reaper, если расширение есть и не выбран Lua
+local function cpp()
+  local r=reaper;if type(r)~='table' then return nil end
+  return import('compressor/native').active(r) and r or nil
+end
 function M.features(data,cutoff,job,engine)
   local cached=data.detector_features
   if cached and cached.cutoff==cutoff then return cached end
+  local r=cpp()
+  if r then
+    -- те же веса полос, что в EEL (eel.lua M:power), и те же db/shape
+    local db,shape=import('compressor/native').deess_features(r,data,cutoff,job)
+    local out={cutoff=cutoff,db=db,shape=shape};data.detector_features=out
+    return out
+  end
   local out={cutoff=cutoff,db={},shape={}}
   local power=engine and engine:power(data,cutoff,job)
   local weights={};for b=1,32 do weights[b]=1/(1+(cutoff/((b-.5)*500))^4) end
@@ -141,22 +153,29 @@ function M.build(data,cfg,job,exclusions,engine,mode,profile,edits)
   -- срабатывают, сибилянт определяется по «средней» яркости. 0 — без усреднения (как раньше).
   local fdb=features.db
   local k=math.floor((cfg.deess_rms_ms or 0)/1000/hop+.5)
-  if k>=2 then
+  local r=cpp()
+  if r then
+    sib,sd=import('compressor/native').deess_score(r,fdb,features.shape,n,k,cfg,job)
+    if job then job:checkpoint() end
+  elseif k>=2 then
     local pre={[0]=0};for i=1,n do pre[i]=pre[i-1]+10^((fdb[i] or -150)/10) end
     local h=k//2;local sm={}
     for i=1,n do local a,b=math.max(1,i-h),math.min(n,i-h+k-1);sm[i]=10*math.log(math.max(1e-15,(pre[b]-pre[a-1])/(b-a+1)),10) end
     fdb=sm
   end
-  for i=1,n do
-    local db,shape=fdb[i],features.shape[i]
-    sib[i]=shape*clamp((db-cfg.deess_threshold+6)/12,0,1)
-    sd[i]=math.min(cfg.deess_max_db,math.max(0,db-cfg.deess_threshold)*cfg.deess_amount/100*shape)
-    if job and i%512==0 then job:checkpoint() end
+  if not r then
+    for i=1,n do
+      local db,shape=fdb[i],features.shape[i]
+      sib[i]=shape*clamp((db-cfg.deess_threshold+6)/12,0,1)
+      sd[i]=math.min(cfg.deess_max_db,math.max(0,db-cfg.deess_threshold)*cfg.deess_amount/100*shape)
+      if job and i%512==0 then job:checkpoint() end
+    end
   end
   local ss=regions(sib,hop,.02,nil,.20,job)
   local sc=mask_regions(ss,sd,exclusions,'sibilant',hop,n,job)
   apply_edits(ss,sc,edits,'sibilant',hop,n)
-  soften(sc,hop,cfg.deess_pre_ms/1000,cfg.deess_release_ms/1000,job)
+  if r then sc=import('compressor/native').soften(r,sc,hop,cfg.deess_pre_ms/1000,cfg.deess_release_ms/1000,job)
+  else soften(sc,hop,cfg.deess_pre_ms/1000,cfg.deess_release_ms/1000,job) end
   apply_curves(sc,frames,edits,'sibilant',hop,n)
   -- An excluded candidate remains completely untouched, including release tails
   -- from its neighbours. Its visual region stays available for re-enabling.
@@ -165,12 +184,23 @@ function M.build(data,cfg,job,exclusions,engine,mode,profile,edits)
   end end
   local out={sibilants=ss,sib_score=sib,sib_db=sc,breaths={},breath_score={},breath_db={},
     points={{t=0,db=0}},max_db=0,hop=hop}
+  -- Кадры в колонках (длинный айтем): время кадра по формуле, без таблицы кадра на каждой точке; участки, где снижения нет,
+  -- оставляют точки только по краям — как у кривых компрессора/гейта (между нулевыми точками интерполяция даёт 0, а таблиц
+  -- {t,db} вместо 360 тысяч на час становится по числу событий). Короткие айтемы пишут точку на каждый кадр, как раньше.
+  local store=data.frame_store;local timed=store and store.kind=='spectrum'
+  local points=out.points
   for i=2,n do
     step(job,i)
     local db=sc[i]
-    out.max_db=math.max(out.max_db,db);out.points[#out.points+1]={t=frames[i].t,db=db}
+    out.max_db=math.max(out.max_db,db)
+    if timed then
+      local z=-1e-6<db and db<1e-6
+      if not z or (sc[i-1] or 0)>=1e-6 or (sc[i-1] or 0)<=-1e-6 or i==2 or i==n or (sc[i+1] or 0)>=1e-6 or (sc[i+1] or 0)<=-1e-6 then
+        points[#points+1]={t=store:time(i),db=db}
+      end
+    else points[#points+1]={t=frames[i].t,db=db} end
   end
-  out.points[#out.points+1]={t=data.len,db=0}
+  points[#points+1]={t=data.len,db=0}
   return out
 end
 function M.value(cleanup,t)

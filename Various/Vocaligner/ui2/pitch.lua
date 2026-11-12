@@ -37,6 +37,24 @@ function ICON.split(im,dl,cx,cy,col,k)
   im.DrawList_AddRectFilled(dl,cx+1.5*k,cy-2.5*k,cx+9*k,cy+2.5*k,col,1.5*k)
   im.DrawList_AddLine(dl,cx,cy-8*k,cx,cy+8*k,col,1.3*k)
 end
+-- Drift: линия высоты, плавно уходящая вниз от ноты; Flatten: волнистая линия, выпрямляющаяся в прямую; Vibrato: частая волна
+function ICON.drift(im,dl,cx,cy,col,k)
+  im.DrawList_AddLine(dl,cx-9*k,cy-3*k,cx+9*k,cy-3*k,col,1.2*k)
+  im.DrawList_PathLineTo(dl,cx-8*k,cy-3*k);im.DrawList_PathBezierCubicCurveTo(dl,cx-2*k,cy-3*k,cx+1*k,cy+1*k,cx+8*k,cy+5*k)
+  im.DrawList_PathStroke(dl,col,0,1.7*k)
+end
+function ICON.flatten(im,dl,cx,cy,col,k)
+  for i=0,8 do local a=(1-i/8);im.DrawList_PathLineTo(dl,cx+(-9+i*1.1)*k,cy+math.sin(i*1.2)*4*a*k) end
+  im.DrawList_PathLineTo(dl,cx+9*k,cy);im.DrawList_PathStroke(dl,col,0,1.7*k)
+end
+function ICON.vibrato(im,dl,cx,cy,col,k)
+  for i=0,24 do im.DrawList_PathLineTo(dl,cx+(-9+i*.75)*k,cy+math.sin(i/24*math.pi*7)*3.4*k) end
+  im.DrawList_PathStroke(dl,col,0,1.6*k)
+end
+function ICON.bounds(im,dl,cx,cy,col,k)
+  im.DrawList_AddLine(dl,cx-8*k,cy-6*k,cx-8*k,cy+6*k,col,1.6*k);im.DrawList_AddLine(dl,cx+8*k,cy-6*k,cx+8*k,cy+6*k,col,1.6*k)
+  im.DrawList_AddLine(dl,cx-8*k,cy,cx+8*k,cy,col,1.4*k)
+end
 function ICON.more(im,dl,cx,cy,col,k)
   for i=-1,1 do im.DrawList_AddCircleFilled(dl,cx+i*5.5*k,cy,1.8*k,col) end
 end
@@ -90,7 +108,7 @@ end
 local stable={analyzed=false,can=false,engaged=false,until_t=0}
 local bypass_v=0
 -- Индексы иконок в ui2/assets/pitch.png (рисует оболочка: host.icon)
-local SP={pencil=1,navigate=2,repeat_on=3,repeat_off=4,magnet=5,magnet_off=6,ghost=7,aim_on=8,aim_off=9}
+local SP={pencil=1,navigate=2,repeat_on=3,repeat_off=4,magnet=5,magnet_off=6,ghost=7,aim_on=8,aim_off=9,tune=10}
 local SPRITE_TOOL={notes=SP.navigate,draw=SP.pencil} -- инструменты, у которых иконка из спрайта
 local ICON_PX=19 -- сторона ячейки иконки инструмента
 
@@ -127,26 +145,6 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
   local freeze=(e.job~=nil and e.job.kind=='apply') or now<stable.until_t -- bypass/правка: кнопки не мигают
   if e.job~=nil and e.job.kind=='apply' then stable.until_t=now+0.3 end
   local poly=e.mode=='poly'
-  -- Режим анализа вместо прежней Analyze: Melodic / Polyphonic. Сам анализ — большая кнопка поверх редактора
-  -- (body); выбор режима при выделенном аудио сразу запускает свежий анализ в этом режиме
-  do
-    local label=poly and 'Polyphonic (no edit)' or 'Melodic'
-    local bw=math.max(text_w('Polyphonic (no edit)'),text_w('Melodic'))+30
-    im.SetCursorScreenPos(ctx,x,y);im.InvisibleButton(ctx,'##pitch_mode',bw,fh)
-    local hv=im.IsItemHovered(ctx) and not busy
-    if hv then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
-    im.DrawList_AddRectFilled(dl,x,y,x+bw,y+fh,hv and host.pill_hover or host.pill,8)
-    local tw,th=im.CalcTextSize(ctx,label)
-    im.DrawList_AddText(dl,math.floor(x+10),math.floor(y+(fh-th)/2),busy and 0x8A8A96FF or 0xE6E6F0FF,label)
-    local ax,ay=x+bw-12,y+fh/2;im.DrawList_AddTriangleFilled(dl,ax-3.5,ay-1.8,ax+3.5,ay-1.8,ax,ay+2.6,0xA8A8B6FF)
-    if im.IsItemClicked(ctx,0) and not busy then
-      local pa,why=Poly.available(e.r)
-      host.dropdown('pitch_mode',x+bw/2,y+fh,{
-        {label='Melodic',checked=not poly,action=function() e:set_mode('melodic') end},
-        {label='Polyphonic (no edit)',checked=poly,disabled=not pa,action=function() e:set_mode('poly') end}})
-    end
-    x=x+bw+G
-  end
   if e.job and not e.job.committed and e.job.kind=='analysis' then
     im.SetCursorScreenPos(ctx,x,y);if im.Button(ctx,'Cancel',0,fh) then e:cancel() end
     x=im.GetItemRectMax(ctx)+G
@@ -178,33 +176,6 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
   x=x+fh+G
   end
 
-  -- Транспорт одной секцией: Play/Pause (по реальному состоянию) | Repeat (тёмно-оранжевый, когда включён)
-  local proj=e.project or 0
-  local looping=e.r.GetSetRepeatEx and e.r.GetSetRepeatEx(proj,-1)==1
-  local ps=e.r.GetPlayStateEx and e.r.GetPlayStateEx(proj) or 0
-  local playing=(ps&1)~=0 and (ps&2)==0
-  im.SetCursorScreenPos(ctx,x,y);im.InvisibleButton(ctx,'##pitch_play',fh,fh)
-  local ph=im.IsItemHovered(ctx)
-  if ph then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
-  if im.IsItemClicked(ctx,0) then if playing then e.r.OnPauseButton() else e.r.OnPlayButton() end end
-  im.DrawList_AddRectFilled(dl,x,y,x+fh,y+fh,ph and host.pill_hover or host.pill,8,im.DrawFlags_RoundCornersLeft)
-  do
-    local cx_,cy_,k=x+fh/2,y+fh/2,grow('play',ph);local c=ph and 0xFFFFFFFF or 0xC8C8D4FF
-    if playing then
-      im.DrawList_AddRectFilled(dl,cx_-4.2*k,cy_-5.2*k,cx_-1.2*k,cy_+5.2*k,c,1);im.DrawList_AddRectFilled(dl,cx_+1.2*k,cy_-5.2*k,cx_+4.2*k,cy_+5.2*k,c,1)
-    else
-      im.DrawList_AddTriangleFilled(dl,cx_-3.6*k,cy_-5.6*k,cx_-3.6*k,cy_+5.6*k,cx_+5.6*k,cy_,c)
-    end
-  end
-  im.SetCursorScreenPos(ctx,x+fh,y);im.InvisibleButton(ctx,'##pitch_loop',fh,fh)
-  local lh=im.IsItemHovered(ctx)
-  if lh then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
-  if im.IsItemClicked(ctx,0) and e.r.GetSetRepeatEx then e.r.GetSetRepeatEx(proj,looping and 0 or 1) end
-  im.DrawList_AddRectFilled(dl,x+fh,y,x+2*fh,y+fh,looping and (lh and SEL_HOVER or SEL_FILL) or (lh and host.pill_hover or host.pill),8,im.DrawFlags_RoundCornersRight)
-  im.DrawList_AddLine(dl,x+fh,y+6,x+fh,y+fh-6,0xFFFFFF10,0.5)
-  local lk=grow('loop',lh)
-  host.icon(dl,looping and SP.repeat_on or SP.repeat_off,x+fh*1.5-1.5,y+fh/2,(ICON_PX-1)*lk,looping and 0xFFFFFFFF or (lh and 0xE0E0EAFF or 0x9A9AA8FF))
-  x=x+2*fh+G
   local left_end=x
 
   -- Правый блок считаем заранее и прижимаем к правому краю: Copy/Paste (Curve), тональность, меню
@@ -214,14 +185,16 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
   local right={}
   local bpm_src=(poly and e.poly and e.poly.bpm) or (not poly and (e.key_bpm or (e.poly and e.poly.bpm)))
   local bpm_text=bpm_src and bpm_src>0 and string.format('%.1f BPM',bpm_src) or (poly and '— BPM') or nil
-  if poly then
-    right[#right+1]={'bpm',button_w('000.0 BPM')} -- Polyphonic: тональность — в контроле скейла, темп — рядом
-  else
+  if not poly then
     if e.tool=='curve' then right[#right+1]={'copy',button_w('Copy')};right[#right+1]={'paste',button_w('Paste')} end
     if e.twins and #e.twins>0 then right[#right+1]={'sync',fh} end -- есть копии открытого айтема
-    right[#right+1]={'auto',button_w('ATune')}
-    if bpm_text then right[#right+1]={'bpm',button_w('000.0 BPM')} end -- темп из анализа тональности
   end
+  -- темп всегда слева от скейла: темп проекта (серый) или найденный и ещё не применённый (зелёный)
+  local proj_bpm=e.r.Master_GetTempo and e.r.Master_GetTempo() or 120
+  local detected=(bpm_src and bpm_src>0) and bpm_src or nil
+  local bpm_synced=not detected or math.abs(math.floor(detected+.5)-proj_bpm)<.05
+  bpm_text=detected and string.format('%.1f BPM',detected) or string.format('%.0f BPM',proj_bpm)
+  right[#right+1]={'bpm',button_w('000.0 BPM')}
   right[#right+1]={'scale',scale_w}
   local total=-6;for _,r in ipairs(right) do total=total+r[2]+6 end
   local count=#TOOLS+1;local cwid=count*BTN_W
@@ -244,6 +217,8 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
     elseif hov then im.DrawList_AddRectFilled(dl,bx+1.5,y+1.5,bx+BTN_W-1.5,y+fh-1.5,0xFFFFFF14,7) end
     local c=selected and 0xFFFFFFFF or (hov and 0xE0E0EAFF or 0x9A9AA8FF)
     local id=more and 'more' or tool[1]
+    -- после выбора инструмента из «…» на кнопке его иконка; клик по-прежнему открывает тот же список
+    if more and in_more then id=e.tool end
     local gk2=grow('tool'..i,hov)
     if SPRITE_TOOL[id] then host.icon(dl,SPRITE_TOOL[id],bx+BTN_W/2,y+fh/2,ICON_PX*gk2,c)
     else ICON[id](im,dl,bx+BTN_W/2,y+fh/2,c,1.1*gk2) end
@@ -255,7 +230,7 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
         host.dropdown('more',bx+BTN_W/2,y+fh,items)
       else e.tool=tool[1] end
     end
-    if more then host.tooltip('pitch_tool_more',hov,bx+BTN_W/2,y+fh,'','More tools',wx,ww,TIP_DELAY,0.2)
+    if more then host.tooltip('pitch_tool_more',hov,bx+BTN_W/2,y+fh,'',in_more and (e.tool:sub(1,1):upper()..e.tool:sub(2)..'  ·  more tools') or 'More tools',wx,ww,TIP_DELAY,0.2)
     else host.tooltip('pitch_tool_'..tool[1],hov,bx+BTN_W/2,y+fh,'',tool[2]..'\t'..i,wx,ww,TIP_DELAY,0.2) end
   end
   if busy then im.EndDisabled(ctx) end
@@ -309,21 +284,22 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
       -- темп из Polyphonic; подсказка — уверенность и альтернативы (половинный/двойной темп)
       im.SetCursorScreenPos(ctx,rx,y);im.InvisibleButton(ctx,'##pitch_bpm',r[2],fh)
       local hv=im.IsItemHovered(ctx)
-      im.DrawList_AddRectFilled(dl,rx,y,rx+r[2],y+fh,host.pill,8)
+      local fill=bpm_synced and (hv and host.pill_hover or host.pill) or (hv and 0x3AA865FF or 0x2F8F57FF)
+      im.DrawList_AddRectFilled(dl,rx,y,rx+r[2],y+fh,fill,8)
       local tw,th=im.CalcTextSize(ctx,bpm_text)
-      im.DrawList_AddText(dl,math.floor(rx+(r[2]-tw)/2),math.floor(y+(fh-th)/2),e.poly and 0xE6E6F0FF or 0x8A8A96FF,bpm_text)
+      im.DrawList_AddText(dl,math.floor(rx+(r[2]-tw)/2),math.floor(y+(fh-th)/2),bpm_synced and 0x9A9AA8FF or 0xFFFFFFFF,bpm_text)
       local tip='Tempo of the analyzed item'
       if e.poly then
         local alts={};for _,b in ipairs(e.poly.bpm_alt or {}) do alts[#alts+1]=string.format('%.1f',b) end
         tip=string.format('Detected tempo, confidence %d%%%s. Key: %s%s.',math.floor((e.poly.bpm_conf or 0)*100+.5),#alts>0 and ('; also possible: '..table.concat(alts,', ')) or '',
           Poly.key_name(e.poly.keys and e.poly.keys[1]),e.scale_origin=='manual' and ' (the key control keeps your manual choice)' or '')
       end
-      host.tooltip('pitch_bpm',hv,rx+r[2]/2,y+fh,'',tip..' Click: set the project tempo, note display.',wx,ww,TIP_DELAY,0.2)
+
       if hv then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
       if im.IsItemClicked(ctx,0) then
         local d=M.poly_detail(e.r)
         local items={}
-        if (bpm_src or 0)>0 then
+        if detected and not bpm_synced then
           local function tempo_item(bpm,label)
             local v=math.floor(bpm+.5)
             return {label=string.format(label,v),action=function()
@@ -333,8 +309,14 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
           items[#items+1]=tempo_item(bpm_src,'Set project tempo: %d BPM')
           for _,alt in ipairs(e.poly and e.poly.bpm_alt or {}) do items[#items+1]=tempo_item(alt,'Set project tempo: %d BPM (alternative)') end
           items[#items+1]={sep=true}
+        elseif detected then
+          items[#items+1]={label=string.format('Project tempo matches: %.0f BPM',proj_bpm),disabled=true};items[#items+1]={sep=true}
         end
-        for _,it in ipairs({
+        local has_ts=e.tsel~=nil
+        items[#items+1]={label='Detect tempo of the item…',disabled=not Poly.available(e.r),action=function() e.key_modal={tempo=true} end}
+        items[#items+1]={label='Detect tempo of the time selection…',disabled=not (has_ts and Poly.available(e.r)),action=function() e.key_modal={tempo=true,range=e.tsel} end}
+        if poly then items[#items+1]={sep=true} end
+        for _,it in ipairs(not poly and {} or {
           {label='Notes: clean',checked=d=='clean',action=function() e.r.SetExtState(VIEW_SECTION,'poly_notes','clean',true) end},
           {label='Notes: all detected',checked=d=='all',action=function() e.r.SetExtState(VIEW_SECTION,'poly_notes','all',true) end}}) do items[#items+1]=it end
         host.dropdown('pitch_poly_notes',rx+r[2]/2,y+fh,items)
@@ -350,18 +332,6 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
       im.DrawList_AddCircle(dl,mx-4,my,4.6,c,0,1.7);im.DrawList_AddCircle(dl,mx+4,my,4.6,c,0,1.7) -- два звена
       if im.IsItemClicked(ctx,0) then e:set_sync(not on) end
       host.tooltip('pitch_sync',hv,rx+fh/2,y+fh,'',(on and 'Sync on' or 'Sync off')..' · '..#e.twins..(#e.twins==1 and ' linked copy' or ' linked copies'),wx,ww,TIP_DELAY,0.2)
-    elseif kind=='auto' then
-      -- Auto: подгонка высоты под тональность / референс; открывает облачко с параметрами (ui2.lua)
-      local a=import('pitch/auto').config(e.state)
-      im.SetCursorScreenPos(ctx,rx,y);im.InvisibleButton(ctx,'##pitch_auto',r[2],fh)
-      local hv=im.IsItemHovered(ctx)
-      if hv then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
-      im.DrawList_AddRectFilled(dl,rx,y,rx+r[2],y+fh,a.on and (hv and SEL_HOVER or SEL_FILL) or (hv and host.pill_hover or host.pill),8)
-      local tw,th=im.CalcTextSize(ctx,'ATune')
-      im.DrawList_AddText(dl,math.floor(rx+(r[2]-tw)/2),math.floor(y+(fh-th)/2),a.on and 0xFFFFFFFF or 0xE6E6F0FF,'ATune')
-      e.auto_btn={x=rx,y=y,w=r[2],h=fh}
-      if im.IsItemClicked(ctx,0) then e.auto_toggle=true end
-      host.tooltip('pitch_auto',hv,rx+r[2]/2,y+fh,'','ATune',wx,ww,TIP_DELAY,0.2)
     elseif kind=='copy' then if im.Button(ctx,'Copy##pitch_copy',r[2],fh) then e:copy_shape() end
     elseif kind=='paste' then if im.Button(ctx,'Paste##pitch_paste',r[2],fh) then e:paste_shape((im.GetKeyMods(ctx)&im.Mod_Alt)~=0) end
     end
@@ -369,6 +339,81 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
   end
 end
 
+
+-- Нижняя панель редактора: слева режим анализа (Melodic / Polyphonic) и транспорт (Play | Repeat),
+-- справа Tune (открывает панель тюнера прямо над собой)
+M.BOTTOM_H=40
+function M.bottombar(host,im,ctx,app,x0,y0,w,h)
+  local e=app.pitch;local dl=im.GetWindowDrawList(ctx)
+  local G=host.gap or 7
+  local fh=math.min(h-8,im.GetFrameHeight(ctx)+2);local y=y0+h-fh-3 -- ближе к низу окна: сверху зазор от полосы прокрутки
+  local wx,ww=host.window[1],host.window[2]
+  local function text_w(t) return (im.CalcTextSize(ctx,t)) end
+  local busy=e:busy();local poly=e.mode=='poly'
+  local x=x0
+  -- Режим анализа вместо прежней Analyze: Melodic / Polyphonic. Сам анализ — большая кнопка поверх редактора
+  -- (body); выбор режима при выделенном аудио сразу запускает свежий анализ в этом режиме
+  do
+    local label=poly and 'Polyphonic (no edit)' or 'Melodic'
+    local bw=math.max(text_w('Polyphonic (no edit)'),text_w('Melodic'))+30
+    im.SetCursorScreenPos(ctx,x,y);im.InvisibleButton(ctx,'##pitch_mode',bw,fh)
+    local hv=im.IsItemHovered(ctx) and not busy
+    if hv then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
+    im.DrawList_AddRectFilled(dl,x,y,x+bw,y+fh,hv and host.pill_hover or host.pill,8)
+    local tw,th=im.CalcTextSize(ctx,label)
+    im.DrawList_AddText(dl,math.floor(x+10),math.floor(y+(fh-th)/2),busy and 0x8A8A96FF or 0xE6E6F0FF,label)
+    local ax,ay=x+bw-12,y+fh/2;im.DrawList_AddTriangleFilled(dl,ax-3.5,ay-1.8,ax+3.5,ay-1.8,ax,ay+2.6,0xA8A8B6FF)
+    if im.IsItemClicked(ctx,0) and not busy then
+      local pa,why=Poly.available(e.r)
+      host.dropdown('pitch_mode',x+bw/2,y,{
+        {label='Melodic',checked=not poly,action=function() e:set_mode('melodic') end},
+        {label='Polyphonic (no edit)',checked=poly,disabled=not pa,action=function() e:set_mode('poly') end}})
+    end
+    x=x+bw+G
+  end
+  -- Транспорт одной секцией: Play/Pause (по реальному состоянию) | Repeat (тёмно-оранжевый, когда включён)
+  local proj=e.project or 0
+  local looping=e.r.GetSetRepeatEx and e.r.GetSetRepeatEx(proj,-1)==1
+  local ps=e.r.GetPlayStateEx and e.r.GetPlayStateEx(proj) or 0
+  local playing=(ps&1)~=0 and (ps&2)==0
+  im.SetCursorScreenPos(ctx,x,y);im.InvisibleButton(ctx,'##pitch_play',fh,fh)
+  local ph=im.IsItemHovered(ctx)
+  if ph then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
+  if im.IsItemClicked(ctx,0) then if playing then e.r.OnPauseButton() else e.r.OnPlayButton() end end
+  im.DrawList_AddRectFilled(dl,x,y,x+fh,y+fh,ph and host.pill_hover or host.pill,8,im.DrawFlags_RoundCornersLeft)
+  do
+    local cx_,cy_,k=x+fh/2,y+fh/2,grow('play',ph);local c=ph and 0xFFFFFFFF or 0xC8C8D4FF
+    if playing then
+      im.DrawList_AddRectFilled(dl,cx_-4.2*k,cy_-5.2*k,cx_-1.2*k,cy_+5.2*k,c,1);im.DrawList_AddRectFilled(dl,cx_+1.2*k,cy_-5.2*k,cx_+4.2*k,cy_+5.2*k,c,1)
+    else
+      im.DrawList_AddTriangleFilled(dl,cx_-3.6*k,cy_-5.6*k,cx_-3.6*k,cy_+5.6*k,cx_+5.6*k,cy_,c)
+    end
+  end
+  im.SetCursorScreenPos(ctx,x+fh,y);im.InvisibleButton(ctx,'##pitch_loop',fh,fh)
+  local lh=im.IsItemHovered(ctx)
+  if lh then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
+  if im.IsItemClicked(ctx,0) and e.r.GetSetRepeatEx then e.r.GetSetRepeatEx(proj,looping and 0 or 1) end
+  im.DrawList_AddRectFilled(dl,x+fh,y,x+2*fh,y+fh,looping and (lh and SEL_HOVER or SEL_FILL) or (lh and host.pill_hover or host.pill),8,im.DrawFlags_RoundCornersRight)
+  im.DrawList_AddLine(dl,x+fh,y+6,x+fh,y+fh-6,0xFFFFFF10,0.5)
+  local lk=grow('loop',lh)
+  host.icon(dl,looping and SP.repeat_on or SP.repeat_off,x+fh*1.5-1.5,y+fh/2,(ICON_PX-1)*lk,looping and 0xFFFFFFFF or (lh and 0xE0E0EAFF or 0x9A9AA8FF))
+  x=x+2*fh+G
+  -- Tune (бывш. ATune): иконка из спрайта + надпись; подсказки нет
+  if not poly then
+    local a=import('pitch/auto').config(e.state)
+    local label='Tune';local bw=text_w(label)+fh+14;local rx=x0+w-bw
+    im.SetCursorScreenPos(ctx,rx,y);im.InvisibleButton(ctx,'##pitch_auto',bw,fh)
+    local hv=im.IsItemHovered(ctx)
+    if hv then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
+    im.DrawList_AddRectFilled(dl,rx,y,rx+bw,y+fh,a.on and (hv and SEL_HOVER or SEL_FILL) or (hv and host.pill_hover or host.pill),8)
+    local c=a.on and 0xFFFFFFFF or (hv and 0xFFFFFFFF or 0xE6E6F0FF)
+    host.icon(dl,SP.tune,rx+fh/2+3,y+fh/2,ICON_PX*grow('tune',hv),c)
+    local tw,th=im.CalcTextSize(ctx,label)
+    im.DrawList_AddText(dl,math.floor(rx+fh+4),math.floor(y+(fh-th)/2),c,label)
+    e.auto_btn={x=rx,y=y,w=bw,h=fh}
+    if im.IsItemClicked(ctx,0) then e.auto_toggle=true end
+  else e.auto_btn=nil end
+end
 -- Пункты меню редактора (кнопка-гамбургер в топбаре, слева от Settings): сбросы, отчёт, экспорт кейса
 function M.menu_items(im,ctx,app)
   local e=app.pitch
@@ -817,7 +862,7 @@ function M.key_modal(host,im,ctx,e,bx0,by0,cw,ch)
   local W,H=360,150;local X,Y=math.floor(bx0+(cw-W)/2),math.floor(by0+math.max(40,(ch-H)*.35))
   im.DrawList_AddRectFilled(dl,X-1000,Y-1000,X+W+1000,Y+H+1000,0x00000050)
   im.DrawList_AddRectFilled(dl,X,Y,X+W,Y+H,0x202020F8,12);im.DrawList_AddRect(dl,X+.5,Y+.5,X+W-.5,Y+H-.5,0x4A4A4AFF,12,0,1)
-  im.DrawList_AddText(dl,X+16,Y+12,0xE6E6F0FF,'Analyze key')
+  im.DrawList_AddText(dl,X+16,Y+12,0xE6E6F0FF,km.tempo and (km.range and 'Detect tempo · time selection' or 'Detect tempo') or 'Analyze key')
   local project=r.EnumProjects(-1);local item
   for i=0,r.CountSelectedMediaItems(project)-1 do local it=r.GetSelectedMediaItem(project,i);local tk=r.GetActiveTake(it);if tk and not r.TakeIsMIDI(tk) then item=it;break end end
   local bx,by,bw,bh=X+16,Y+38,W-32,52
@@ -857,28 +902,39 @@ function M.key_modal(host,im,ctx,e,bx0,by0,cw,ch)
       if it==e.item and e.notes and #e.notes>0 then lists[#lists+1]=e.notes
       else local entry=ws and ws.by_item[it];if entry and entry.state and entry.state.notes then lists[#lists+1]=entry.state.notes end end
     end
-    local k=#lists>0 and import('pitch/key_detect').from_notes(lists)
+    -- «Detect tempo» — всегда полифонический анализ (темп по нотам вокала не найти); по тайм-селекшну — только этот кусок
+    local k=not km.tempo and #lists>0 and import('pitch/key_detect').from_notes(lists)
     if k then
       local root,sc=Poly.key_scale(k);e:set_scale(root,sc)
       e.message=string.format('Key %s (from %d sung notes)',Poly.key_name(k),k.notes)
       e.key_modal=nil;return
     end
     if not Poly.available(r) then e:fail('Analyze the item (Melodic) first: the key is found from its pitch notes.');return end
+    local range=km.range
     e.key_job=import('job').new(r,function(job)
-      local rec,s=Poly.analyze_item(r,project,target,job,'Key')
-      job:call(Poly.save,r,s.take,rec)
+      local rec,s=Poly.analyze_item(r,project,target,job,km.tempo and 'Tempo' or 'Key',range)
+      if not range then job:call(Poly.save,r,s.take,rec) end -- кусок не сохраняем: это не анализ айтема
       return rec
     end,.012)
+    e.key_job.tempo_only=km.tempo
   end
   if e.key_job then
     local j=e.key_job;j:step()
     if j.done then
       e.key_job=nil
       if j.error then e:fail(j.error) else
-        local rec=j.result;local root,sc=Poly.key_scale(rec.keys and rec.keys[1])
-        if root then e:set_scale(root,sc) end
-        e.key_bpm=rec.bpm;if item==e.item then e.poly=rec end
-        e.message=string.format('Key %s · %.1f BPM',Poly.key_name(rec.keys and rec.keys[1]),rec.bpm or 0)
+        local rec=j.result
+        if j.tempo_only then
+          e.key_bpm=rec.bpm
+          local pb=r.Master_GetTempo and r.Master_GetTempo() or 0
+          if rec.bpm and math.abs(math.floor(rec.bpm+.5)-pb)<.05 then e.message=string.format('Tempo %.1f BPM — the same as the project tempo',rec.bpm)
+          else e.message=string.format('Tempo %.1f BPM — click the tempo to apply it to the project',rec.bpm or 0) end
+        else
+          local root,sc=Poly.key_scale(rec.keys and rec.keys[1])
+          if root then e:set_scale(root,sc) end
+          e.key_bpm=rec.bpm;if item==e.item then e.poly=rec end
+          e.message=string.format('Key %s · %.1f BPM',Poly.key_name(rec.keys and rec.keys[1]),rec.bpm or 0)
+        end
         e.key_modal=nil
       end
     end
@@ -980,7 +1036,9 @@ function M.body(host,im,ctx,app)
   if e.stale then im.TextWrapped(ctx,'Saved analysis is out of date. Click Analyze to edit this item.')
   elseif error then im.TextWrapped(ctx,error) end
   local cw,ch=im.GetContentRegionAvail(ctx)
+  ch=ch-M.BOTTOM_H -- нижняя панель (режим, транспорт, Tune)
   PitchUI.options.ghost_button=true
+  PitchUI.options.follow=host.settings==nil or host.settings.follow~=false -- следить за курсором (Settings; по умолчанию вкл.)
   PitchUI.options.autoscroll=host.settings~=nil and host.settings.autoscroll==true -- автоскролл как в FL (Settings)
   PitchUI.options.scroll_pos=({.22,.5,.78})[host.settings and host.settings.scroll_pos or 1] or .22
   PitchUI.options.smooth=host.settings==nil or host.settings.smooth~=false -- плавный скролл/зум (отключается в Settings)
@@ -995,9 +1053,11 @@ function M.body(host,im,ctx,app)
   local show_analyze=selected>0 and e:needs_analysis() and not e:busy()
   local abw,abh=math.min(cw-40,260),40;local abx,aby=bx0+(cw-abw)/2,by0+math.max(70,ch*.32)
   local mx,my=im.GetMousePos(ctx)
+  -- окно анализа тональности/темпа поверх: закреплённая кнопка не рисуется и не ловит клик (иначе клик по Analyze в окне
+  -- запускал ещё и Melodic-анализ, редактор становился занят и полифонический анализ темпа не стартовал)
+  if e.key_modal then show_analyze=false end
   local over=show_analyze and mx>=abx and mx<=abx+abw and my>=aby and my<=aby+abh
-  if e.key_modal then over=true end -- окно анализа тональности поверх: холст не принимает клики
-  e.block_click=over
+  e.block_click=over or e.key_modal~=nil
   do -- ПКМ по линейке (над сеткой): Show chords + экспорт; без анализа — ничего
     local rtop,rbot=by0,by0+26+(e.poly_lane or 0)
     if e.poly and not e.key_modal and mx>=bx0+42 and mx<=bx0+cw-12 and my>=rtop and my<=rbot and im.IsMouseClicked(ctx,1) and im.IsWindowHovered(ctx,im.HoveredFlags_ChildWindows or 0) then
@@ -1021,6 +1081,9 @@ function M.body(host,im,ctx,app)
   end
   local ok,err=pcall(PitchUI.canvas,proxy,ctx,e,cw,ch)
   M.chord_drag(host,im,ctx,e)
+  -- панель тюнера: правый край левее вертикальной полосы прокрутки, низ выше нижней обзорной полосы (размеры как в pitch/ui.lua)
+  e.tune_anchor={right=bx0+cw-12-8,bottom=by0+ch-21-8,left=bx0+42}
+  if ok then M.bottombar(host,im,ctx,app,bx0,by0+ch,cw,M.BOTTOM_H);im.SetCursorScreenPos(ctx,bx0,by0+ch+M.BOTTOM_H);im.Dummy(ctx,0,0) end
   if saved then e.data,e.notes,e.partial,e.state,e.display=saved[1],saved[2],saved[3],saved[4],saved[5] end
   if not ok then error(err,0) end
   -- плейхед ушёл в другой проанализированный айтем этого трека — он становится активным (не во время правки)
@@ -1078,6 +1141,7 @@ function M.body(host,im,ctx,app)
     local alt=Hotkeys.alt(im,ctx)
     if e.mode~='poly' then
       for i=1,#TOOLS do if Hotkeys.pressed(im,ctx,'tool'..i) then e.tool=TOOLS[i][1] end end
+      for _,t in ipairs(MORE) do if not t[3] and Hotkeys.pressed(im,ctx,'tool_'..t[1]) then e.tool=t[1] end end
     end
     -- W: курсор редактирования (и воспроизведения, если идёт play) — в начало тайм-селекшна
     if Hotkeys.pressed(im,ctx,'cursor_start') then

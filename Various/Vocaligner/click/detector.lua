@@ -6,8 +6,26 @@ local function percentile(v,q)
  if #v==0 then return 0 end
  table.sort(v);return v[math.max(1,math.ceil(#v*q))]
 end
+-- C++: поток признаков. Контроллер открывает его до чтения файла и отдаёт блоки по мере чтения (признаки считаются
+-- параллельно с чтением); nil — расширения нет, всё идёт прежним EEL-путём.
+function M.stream(pcm,engine,job)
+ if not(engine and engine.native) then return nil end
+ local st=engine.native:stream(engine,pcm,job);pcm.click_stream=st;return st
+end
 function M.features(pcm,engine,job)
  if pcm.click_features and pcm.click_features.version==M.version then return pcm.click_features end
+ if engine and engine.native then
+  local st=pcm.click_stream or M.stream(pcm,engine,job)
+  -- блоки, которые ещё не отданы (тесты и прямые вызовы отдают всё здесь)
+  local at=0
+  for index,b in ipairs(pcm.blocks)do
+   if at>=st.pushed then job:call(st.push,st,b) end
+   at=at+b.count
+   if index%64==0 then job:checkpoint(.9*index/#pcm.blocks,'Analyzing click transients') end
+  end
+  local out=st:finish(pcm,job);pcm.click_stream=nil
+  pcm.click_features=out;return out
+ end
  local out={version=M.version,rows={},hop=math.max(1,math.floor(pcm.sr*.00025+.5))/pcm.sr,len=pcm.len,sr=pcm.sr}
  for index,b in ipairs(pcm.blocks)do
   local values=job:call(engine.run,engine,b.buffer,b.count,pcm.channels,pcm.sr,index==1,index==#pcm.blocks)
@@ -21,6 +39,8 @@ end
 -- Statistics sampled symmetrically outside a guard around the current bin.
 -- Use the louder side to protect sustained attacks; percentile resists a lone click.
 function M.score(data,mode,skew,protect,job,engine)
+ -- C++: контекст, оценки и защита повторов кусками в пуле; оценки остаются в C++, M.events читает их там же
+ if data.native and mode=='click' then return data.native:score(data,mode,skew,protect,job) end
  local rows,h=data.rows,data.hop;local result={};local weights={}
  weights[1]=10^(-skew/10);weights[2]=mode=='mouth' and 1.6 or 1;weights[3]=10^(skew/10)
  local span=math.max(4,math.floor((mode=='mouth' and .080 or .030)/h));local guard=math.max(2,math.floor((mode=='mouth' and .025 or .003)/h));local stride=math.max(1,math.floor(.001/h))
@@ -100,6 +120,11 @@ local function median(rows,k,a,b)
  return n%2==1 and v[(n+1)//2] or .5*(v[n//2]+v[n//2+1])
 end
 local function mouth_candidates(data,cfg,job,engine)
+ if data.native then
+  -- C++: тот же контраст и тот же отбор (бит в бит); data.transient — метка, что контраст считается в C++
+  data.transient=data.transient or {native=true}
+  return data.native:mouth(data,cfg,job)
+ end
  local rows=data.rows;local n=#rows;local h=data.hop
  local function frames(ms)return math.max(1,math.floor(ms*.001/h+.5))end
  local G,SPAN,MERGE,LEFT,TAIL=frames(.75),frames(6),frames(3),frames(1.5),frames(8)
@@ -188,6 +213,7 @@ function M.mouth_events(data,cfg,exclusions,job,engine)
  return events
 end
 function M.events(data,scores,cfg,mode,exclusions,job)
+ if scores.native then return scores.native:events(scores,cfg,mode,exclusions,job) end
  local h=data.hop;local threshold=14*2^(-cfg[mode..'_sensitivity']/35)
  local tail=math.max(1.6,threshold*.32);local events={};local i=1
  local gap=math.max(1,math.floor((mode=='mouth' and .002 or .0005)/h))

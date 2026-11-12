@@ -17,11 +17,26 @@ local function clamp(v,a,b) return math.max(a,math.min(b,v)) end
 local function action(c,fn) local ok,why=xpcall(fn,debug.traceback);if not ok then c:fail(why) end end
 
 -- ===== данные для отрисовки =====
--- моно-сумма отсчётов item-локальных кадров first..last (включительно): out[i]=значение
+-- Два источника данных. C++ (s.nio — ручка, которая держит файл): пирамида пиков строится в пуле во время чтения,
+-- отсчёты для зума читаются из файла по запросу, Lua не хранит PCM. Без расширения/чтения файла в C++ — прежний путь:
+-- пики считаются циклом по блокам s.pcm.blocks, отсчёты берутся из них же.
+local function native_of(s) return s and s.nio and s.nio.native or nil end
+-- моно-сумма отсчётов item-локальных кадров first..last (включительно): out[i]=значение.
+-- C++: таблица-обёртка над одним чтением (значения не копируются в таблицу с огромными индексами); кеш по (first,last).
+local sample_cache
 local function samples(s,first,last)
   local pcm=s.pcm;local ch=pcm.channels;local out={}
   first=math.max(0,first);last=math.min(pcm.frames-1,last)
   if last<first then return out end
+  local nat=native_of(s)
+  if nat then
+    local c=sample_cache
+    if c and c.h==s.nio and c.first==first and c.last==last then return c.view end
+    local vals=nat:read(s.nio,first,last-first+1,-1);local o=first-1
+    local view=setmetatable({},{__index=function(_,i) return vals[i-o] end})
+    sample_cache={h=s.nio,first=first,last=last,view=view}
+    return view
+  end
   for bi=first//pcm.block_size+1,last//pcm.block_size+1 do
     local b=pcm.blocks[bi]
     if b then
@@ -37,6 +52,7 @@ end
 -- пирамида пиков моно-суммы: уровни по 16, 128, 1024 кадров (min/max)
 local function peaks(s)
   local pcm=s.pcm;local ch=pcm.channels;local H=16
+  if native_of(s) then return {native=native_of(s),h=s.nio,sr=pcm.sr,frames=pcm.frames,peak=0,ready=false,done=0} end
   local mn,mx={},{};local lo,hi,cnt=math.huge,-math.huge,0;local peak=0
   for _,b in ipairs(pcm.blocks) do
     local vals=b.buffer.table()
@@ -58,49 +74,120 @@ local function peaks(s)
     end
     levels[#levels+1]={hop=src.hop*8,mn=a,mx=b}
   end
-  return {sr=pcm.sr,frames=pcm.frames,levels=levels,peak=peak}
+  return {sr=pcm.sr,frames=pcm.frames,levels=levels,peak=peak,ready=true}
 end
--- правленые отсчёты (моно): map[i]=значение, idx — отсортированные item-локальные индексы
+-- C++: опрос готовности пирамиды (пока идёт чтение; потом не опрашиваем) и общий пик для масштаба по вертикали
+local function peaks_progress(P)
+  if not P or not P.native or P.ready then return end
+  local info=P.native:source_info(P.h)
+  if info then P.peak=info.peak;P.done=info.done;if info.status==1 then P.ready=true end end
+end
+-- правленые отсчёты (моно): map[i]=значение, idx — item-локальные индексы (порядок не важен: сортировать миллион точек
+-- на каждое превью незачем — зум берёт значения из map, обзор только раскладывает по пикселям).
+-- Значение кадра — сумма каналов/ch; канал без правки берёт исходный отсчёт (C++: читается из файла только для таких кадров).
 local function patch_view(s,patch)
   local out={map={},idx={}};if not patch then return out end
-  local ch=s.pcm.channels;local per={}
-  for c,pts in pairs(patch) do for index,v in pairs(pts) do
-    local i=index-s.first;per[i]=per[i] or {};per[i][c]=v
-  end end
-  for i,vals in pairs(per) do
-    local sum=0
-    if ch>1 then
-      local orig=s.pcm.blocks[i//s.pcm.block_size+1]
-      local raw=orig and orig.buffer.table((i-orig.first)*ch+1,ch) or {}
-      for c=0,ch-1 do sum=sum+(vals[c] or raw[c+1] or 0) end
-    else sum=vals[0] or 0 end
-    out.map[i]=sum/ch;out.idx[#out.idx+1]=i
+  local ch=s.pcm.channels;local map,idx=out.map,out.idx;local first=s.first;local need={}
+  if ch==1 then
+    for index,v in pairs(patch[0] or {}) do local i=index-first;map[i]=v;idx[#idx+1]=i end
+    return out
   end
-  table.sort(out.idx)
+  for c=0,ch-1 do
+    local pts=patch[c]
+    if pts then for index in pairs(pts) do
+      local i=index-first
+      if map[i]==nil then
+        local sum,miss=0,false
+        for k=0,ch-1 do local pk=patch[k];local v=pk and pk[index];if v==nil then miss=true;break end;sum=sum+v end
+        idx[#idx+1]=i
+        if miss then map[i]=false;need[#need+1]=i else map[i]=sum/ch end
+      end
+    end end
+  end
+  if #need>0 then -- редкий случай: не все каналы правлены в кадре
+    table.sort(need)
+    local nat=native_of(s);local k=1
+    local function mix(i,vals,o)
+      local sum=0;local index=i+first
+      for c=0,ch-1 do local pk=patch[c];sum=sum+((pk and pk[index]) or vals[o+c+1] or 0) end
+      map[i]=sum/ch
+    end
+    while k<=#need do
+      if nat then -- близкие кадры читаются одним куском
+        local a=need[k];local z=a;local j=k
+        while j<#need and need[j+1]-z<=64 do j=j+1;z=need[j] end
+        local vals=nat:read(s.nio,a,z-a+1,-2)
+        for q=k,j do mix(need[q],vals,(need[q]-a)*ch) end
+        k=j+1
+      else
+        local i=need[k];local orig=s.pcm.blocks[i//s.pcm.block_size+1]
+        mix(i,orig and orig.buffer.table((i-orig.first)*ch+1,ch) or {},0);k=k+1
+      end
+    end
+  end
   return out
 end
 
 -- ===== отрисовка волны (вызывается общим холстом) =====
+local cur,cur_events -- что сейчас показано: источник (идущий анализ или готовый) и его кандидаты
+local columns -- кеш столбцов обзора: пересчёт только при смене вида/готовности пирамиды
+local function overview_columns(w,base,spp)
+  -- C++: столбцы берутся из пирамиды одним вызовом; Lua: прежний перебор уровня (результат один и тот же)
+  local nat=P.native
+  if nat then
+    local key=('%.17g:%.17g:%d:%d:%s'):format(base,spp,w,P.done or 0,tostring(P.h))
+    if columns and columns.key==key then return columns.v end
+    local v=nat:view_peaks(P.h,base,spp,w) or {}
+    -- общий пик (масштаб по вертикали) не должен отставать от увиденных столбцов, пока пирамида ещё достраивается
+    for i=1,#v,2 do local a,b=v[i],v[i+1];if a<=b then P.peak=math.max(P.peak,-a,b) end end
+    columns={key=key,v=v};return v
+  end
+  return nil
+end
+local ocache -- кеш столбцов правки (исправленные отсчёты по пикселям)
+local function patch_columns(w,base,spp)
+  local key=('%.17g:%.17g:%d'):format(base,spp,w)
+  if ocache and ocache.pv==pv and ocache.key==key then return ocache.lo,ocache.hi end
+  local lo,hi={},{}
+  for _,i in ipairs(pv.idx) do
+    local px=math.floor((i-base)/spp)
+    if px>=0 and px<w then local val=pv.map[i]
+      lo[px]=math.min(lo[px] or val,val);hi[px]=math.max(hi[px] or val,val) end
+  end
+  ocache={pv=pv,key=key,lo=lo,hi=hi};return lo,hi
+end
 local function paint(draw,x,y,w,h,v)
-  local s=ctl.s;if not s or not P then return end
+  local s=cur;if not s or not P then return end
+  peaks_progress(P)
   local sr,pos=P.sr,d.snapshot.pos
-  local mid=y+h*.5;local g=.46*h/math.max(P.peak,1e-6)
+  local mid=y+h*.5
   local function X(t) return x+(pos+t-v.start)/v.span*w end
-  for _,e in ipairs(ctl.events) do -- зоны кандидатов под волной
+  for _,e in ipairs(cur_events) do -- зоны кандидатов под волной
     local a,b=X(e.start),X(e.finish)
     if b>=x and a<=x+w then im.DrawList_AddRectFilled(draw,a,y,math.max(a+2,b),y+h,e.excluded and COL.zone_off or COL.zone) end
   end
   im.DrawList_AddLine(draw,x,mid,x+w,mid,COL.zero)
   local spp=v.span*sr/w;local base=(v.start-pos)*sr
+  local cols=spp>3 and overview_columns(math.floor(w),base,spp) or nil
+  local g=.46*h/math.max(P.peak,1e-6)
   if spp>3 then -- обзор: min/max по пикселю
-    local L=P.levels[1];for _,l in ipairs(P.levels) do if l.hop<=spp then L=l end end
     local pt,pb
+    local L=nil
+    if not cols then L=P.levels[1];for _,l in ipairs(P.levels) do if l.hop<=spp then L=l end end end
     for px=0,math.floor(w)-1 do
-      local i0=math.floor((base+px*spp)/L.hop)+1;local i1=math.floor((base+(px+1)*spp)/L.hop)+1
-      if i1>=1 and i0<=#L.mn then
-        i0=math.max(1,i0);i1=math.max(i0,math.min(#L.mn,i1))
-        local lo,hi=math.huge,-math.huge
-        for k=i0,i1 do if L.mn[k]<lo then lo=L.mn[k] end;if L.mx[k]>hi then hi=L.mx[k] end end
+      local lo,hi
+      if cols then
+        local a,b=cols[2*px+1],cols[2*px+2]
+        if a and b and a<=b then lo,hi=a,b end
+      else
+        local i0=math.floor((base+px*spp)/L.hop)+1;local i1=math.floor((base+(px+1)*spp)/L.hop)+1
+        if i1>=1 and i0<=#L.mn then
+          i0=math.max(1,i0);i1=math.max(i0,math.min(#L.mn,i1))
+          lo,hi=math.huge,-math.huge
+          for k=i0,i1 do if L.mn[k]<lo then lo=L.mn[k] end;if L.mx[k]>hi then hi=L.mx[k] end end
+        end
+      end
+      if lo then
         local top,bot=mid-hi*g,mid-lo*g
         im.DrawList_AddLine(draw,x+px+.5,top,x+px+.5,math.max(bot,top+1),COL.fill)
         if pt then
@@ -111,12 +198,7 @@ local function paint(draw,x,y,w,h,v)
       else pt=nil end
     end
     if pv and #pv.idx>0 then -- исправленные отсчёты поверх: min/max правки по пикселю
-      local lo,hi={},{}
-      for _,i in ipairs(pv.idx) do
-        local px=math.floor((i-base)/spp)
-        if px>=0 and px<w then local val=pv.map[i]
-          lo[px]=math.min(lo[px] or val,val);hi[px]=math.max(hi[px] or val,val) end
-      end
+      local lo,hi=patch_columns(math.floor(w),base,spp)
       for px,l in pairs(lo) do
         im.DrawList_AddLine(draw,x+px+.5,mid-hi[px]*g-.5,x+px+.5,mid-l*g+.5,COL.fixed)
       end
@@ -158,6 +240,7 @@ end
 -- ===== выделение = time selection REAPER =====
 local function set_range(x,y,on)
   if d.range[1]~=x or d.range[2]~=y or d.selected~=on then
+    -- ctl:request() во время анализа ничего не отменяет (см. controller.lua): диапазон применится к первому превью
     d.range={x,y};d.selected=on;ctl.range=on and {x,y} or nil;ctl:request()
   end
 end
@@ -253,22 +336,26 @@ function M.draw(im_,ctx_,app,color)
     if saved then action(c,function() c:resume(saved) end) end
    end
   end
-  -- данные холста: пересобираются при новом анализе / новом превью
-  if c.s~=built_for then
-    built_for=c.s;d,P,pv,pv_for=nil,nil,nil,nil
-    if c.s then
-      local s=c.s;P=peaks(s);owner.project=s.project;owner.sel=nil
+  -- данные холста: пересобираются при новом анализе / новом превью. Пока идёт анализ C++, обзор волны открывается сразу
+  -- (c.loading: пики готовы намного раньше признаков); кандидаты и правка появятся с готовым анализом.
+  local shown=c.loading or c.s
+  if shown~=built_for then
+    built_for=shown;d,P,pv,pv_for,columns,ocache,sample_cache=nil,nil,nil,nil,nil,nil,nil
+    if shown then
+      local s=shown;P=peaks(s);owner.project=s.project;owner.sel=nil
       local name='item'
       if r.ValidatePtr2(s.project,s.item,'MediaItem*') then local take=r.GetActiveTake(s.item);if take then name=r.GetTakeName(take) end end
       d={snapshot={name=name,pos=s.pos,len=s.len},audio={pos=s.pos,len=s.len,hop=1/s.sr},range={0,s.len},selected=false,detected={sibilants={}},marks={}}
       c.range=nil
     end
   end
+  cur=shown;cur_events=(c.loading and c.loading~=c.s) and {} or c.events
   if d then
-    d.detected.sibilants=c.events
-    if c.patch~=pv_for then pv_for=c.patch;pv=patch_view(c.s,c.patch) end
+    d.detected.sibilants=cur_events
+    if c.loading and c.loading~=c.s then pv=nil;pv_for=nil
+    elseif c.patch~=pv_for then pv_for=c.patch;pv=patch_view(c.s,c.patch) end
     if c.bypassed then pv=nil;pv_for=nil end
-    local marks={};for _,e in ipairs(c.events) do marks[#marks+1]={start=e.start,finish=e.finish,col=e.excluded and COL.mark_off or COL.mark} end
+    local marks={};for _,e in ipairs(cur_events) do marks[#marks+1]={start=e.start,finish=e.finish,col=e.excluded and COL.mark_off or COL.mark} end
     d.marks=marks
     sync_range(r)
   end

@@ -40,17 +40,39 @@ function M:set_auto(value)
   self.auto=value;self.last_selected=nil;self.last_selected_guid=nil;self.last_selection_key=nil;self.follow_key=nil;self.follow_due=nil;self.follow_target=nil;self.follow_guid=nil
   if self.r.SetExtState then self.r.SetExtState('Vocaligner session v7','auto',value and '1' or '0',false) end
 end
+-- Выброшенный из кэша айтем отдаёт DLL PCM, прогоны детектора и дескрипторы Breaths сразу (иначе их держали бы кеши
+-- модулей и сборщик мусора, пока память не упрётся в предел)
+function M:release_item(d)
+  if not d then return end
+  pcall(import('compressor/native').release_item,d)
+  local Breaths=import('breath_native')
+  if d.audio then pcall(Breaths.release,d.audio) end
+  for _,input in pairs(d.chain_inputs or {})do if input.audio then pcall(Breaths.release,input.audio) end end
+  for _,stage in pairs(d.stage_cache or {})do if stage.input then pcall(Breaths.release,stage.input) end end
+  d.chain_inputs=nil;d.stage_cache=nil;d.detector_levels=nil
+end
 function M:dispose()
   self:cancel()
   local d=self:current()
   for _,target in ipairs(self.items)do
     if (target==d or target.save_pending) and target.audio_file and not target.audio_dirty then self:save(target);target.save_pending=nil end
   end
+  for _,bucket in pairs(self.cache)do for _,target in ipairs(bucket.items)do self:release_item(target) end end
 end
+-- Предел кэша сессии (session_cache.lua / cache_packing.lua): запись принимает айтем не длиннее 1800 с, кадры анализа —
+-- не больше 120000 (20 минут). Длинное аудио живёт в памяти этой сессии (колонки кадров и PCM в DLL), на диск не пишется:
+-- после перезапуска REAPER оно анализируется заново. Короче предела всё сохраняется как раньше.
+M.SESSION_MAX_SECONDS=1800;M.SESSION_MAX_FRAMES=120000
 function M:save(d,job)
   if not self.session or not d or d.stale or d.restore_value then return end
+  if d.snapshot.len>M.SESSION_MAX_SECONDS then d.cache_status='long item: kept in memory only (session cache limit 30 min)';return end
   local started=self.r.time_precise()
-  local ok,why=pcall(self.session.save,self.session,d,job)
+  local target=d
+  if d.audio and (d.audio.frame_store and d.audio.frame_store.n or #d.audio.frames)>M.SESSION_MAX_FRAMES then
+    -- метаданные пишем, кадры анализа — нет (их не принял бы Pack.read_audio): запись видит айтем без аудио
+    target=setmetatable({audio=false,audio_file=false},{__index=d,__newindex=d})
+  end
+  local ok,why=pcall(self.session.save,self.session,target,job)
   d.save_ms=(self.r.time_precise()-started)*1000;d.save_count=(d.save_count or 0)+1
   if not ok then self.cache_error='Session cache could not be saved: '..tostring(why);self:fail(self.cache_error)
   else self.cache_error=nil end
@@ -177,11 +199,13 @@ function M:capture(preview_only)
   local r=self.r;local project=r.EnumProjects(-1);local captured={};local additions=0
   self:bind(project);local bucket=self.cache[project]
   for p,b in pairs(self.cache) do
-    if not Audio.project_open(r,p) then self.cache[p]=nil
+    if not Audio.project_open(r,p) then
+      for _,gone in ipairs(b.items)do self:release_item(gone) end
+      self.cache[p]=nil
     else
       local focused=b.items[b.focus or 1]
       for i=#b.items,1,-1 do
-        if not r.ValidatePtr2(p,b.items[i].snapshot.item,'MediaItem*') then table.remove(b.items,i) end
+        if not r.ValidatePtr2(p,b.items[i].snapshot.item,'MediaItem*') then self:release_item(table.remove(b.items,i)) end
       end
       b.by_guid={}
       for i,d in ipairs(b.items) do b.by_guid[d.snapshot.guid]=i end
@@ -221,11 +245,17 @@ function M:capture(preview_only)
   end
   if skipped>0 then self.app:report(string.format('Skipped %d selected empty or MIDI items.',skipped)) end
   if #captured==0 then self:fail('Select an audio item in REAPER.');return end
-  if (total+additions)*self.cfg.sample_rate/self.cfg.hop>self.cfg.max_total_frames then
-    self:fail('The session audio cache is full (20 minutes). Close unused project tabs or restart the script.');return
+  -- С C++ кадры лежат в колонках вне кучи Lua (cleanup_frames.lua), PCM — в DLL: предел кэша выше
+  local engine=self.app.engine;local Native=import('compressor/native')
+  local long=Native.active(r) and engine and engine.cleanup_dsp and engine.cleanup_dsp.cpp
+  local cap=long and math.max(self.cfg.max_total_frames,self.cfg.native_max_total_frames or 0) or self.cfg.max_total_frames
+  if (total+additions)*self.cfg.sample_rate/self.cfg.hop>cap then
+    self:fail(string.format('The session audio cache is full (%d minutes). Close unused project tabs or restart the script.',
+      math.floor(cap*self.cfg.hop/self.cfg.sample_rate/60+.5)));return
   end
   for _,entry in ipairs(captured) do
     local index=entry.index or (#self.items+1);entry.index=index
+    local replaced=self.items[index];if replaced and replaced~=entry.dub then self:release_item(replaced) end
     self.items[index]=entry.dub;bucket.by_guid[entry.dub.snapshot.guid]=index
   end
   self.last_selected=r.CountSelectedMediaItems(0)==1 and captured[1].dub.snapshot.item or nil
@@ -606,7 +636,12 @@ function M:tick()
   if Dynamics.is_tool(self.app.tab) then self:follow_selection();self:sync_selection() end
   if self.job then
     local job=self.job
-    if job.kind=='read' or job.kind=='preview' or job.kind=='batch' then job.budget=self.gesture and .004 or .012 end
+    if job.kind=='read' or job.kind=='preview' or job.kind=='batch' then
+      -- длинный айтем (от 5 минут; в пакете — любой из группы) считается дольше: шаг короче, кадр интерфейса не страдает
+      local long=job.dub and job.dub.snapshot and job.dub.snapshot.len>=300
+      if job.kind=='batch' then for _,t in ipairs(self.targets or {})do if t.snapshot.len>=300 then long=true;break end end end
+      job.budget=self.gesture and .004 or (long and .008 or .012)
+    end
     job:step()
     if self.operation then
       local stages={read={0,.72},preview={.72,.90},apply={.90,.99},save={.99,1}}
@@ -667,12 +702,20 @@ function M:diagnostics()
   local engine=self.app.engine
   local lines={'CLEANUP: '..self.mode..' / cached live apply (35 ms)','backend = '..(engine and engine.label or 'Lua (cached bands)')}
   lines[#lines+1]='chain = '..self.cfg.chain_order..' | RT update = '..tostring(self.cfg.dynamics_rt>=.5)
-  lines[#lines+1]='dynamics = '..(engine and engine.dynamics and engine.dynamics.fn and 'EEL / cached PCM' or 'unavailable')
+  local Native=import('compressor/native');local cpp,why=Native.available(self.r)
+  local on=cpp and Native.active(self.r)
+  lines[#lines+1]='dynamics = '..(on and 'C++ (VN_Dyn, PCM in DLL, worker pool)' or engine and engine.dynamics and engine.dynamics.fn and 'EEL / cached PCM' or 'unavailable')
+  if not on then lines[#lines+1]='  C++ dynamics: '..(cpp and 'off (ExtState backend=lua)' or tostring(why)) end
+  if on then local s=Native.stats(self.r);lines[#lines+1]=string.format('  C++ dynamics: kept PCM %.1f MiB | queued PCM %.1f MiB | workers %d',s.kept/1048576,s.pending/1048576,s.workers) end
   lines[#lines+1]='selection = '..(self.auto and 'Auto' or 'Get manually')..' | cache = REAPER session / project'
   local batch=self.batch_stats
   if batch then lines[#lines+1]=string.format('last batch %s / %d items: elapsed %.1f ms | work %.1f ms | native apply %.1f ms | steps %d | max step %.2f ms',
     batch.mode,batch.count,batch.elapsed_ms,batch.work_ms,batch.apply_ms,batch.steps,batch.max_step_ms) end
   if engine and engine.reason then lines[#lines+1]='EEL fallback: '..engine.reason end
+  do -- какой путь реально считает дыхание: C++ (VN_Breath) или Lua/EEL; ярлык ниже — только про EEL-движок и ничего не доказывает
+    local BN=import('breath_native');local ok,why=BN.available(self.r)
+    lines[#lines+1]='breath backend = '..(ok and BN.active(self.r) and 'C++ (VN_Breath, worker pool)' or ok and 'Lua (ExtState backend=lua)' or ('Lua: '..tostring(why)))
+  end
   lines[#lines+1]='breath model = '..BreathModel.version..' | '..(engine and engine.breath and engine.breath.label or 'Lua breath trees')
   if engine and engine.breath and engine.breath.reason then lines[#lines+1]='Breath fallback: '..engine.breath.reason end
   for i,d in ipairs(self.items) do
@@ -705,7 +748,7 @@ function M:diagnostics()
     lines[#lines+1]=string.format('  learned breaths %d | keep sounds %d | feature cache %s | model cache %s',positive,negative,
       tostring(breath_input and breath_input.breath_features~=nil or false),tostring(breath_input and breath_input.breath_model_scores~=nil or false))
     local model=breath_input and breath_input.breath_model_scores
-    if model then lines[#lines+1]=string.format('  breath inference elapsed %.1f ms | kernel %.1f ms',model.elapsed_ms or 0,model.kernel_ms or 0) end
+    if model then lines[#lines+1]=string.format('  breath inference [%s] elapsed %.1f ms | kernel %.1f ms',tostring(model.version),model.elapsed_ms or 0,model.kernel_ms or 0) end
     for k,e in ipairs(d.detected and d.detected.breaths or {}) do if k<=60 then
       lines[#lines+1]=string.format('  breath %.3f..%.3f | score %.3f | level %.1f dBFS | cut %.1f dB | excluded %s',
         e.start,e.finish,e.score,e.level_db or 0,e.reduction,tostring(e.excluded))

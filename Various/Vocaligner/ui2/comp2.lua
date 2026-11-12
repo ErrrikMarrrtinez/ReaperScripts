@@ -1136,7 +1136,9 @@ local function learn_overlay(im,ctx,c,d,g)
   local labels={'Learn breath','Keep sound'};if learned then labels[3]='Reset learning' end
   local pad,gap,bh=8,4,22;local widths={};local total=pad*2-gap
   for i,t in ipairs(labels) do widths[i]=im.CalcTextSize(ctx,t)+16;total=total+widths[i]+gap end
-  local cx=clamp((xa+xb)/2,g.px0+total/2+4,g.right-total/2-4);local x0=math.floor(cx-total/2);local y0=g.py0+10
+  -- видимая часть: правее панели кнобов, левее шкалы dB, ниже верхней строки (Analyze / глаз / Manual edit)
+  local vx0=math.max(g.px0,S.learn_x0 or g.px0);local vx1=math.min(g.right,g.sx or g.right)
+  local cx=clamp((xa+xb)/2,vx0+total/2+4,vx1-total/2-4);local x0=math.floor(cx-total/2);local y0=math.max(g.py0+10,S.learn_y0 or 0)
   local dl=im.GetWindowDrawList(ctx)
   im.DrawList_AddRectFilled(dl,math.max(g.px0,xa),g.py0,math.min(g.right,xb),g.py0+g.ph,0x0000002E) -- выделение чуть затемнено
   im.DrawList_AddRectFilled(dl,x0,y0,x0+total,y0+bh+pad*2,0x101010D8,8)
@@ -1168,6 +1170,8 @@ function M.draw(im,ctx,c,color,dis,job)
   if S.mode~=c.mode then S.mode=c.mode;S.meter=nil;S.filter_open=false end
   local d=c:current()
   local x,y=im.GetCursorScreenPos(ctx);local aw,ah=im.GetContentRegionAvail(ctx)
+  -- Breath: глаз и Manual edit стоят в верхней строке (рядом с Analyze / Auto), а не ниже неё
+  local by=(SP.events=='breaths' and c.row_top) or y+1
   -- «плеер» уходит до правого, верхнего и нижнего края страницы (поверх её полей)
   local wx,wy=im.GetWindowPos(ctx);local ww,wh=im.GetWindowSize(ctx)
   local round=im.StyleVar_ChildRounding and im.GetStyleVar(ctx,im.StyleVar_ChildRounding) or 0
@@ -1186,13 +1190,14 @@ function M.draw(im,ctx,c,color,dis,job)
   local font=im.GetFontSize(ctx);local dl=im.GetWindowDrawList(ctx)
   if editing then
     local g=edit_page(im,ctx,c,d,color,dis,x,y,aw,ah,wx,wy,ww,wh,round)
+    S.learn_x0=nil;S.learn_y0=SP.events=='breaths' and c.row_top and c.row_top+34 or nil
     learn_overlay(im,ctx,c,d,g)
     local ui=c.app and c.app.ui_icon
     local rx=g.right-2
-    local clk,hv=pill(im,ctx,'##comp2_edit',rx-24,y+1,24,24,true,function(dl_,cx,cy,col) if ui then ui(dl_,1,cx,cy,17,col) end end)
+    local clk,hv=pill(im,ctx,'##comp2_edit',rx-24,by,24,24,true,function(dl_,cx,cy,col) if ui then ui(dl_,1,cx,cy,17,col) end end)
     if clk then S.edit=false;S.ed=nil end
-    if hv then Knob.plate(im,ctx,rx-12,y+29,'Manual edit',true) end
-    M.hide_button(im,ctx,c,rx-24-4-24,y+1) -- глаз слева от кнопки
+    if hv then Knob.plate(im,ctx,rx-12,by+28,'Manual edit',true) end
+    M.hide_button(im,ctx,c,rx-24-4-24,by) -- глаз слева от кнопки
     -- Aim (как в редакторе нот): вид плавно едет вместе с плей-курсором
     local aclk,ahv=pill(im,ctx,'##comp2_aim',rx-24-4-24-4-24,y+1,24,24,S.aim==true,function(dl_,cx,cy,col) if ui then ui(dl_,S.aim and 8 or 9,cx,cy,16,col) end end)
     if aclk then S.aim=not S.aim end
@@ -1296,12 +1301,13 @@ function M.draw(im,ctx,c,color,dis,job)
   if SP.filter then filter_overlay(im,ctx,c,g,ix,y,rx);eyex=rx-38-4-24 else S.panel=nil end
   if SP.editable then
     local ui=c.app and c.app.ui_icon
-    local clk,hv=pill(im,ctx,'##comp2_edit',rx-24,y+1,24,24,false,function(dl_,cx,cy,col) if ui then ui(dl_,1,cx,cy,17,col) end end)
+    local clk,hv=pill(im,ctx,'##comp2_edit',rx-24,by,24,24,false,function(dl_,cx,cy,col) if ui then ui(dl_,1,cx,cy,17,col) end end)
     if clk then S.edit=true;S.ed=nil end
-    if hv then Knob.plate(im,ctx,rx-12,y+29,'Manual edit',true) end
+    if hv then Knob.plate(im,ctx,rx-12,by+28,'Manual edit',true) end
     eyex=rx-24-4-24
   end
-  M.hide_button(im,ctx,c,eyex,y+1)
+  M.hide_button(im,ctx,c,eyex,by)
+  S.learn_x0=ix;S.learn_y0=SP.events=='breaths' and c.row_top and c.row_top+34 or nil
   learn_overlay(im,ctx,c,d,g)
   player_input(im,ctx,c,d,ix,y,x+aw-ix,h,g,dis) -- последним: реагирует, только когда мышь не над элементом
   -- прогресс-бар под панелью кнопок

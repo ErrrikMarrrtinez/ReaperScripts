@@ -1,5 +1,7 @@
 -- @noindex
 -- Independent multiband + robust adaptive-prediction front end. No FFT dependency.
+-- C++ (click/native.lua, VN_Declick*) считает то же самое, если расширение есть: self.native; иначе этот EEL.
+local import=...
 local M={};M.__index=M
 M.version=1
 M.context_code=[[
@@ -159,7 +161,15 @@ function M.new(im,ctx,r)
   for k,v in pairs({rows=0,output=1000000,scratch=2000000})do im.Function_SetValue(self.contrast_fn,k,v)end
  end)
  if not ok then self.fn=nil;self.reason=tostring(why) end
+ if import then local okn,Native=pcall(function() return import('click/native') end);if okn and Native then self.native=Native.get(r) end end
  return self
+end
+-- Коэффициенты фильтров признаков (al, am) ровно как их считает этот EEL-код: C++ получает их отсюда,
+-- чтобы exp() был тем же, что у EEL-пути.
+function M:coefficients(sr)
+ local im,fn=self.im,self.fn;if not fn then return nil end
+ for k,v in pairs({count=0,channels=1,sr=sr,hop=1,reset=1,last=0})do im.Function_SetValue(fn,k,v)end
+ im.Function_Execute(fn);return im.Function_GetValue(fn,'al'),im.Function_GetValue(fn,'am')
 end
 function M:context(data,mode,job)
  local im,fn=self.im,self.context_fn;local h=data.hop;local result={}

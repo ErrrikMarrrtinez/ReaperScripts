@@ -33,9 +33,13 @@ function M.save(r,project,guid,profile)
 end
 function M.learn(data,profile,range,kind,job)
   if range[2]-range[1]<.04 or range[2]-range[1]>2 then return nil,'Select 40 ms to 2 seconds of one sound to learn.' end
-  local rows=Features.build(data,job).rows;local e={kind=kind,mean={},variance={}};local count=0
+  local e={kind=kind,mean={},variance={}};local count=0
   for k=1,Features.profile_size do e.mean[k]=0;e.variance[k]=0 end
-  local a=math.max(1,math.ceil(range[1]/data.hop)+1);local b=math.min(#rows,math.floor(range[2]/data.hop)+1)
+  local a=math.max(1,math.ceil(range[1]/data.hop)+1);local b=math.min(#data.frames,math.floor(range[2]/data.hop)+1)
+  -- C++: признаки 1..19 только выбранных кадров (без построения Lua-признаков всего файла); иначе — Lua
+  local Native=import('breath_native');local r=Native.host();local rows
+  if r and Native.active(r) then local ok,got=Native.try(Native.rows,r,data,a,b,job);if ok then rows=got end end
+  rows=rows or Features.build(data,job).rows
   for i=a,b do
     if data.frames[i].rms>1e-7 then count=count+1;for k=1,Features.profile_size do e.mean[k]=e.mean[k]+rows[i][k] end end
   end

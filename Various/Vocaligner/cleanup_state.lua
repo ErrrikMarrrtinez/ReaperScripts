@@ -228,7 +228,8 @@ function M.check(r,d,current)
     local no_wrap=old.source_length and old.offset>=0 and old.offset+old.len*old.rate<=old.source_length+.0001
     local linear=#old.markers==0 and #current.markers==0 and (no_wrap or old.B_LOOPSRC==0 and current.B_LOOPSRC==0)
     local covered=inv(0)>=-1e-7 and inv(current.len)<=old.len+1e-7
-    if data and not content_changed and linear and covered then
+    -- Кадры в колонках (длинный айтем): срез копировал бы 360 тысяч таблиц одним шагом — такой айтем читается заново, с прогрессом
+    if data and not content_changed and linear and covered and not data.frame_store then
       -- Trims and play-rate changes reuse the analysis through the time map.
       local sliced={frames={},len=current.len,pos=current.pos,hop=data.hop,dynamics_only=data.dynamics_only,analysis_rate=data.analysis_rate,accessor_scale=data.accessor_scale}
       for i=0,math.ceil(current.len/data.hop)-1 do

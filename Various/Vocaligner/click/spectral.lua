@@ -6,6 +6,14 @@ local function quantile(a)
  table.sort(a);return a[math.max(1,math.ceil(#a*.65))] or 0
 end
 local function read(pcm,first,count)
+ if pcm.read then -- C++: окно читается из файла; вне источника — нули (как ниже)
+  local ch=pcm.channels;local out={};local lead=math.max(0,math.min(count,-first))
+  local a=first+lead;local b=math.min(first+count,pcm.frames);local got=0
+  for _=1,lead*ch do out[#out+1]=0 end
+  if b>a then local v=pcm.read(a,b-a);table.move(v,1,#v,#out+1,out);got=b-a end
+  for _=1,(count-lead-got)*ch do out[#out+1]=0 end
+  return out
+ end
  local out={};local stop=first+count;local cursor=first
  while cursor<0 and cursor<stop do for c=1,pcm.channels do out[#out+1]=0 end;cursor=cursor+1 end
  for _,b in ipairs(pcm.blocks)do

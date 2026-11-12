@@ -16,6 +16,11 @@ M.defaults = {
   breath_join_ms = 160, breath_edge_ms = 120, breath_strength = 100,
   sample_rate = 32000, fft_size = 1024, hop = 320, mel_bands = 32,
   max_seconds = 1800, max_total_frames = 120000, max_cells = 24000000, frame_budget = 0.008,
+  -- Пределы длинного аудио при C++ (колонки кадров вне кучи Lua, PCM в DLL): 4 часа на айтем, 1 000 000 кадров
+  -- (≈2,8 ч при 100 кадрах/с) на все кэшированные айтемы. Прежние max_seconds / max_total_frames остаются для пути Lua.
+  native_max_seconds = 14400, native_max_total_frames = 1000000,
+  store_min_frames = 30000, -- с этого числа кадров анализ Cleanup хранится в колонках, меньше — в таблицах Lua
+  batch_prefetch = 1, -- пакетная обработка читает аудио следующего айтема, пока DLL считает текущий (0 — выключить)
 }
 M.profiles = {'Vocal doubles', 'Harmony / different voice', 'Speech', 'Tight attacks'}
 M.presets = {

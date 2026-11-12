@@ -2,6 +2,8 @@
 -- Reconstruction: LSAR at the joins + pitch-period copy in the body (see lsar_code); the older
 -- independent bidirectional AR extrapolation (M.code) is kept for rollback via M.method. It estimates
 -- missing audio; it cannot guarantee recovery of the original signal.
+-- C++ (click/native.lua): тот же расчёт бит в бит; независимые участки заранее считаются пачкой в пуле потоков.
+local import=...
 local M={};M.__index=M
 M.code=[[
 // Each side is ordered from distant context toward the gap.
@@ -149,17 +151,24 @@ function M.new(im,ctx,r)
  self.lsar=im.CreateFunctionFromEEL(M.lsar_code);im.Attach(ctx,self.lsar)
  for k,v in pairs({left=0,right=16384,output=32768,corr=49152,coeff=49408,previous=49664,a=49920,ra=50176,
    x=65536,e=131072,rhs=163840,z=196608,band=262144,fwd=1100000,bwd=1120000})do im.Function_SetValue(self.lsar,k,v)end
+ if import then local ok,Native=pcall(function() return import('click/native') end);if ok and Native then self.native=Native.get(r) end end
  return self
 end
+-- last_pitched: сколько сторон дали копию периода в последнем предсказании (0..2; для тестов и отладки)
 function M:predict(left,right,n,sr,safe_mouth)
  assert(#left>=4 and #right>=4 and #left<=16384 and #right<=16384 and n>0 and n<=16384,'Insufficient repair context')
+ if self.native then
+  local out,pitched=self.native:predict(left,right,n,sr,safe_mouth,M.method);self.last_pitched=pitched;return out
+ end
  local im=self.im;local lsar=M.method=='lsar'
  local fn=lsar and self.lsar or self.fn
  local order=math.min(48,math.floor(math.min(#left,#right)/4))
  if lsar then order=math.max(1,math.min(order,#left,#right)) end
  for k,v in pairs({nl=#left,nr=#right,length=n,order=order,sr=sr or 0,safe_mouth=safe_mouth and 1 or 0})do im.Function_SetValue(fn,k,v)end
  im.Function_SetValue_Array(fn,'left',self.r.new_array(left));im.Function_SetValue_Array(fn,'right',self.r.new_array(right))
- im.Function_Execute(fn);local a=self.r.new_array(n);im.Function_GetValue_Array(fn,'output',a);return a.table()
+ im.Function_Execute(fn);local a=self.r.new_array(n);im.Function_GetValue_Array(fn,'output',a)
+ self.last_pitched=lsar and im.Function_GetValue(fn,'pitched') or 0
+ return a.table()
 end
 local function smooth(t)t=math.max(0,math.min(1,t));return t*t*t*(10+t*(-15+6*t))end
 function M.regions(events,cfg,mode,sr,count)
@@ -184,11 +193,38 @@ function M.build(engine,read,events,cfg,mode,sr,channels,count,source_first,job,
  local strength=(cfg[mode..'_strength'] or 100)/100;assert(strength>=0 and strength<=1)
  if strength==0 then return patch,0 end
  local used={};local context=math.min(16384,math.floor(sr*.030));local prevkey=''
- for k,e in ipairs(regions)do
-  local n=e.b-e.a+1
+ local function geometry(k)
+  local e=regions[k];local n=e.b-e.a+1
   local left=math.max(e.a-context,0)
   local right=math.min(e.b+context,k<#regions and regions[k+1].a-1 or count-1)
-  if e.a-left<32 or right-e.b<32 or n>math.min(16384,math.floor(sr*.080))then skipped=skipped+1;prevkey=''
+  return n,left,right,(e.a-left<32 or right-e.b<32 or n>math.min(16384,math.floor(sr*.080)))
+ end
+ -- C++: участок, чей левый контекст не задевает правку предыдущего (regions[k-1].b < left), от прежних результатов
+ -- не зависит — его предсказание заранее считается в пуле потоков (окно на 64 участка вперёд, память ограничена).
+ -- Зависимые участки считаются по ходу цикла, как раньше. Ключи и значения — те же, что у последовательного пути.
+ local pre,ahead=nil,0
+ if engine.native and engine.native.batch and #regions>1 then pre=engine.native:batch(job) end
+ local function prefetch(upto)
+  while ahead<math.min(#regions,upto) do
+   ahead=ahead+1;local k=ahead;local e=regions[k];local n,left,right,skip=geometry(k)
+   if not skip and (k==1 or regions[k-1].b<left) then
+    local key=table.concat({mode,M.method,e.a,e.b,left,right,''},':');local input
+    for ch=0,channels-1 do
+     local ckey=key..':'..ch
+     if not(cache and cache[ckey]) then
+      input=input or read(left,right-left+1);local nl=e.a-left;local a,b={},{}
+      for i=0,nl-1 do a[#a+1]=input[i*channels+ch+1] end
+      for i=right-left,e.b-left+1,-1 do b[#b+1]=input[i*channels+ch+1]end
+      pre:add(ckey,a,b,n,sr,mode=='mouth',M.method)
+     end
+    end
+   end
+  end
+ end
+ for k,e in ipairs(regions)do
+  if pre then prefetch(k+64) end
+  local n,left,right,skip=geometry(k)
+  if skip then skipped=skipped+1;prevkey=''
   else
    local depends=k>1 and regions[k-1].b>=left and prevkey or ''
    -- Raw prediction depends on input geometry and prior OUTPUT, not this region's blend.
@@ -201,6 +237,7 @@ function M.build(engine,read,events,cfg,mode,sr,channels,count,source_first,job,
    for ch=0,channels-1 do
     patch[ch]=patch[ch] or {};local done=patch[ch]
     local ckey=key..':'..ch;local predicted=cache and cache[ckey]
+    if not predicted and pre then predicted=pre:take(ckey) end
     if not predicted then
      local a,b={},{}
      for i=0,nl-1 do a[#a+1]=done[source_first+left+i] or input[i*channels+ch+1] end
@@ -229,6 +266,7 @@ function M.build(engine,read,events,cfg,mode,sr,channels,count,source_first,job,
   end
   job:checkpoint(k/math.max(1,#regions),'Reconstructing samples')
  end
+ if pre then pre:close() end
  if cache then for k in pairs(cache) do cache[k]=nil end;for k,v in pairs(used) do cache[k]=v end end
  return patch,skipped
 end

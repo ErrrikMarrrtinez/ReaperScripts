@@ -202,7 +202,17 @@ local SECTION='Vocaligner compact'
 function M.key(r,project)
   local _,path=r.EnumProjects(-1,'');return tostring(project)..'|'..tostring(path)
 end
-function M.done(r,project) return r.GetExtState(SECTION,M.key(r,project))=='1' end
+-- Проект открыли заново (в той же сессии REAPER) — счётчик изменений проекта у REAPER начинается сначала:
+-- если он стал меньше запомненного, уплотняем ещё раз. Счётчик запоминается не чаще раза в 2 с.
+local seen_at=0
+function M.done(r,project)
+  local key=M.key(r,project);local count=r.GetProjectStateChangeCount and r.GetProjectStateChangeCount(project) or 0
+  local last=tonumber(r.GetExtState(SECTION,key..'#count'))
+  if last and count<last then r.SetExtState(SECTION,key,'',false);r.SetExtState(SECTION,key..'#count',tostring(count),false);return false end
+  local now=r.time_precise and r.time_precise() or 0
+  if now-seen_at>2 then seen_at=now;r.SetExtState(SECTION,key..'#count',tostring(count),false) end
+  return r.GetExtState(SECTION,key)=='1'
+end
 function M.mark(r,project) r.SetExtState(SECTION,M.key(r,project),'1',false) end
 function M.report(st)
   local mb=function(x) return x/1048576 end

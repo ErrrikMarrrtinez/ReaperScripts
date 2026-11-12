@@ -1,8 +1,10 @@
 -- @noindex
 local import=...;local DSP=import('dsp');local Features=import('breath_features')
 local Engine=import('breath_engine');local Model=import('breath_model');local Profile=import('breath_profile')
-local Regions=import('breath_regions');local UI=import('config').dynamics_ui
+local Regions=import('breath_regions');local UI=import('config').dynamics_ui;local Native=import('breath_native')
 local M={};local clamp=DSP.clamp
+-- C++ путь (breath_native.lua): REAPER API, если DLL с VN_Breath* доступна и не выключена; иначе nil — Lua
+local function native(engine) local r=Native.host(engine);if r and Native.active(r) then return r end end
 -- REAPER Bezier tension signs for the fade into and out of a breath. Both are
 -- meant to bow toward full attenuation: drop early, return late. Flip one sign
 -- here if REAPER draws that side the other way.
@@ -15,6 +17,14 @@ end
 local function classify(data,profile,job,engine)
   local cached=data.breath_adapted
   if cached and cached.profile==profile and cached.revision==(profile and profile.revision or 0) then return cached.scores end
+  local r=native(engine)
+  if r then
+    local ok,scores,veto,handle=Native.try(Native.classify,r,data,profile,job)
+    if ok then
+      data.breath_adapted={profile=profile,revision=profile and profile.revision or 0,scores=scores,veto=veto,native=handle}
+      return scores
+    end
+  end
   local features=Features.build(data,job);local base=Engine.scores(data,features,job,engine)
   local raw,scores,veto={},{},{}
   for i,row in ipairs(features.rows) do
@@ -35,6 +45,11 @@ local function detect(data,cfg,profile,job,engine)
   local key=string.format('%.9g:%.9g:%.9g:%.9g',threshold,cfg.breath_min_ms or 80,cfg.breath_join_ms or 160,cfg.breath_edge_ms or 120)
   local cache=data.breath_events
   if cache and cache.scores==scores and cache.key==key then return cache.events,scores end
+  local adapted=data.breath_adapted;local r=adapted.native and native(engine)
+  if r then
+    local ok,events=Native.try(Native.detect,r,data,adapted,cfg,threshold,job)
+    if ok then data.breath_events={scores=scores,key=key,events=events};return events,scores end
+  end
   local events={};local first,last,peak,seed
   local function finish()
     if first and seed then
@@ -52,7 +67,8 @@ local function detect(data,cfg,profile,job,engine)
     step(job,i)
   end
   finish()
-  events=Regions.refine(events,data,data.breath_features.rows,scores,data.breath_adapted.veto,cfg,job,threshold)
+  -- признаки могли не строиться в Lua (классификация шла в C++): тот же кеш Features.build
+  events=Regions.refine(events,data,Features.build(data,job).rows,scores,data.breath_adapted.veto,cfg,job,threshold)
   data.breath_events={scores=scores,key=key,events=events}
   return events,scores
 end
@@ -150,7 +166,6 @@ M._bezier=bezier -- для тестов
 function M.build(data,cfg,job,exclusions,engine,profile,edits)
   local find_edit=import('cleanup').find_edit
   local templates,scores=detect(data,cfg,profile,job,engine);local events,values={},{}
-  for i=1,#data.frames do values[i]=0;step(job,i) end
   for j,e in ipairs(templates) do
     local out={};for k,v in pairs(e) do out[k]=v end;events[j]=out
     out.excluded=false
@@ -169,10 +184,26 @@ function M.build(data,cfg,job,exclusions,engine,profile,edits)
     end
     depth=math.min(depth,48)
     out.reduction=out.excluded and 0 or depth
+  end
+  local out={sibilants={},sib_score={},sib_db={},breaths=events,breath_score=scores,breath_db=values,
+    points={{t=0,db=0}},max_db=0,hop=data.hop,model=Model.version,threshold=M.threshold(cfg.breath_sensitivity)}
+  -- C++: снижение по кадрам и точки/фигуры огибающей по тем же событиям (правки и исключения уже применены выше)
+  local r=data.breath_native and native(engine)
+  if r then
+    local ok,v,points,peak,shapes=Native.try(Native.curve,r,data,cfg,templates,events,UI.breath_bezier,M.tension_in,M.tension_out,job)
+    if ok then
+      out.breath_db=v;out.points,out.max_db=points,peak
+      if UI.breath_bezier then out.shapes=shapes end
+      return out
+    end
+  end
+  for i=1,#data.frames do values[i]=0;step(job,i) end
+  for j,e in ipairs(templates) do
     -- One constant gain per event. Fades stay INSIDE its boundaries: no pre-open
     -- across the previous word and no release tail over the next consonant.
+    local depth=events[j].reduction
     local fadein,fadeout=fades(data,cfg,e)
-    if not out.excluded and depth>0 then
+    if not events[j].excluded and depth>0 then
       for i=e.first,e.last do
         local t=data.frames[i].t
         local f=math.min(clamp((t-e.start)/fadein,0,1),clamp((e.finish-t)/fadeout,0,1))
@@ -181,8 +212,6 @@ function M.build(data,cfg,job,exclusions,engine,profile,edits)
     end
   end
   values[1]=0
-  local out={sibilants={},sib_score={},sib_db={},breaths=events,breath_score=scores,breath_db=values,
-    points={{t=0,db=0}},max_db=0,hop=data.hop,model=Model.version,threshold=M.threshold(cfg.breath_sensitivity)}
   if UI.breath_bezier then
     out.points,out.max_db,out.shapes=bezier(data,cfg,events,job)
     return out
