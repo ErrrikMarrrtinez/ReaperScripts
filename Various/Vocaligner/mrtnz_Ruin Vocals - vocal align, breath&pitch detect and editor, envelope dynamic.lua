@@ -1,6 +1,6 @@
 -- @description Ruin Vocals: vocal align, breath&pitch detect and editor, envelope dynamic
 -- @author mrtnz
--- @version 0.18.6
+-- @version 0.18.7
 -- @link Documentation https://github.com/ErrrikMarrrtinez/ReaperScripts/tree/master/Various/Vocaligner
 -- @about
 --   Vocal timing, take-volume cleanup and a vocal pitch editor in one ReaImGui window.
@@ -16,11 +16,8 @@
 --   analysis; restart REAPER afterwards. Without it everything runs on the Lua / EEL engines.
 --   For embedding, load init.lua with dofile.
 -- @changelog
---   Pitch: bottom bar with the analysis mode (Melodic / Polyphonic), Play / Loop and the Tune button; the tuner panel opens above the scrollbars
---   Pitch: the tempo is always shown next to the scale (grey - project tempo, green - detected; click to apply); Detect tempo of an item or of the time selection runs the polyphonic analysis
---   Pitch: Drift, Flatten and Vibrato can have hotkeys and show their own icon; Settings - follow the edit / play cursor can be switched off
---   De-click, De-breath and the compressor / gate / de-ess calculations moved to the native extension (multi-threaded, long files; update Vocaligner Native)
---   Breath: the Learn / Keep buttons stay in the visible area; the eye and Manual edit buttons moved to the top row
+--   Выпадающие списки открываются вверх у нижнего края и не выходят за окно (Pitch: режим)
+--   Топбар: плашка BPM без текста и без .0 у целых значений
 -- @provides
 --   [main=main] .
 --   [nomain] align_ui.lua

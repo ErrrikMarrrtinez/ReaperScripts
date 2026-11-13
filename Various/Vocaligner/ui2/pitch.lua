@@ -193,8 +193,10 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
   local proj_bpm=e.r.Master_GetTempo and e.r.Master_GetTempo() or 120
   local detected=(bpm_src and bpm_src>0) and bpm_src or nil
   local bpm_synced=not detected or math.abs(math.floor(detected+.5)-proj_bpm)<.05
-  bpm_text=detected and string.format('%.1f BPM',detected) or string.format('%.0f BPM',proj_bpm)
-  right[#right+1]={'bpm',button_w('000.0 BPM')}
+  -- только число: целое без «.0», дробное с одним знаком
+  local function bpm_num(v) return math.abs(v-math.floor(v+.5))<.05 and string.format('%d',math.floor(v+.5)) or string.format('%.1f',v) end
+  bpm_text=bpm_num(detected or proj_bpm)
+  right[#right+1]={'bpm',button_w('000.0')}
   right[#right+1]={'scale',scale_w}
   local total=-6;for _,r in ipairs(right) do total=total+r[2]+6 end
   local count=#TOOLS+1;local cwid=count*BTN_W
@@ -367,7 +369,7 @@ function M.bottombar(host,im,ctx,app,x0,y0,w,h)
       local pa,why=Poly.available(e.r)
       host.dropdown('pitch_mode',x+bw/2,y,{
         {label='Melodic',checked=not poly,action=function() e:set_mode('melodic') end},
-        {label='Polyphonic (no edit)',checked=poly,disabled=not pa,action=function() e:set_mode('poly') end}})
+        {label='Polyphonic (no edit)',checked=poly,disabled=not pa,action=function() e:set_mode('poly') end}},true) -- вверх: кнопка у нижнего края
     end
     x=x+bw+G
   end

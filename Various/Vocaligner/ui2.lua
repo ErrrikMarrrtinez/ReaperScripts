@@ -431,6 +431,8 @@ local function modal(st,id,cfg)
   local W1,H1=cfg.W,cfg.H
   local L1=math.floor(clampf(cfg.ax-W1*(cfg.anchor or 0.5),wx+8,wx+ww-8-W1)+0.5)
   local T=math.floor(cfg.up and (cfg.ay-cfg.H-8) or (cfg.ay+8)) -- up: над точкой, без носика
+  -- облачко не выходит за видимую область окна: если не помещается снизу/сверху, сдвигается внутрь
+  T=math.floor(clampf(T,wy+4,math.max(wy+4,wy+wh-H1-6)))
   local W0,H0=cfg.from_w or W1,cfg.from_h or H1
   local L0=math.floor(clampf(cfg.ax-W0/2,wx+6,wx+ww-6-W0)+0.5)
   local L,W,H=ap(L0,L1,e),ap(W0,W1,e),ap(H0,H1,e)
