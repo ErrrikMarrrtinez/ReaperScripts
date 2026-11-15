@@ -28,6 +28,8 @@ local S={tooltips=true,delay=0.35,smooth=true,anim=true,autoscroll=true,scroll_p
 -- «Hide cursor while dragging» — общая настройка всех перетаскиваемых виджетов (ui2/drag.lua); по умолчанию включена
 S.hide_cursor=reaper.GetExtState('Vocaligner ui','hide_cursor')~='0'
 S.fast_motion=reaper.GetExtState('Vocaligner ui','fast_motion')~='0'
+S.center_lines=reaper.GetExtState('Vocaligner ui','pitch_center_lines')=='1' -- пунктир по центру строк редактора Pitch (по умолчанию выкл.)
+S.tuning_colors=reaper.GetExtState('Vocaligner ui','pitch_note_colors')=='tuning' -- цвет нот: по высоте (по умолчанию) или по строю
 S.follow=reaper.GetExtState('Vocaligner ui','follow_cursor')~='0' -- редактор Pitch следит за курсором (по умолчанию вкл.) -- лёгкая отрисовка нот во время зума/скролла (по умолчанию вкл.)
 local Drag=import('ui2/drag');Drag.enabled=S.hide_cursor
 local dd={t=0,open=false} -- состояние универсального выпадающего списка (ниже) -- настройки интерфейса (облачко Settings); delay = задержка показа тултипа
@@ -541,6 +543,14 @@ local function settings_modal()
           local fc;fc,v=ImGui.Checkbox(ctx,'Light drawing while zooming',S.fast_motion)
           if ImGui.IsItemHovered(ctx) then ImGui.SetTooltip(ctx,'While the view zooms or scrolls, ready note shapes and the curve are reused instead of rebuilt; full detail returns over a few frames after it stops. Keeps zooming smooth on long items and busy tracks.') end
           if fc then S.fast_motion=v;reaper.SetExtState('Vocaligner ui','fast_motion',v and '1' or '0',true) end
+          local cl;cl,v=ImGui.Checkbox(ctx,'Note centre lines (dashed)',S.center_lines)
+          if ImGui.IsItemHovered(ctx) then ImGui.SetTooltip(ctx,'A dashed line through the middle of every pitch row marks the exact note pitch (0 cents), as in ReaTune.') end
+          if cl then S.center_lines=v;reaper.SetExtState('Vocaligner ui','pitch_center_lines',v and '1' or '0',true) end
+          ImGui.TextDisabled(ctx,'Note colors');ImGui.SameLine(ctx)
+          if ImGui.RadioButton(ctx,'Pitch##note_colors',not S.tuning_colors) then S.tuning_colors=false;reaper.SetExtState('Vocaligner ui','pitch_note_colors','pitch',true) end
+          ImGui.SameLine(ctx)
+          if ImGui.RadioButton(ctx,'Tuning##note_colors',S.tuning_colors) then S.tuning_colors=true;reaper.SetExtState('Vocaligner ui','pitch_note_colors','tuning',true) end
+          if ImGui.IsItemHovered(ctx) then ImGui.SetTooltip(ctx,'Tuning: like "Color: Tuning" in the Pitch Meter. Note centre within 10 cents of the semitone is green, within 25 cents yellow, further red.') end
           local fl;fl,v=ImGui.Checkbox(ctx,'Follow the edit / play cursor',S.follow)
           if fl then S.follow=v;reaper.SetExtState('Vocaligner ui','follow_cursor',v and '1' or '0',true) end
           if not S.follow then ImGui.BeginDisabled(ctx,true) end

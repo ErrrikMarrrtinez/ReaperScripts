@@ -10,9 +10,13 @@ local PolyRec,PolyEditor -- запись Polyphonic и редактор теку
 local VIEW_SECTION -- задаётся ниже, рядом с показом нот
 local function clamp(x,a,b) return math.max(a,math.min(b,x)) end
 
--- Инструменты: порядок и названия (id = e.tool); в «⋯» — остальные, Bounds пока недоступен
-local TOOLS={{'notes','Edit'},{'transition','Transition'},{'modulation','Modulation'},{'curve','Curve'},{'split','Split'},{'draw','Draw'}}
-local MORE={{'drift','Drift'},{'flatten','Flatten'},{'vibrato','Vibrato'},{'bounds','Bounds',true}}
+-- Инструменты: порядок, названия и действие горячей клавиши (id = e.tool). Все в одном ряду; меню «⋯» временно
+-- скрыто (Bounds пока недоступен) — вернуть: SHOW_MORE=true
+local TOOLS={{'notes','Edit','tool1'},{'transition','Transition','tool2'},{'modulation','Modulation','tool3'},{'curve','Curve','tool4'},
+  {'split','Split','tool5'},{'draw','Draw','tool6'},{'line','Line','tool_line'},{'drift','Drift','tool_drift'},{'flatten','Flatten','tool_flatten'},
+  {'vibrato','Vibrato','tool_vibrato'}}
+local MORE={{'bounds','Bounds',true}}
+local SHOW_MORE=false
 local BTN_W=36
 
 -- ===== иконки инструментов, рисуются векторно (k — масштаб; box ~20k px вокруг cx,cy) =====
@@ -38,6 +42,11 @@ function ICON.split(im,dl,cx,cy,col,k)
   im.DrawList_AddLine(dl,cx,cy-8*k,cx,cy+8*k,col,1.3*k)
 end
 -- Drift: линия высоты, плавно уходящая вниз от ноты; Flatten: волнистая линия, выпрямляющаяся в прямую; Vibrato: частая волна
+function ICON.line(im,dl,cx,cy,col,k)
+  local ax,ay,bx,by=cx-6.5*k,cy+4.5*k,cx+6.5*k,cy-4.5*k
+  im.DrawList_AddLine(dl,ax,ay,bx,by,col,1.6*k)
+  im.DrawList_AddCircleFilled(dl,ax,ay,2.6*k,col);im.DrawList_AddCircleFilled(dl,bx,by,2.6*k,col)
+end
 function ICON.drift(im,dl,cx,cy,col,k)
   im.DrawList_AddLine(dl,cx-9*k,cy-3*k,cx+9*k,cy-3*k,col,1.2*k)
   im.DrawList_PathLineTo(dl,cx-8*k,cy-3*k);im.DrawList_PathBezierCubicCurveTo(dl,cx-2*k,cy-3*k,cx+1*k,cy+1*k,cx+8*k,cy+5*k)
@@ -196,10 +205,11 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
   -- только число: целое без «.0», дробное с одним знаком
   local function bpm_num(v) return math.abs(v-math.floor(v+.5))<.05 and string.format('%d',math.floor(v+.5)) or string.format('%.1f',v) end
   bpm_text=bpm_num(detected or proj_bpm)
-  right[#right+1]={'bpm',button_w('000.0')}
-  right[#right+1]={'scale',scale_w}
+  -- темп и тональность временно слева, сразу после Bypass (рисуются тем же циклом, что и правый блок)
+  local leftb={{'bpm',button_w('000.0')},{'scale',scale_w}}
+  local lx=left_end;for _,r in ipairs(leftb) do lx=lx+r[2]+G end;left_end=lx
   local total=-6;for _,r in ipairs(right) do total=total+r[2]+6 end
-  local count=#TOOLS+1;local cwid=count*BTN_W
+  local count=#TOOLS+(SHOW_MORE and 1 or 0);local cwid=count*BTN_W
   local rx=x0+w-G-total
   local cx0=math.max(x0+(w-cwid)/2,left_end+10)
   if cx0+cwid+12>rx then cx0=math.max(left_end+4,rx-cwid-12) end
@@ -211,7 +221,7 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
   if busy then im.BeginDisabled(ctx,true) end
   local in_more=false;for _,t in ipairs(MORE) do if e.tool==t[1] then in_more=true end end
   for i=1,count do
-    local bx=cx0+(i-1)*BTN_W;local more=i==count;local tool=not more and TOOLS[i] or nil
+    local bx=cx0+(i-1)*BTN_W;local more=SHOW_MORE and i==count;local tool=not more and TOOLS[i] or nil
     im.SetCursorScreenPos(ctx,bx,y);im.InvisibleButton(ctx,'##pitch_tool_'..i,BTN_W,fh)
     local hov=im.IsItemHovered(ctx)
     local selected=more and in_more or (tool and e.tool==tool[1])
@@ -233,12 +243,17 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
       else e.tool=tool[1] end
     end
     if more then host.tooltip('pitch_tool_more',hov,bx+BTN_W/2,y+fh,'',in_more and (e.tool:sub(1,1):upper()..e.tool:sub(2)..'  ·  more tools') or 'More tools',wx,ww,TIP_DELAY,0.2)
-    else host.tooltip('pitch_tool_'..tool[1],hov,bx+BTN_W/2,y+fh,'',tool[2]..'\t'..i,wx,ww,TIP_DELAY,0.2) end
+    else local hk=Hotkeys.label(e.r,tool[3]);host.tooltip('pitch_tool_'..tool[1],hov,bx+BTN_W/2,y+fh,'',tool[2]..(hk~='none' and ('\t'..hk) or ''),wx,ww,TIP_DELAY,0.2) end
   end
   if busy then im.EndDisabled(ctx) end
   end
 
-  for _,r in ipairs(right) do
+  -- левый блок (темп, тональность) и правый — одним циклом: позиция rx задаётся перед каждым блоком
+  local blocks={}
+  do local bx=left_end;for i=#leftb,1,-1 do bx=bx-leftb[i][2]-G;blocks[#blocks+1]={leftb[i],bx} end end
+  local rx0=rx;for _,r in ipairs(right) do blocks[#blocks+1]={r,rx0};rx0=rx0+r[2]+G end
+  for _,blk in ipairs(blocks) do
+    local r=blk[1];rx=blk[2]
     local kind=r[1];im.SetCursorScreenPos(ctx,rx,y)
     if kind=='scale' then
       -- тройная кнопка: корень | лад | магнит (snap). Одна плашка высотой и цветом как контейнер инструментов,
@@ -337,7 +352,6 @@ function M.toolbar(host,im,ctx,app,x0,y0,w,h)
     elseif kind=='copy' then if im.Button(ctx,'Copy##pitch_copy',r[2],fh) then e:copy_shape() end
     elseif kind=='paste' then if im.Button(ctx,'Paste##pitch_paste',r[2],fh) then e:paste_shape((im.GetKeyMods(ctx)&im.Mod_Alt)~=0) end
     end
-    rx=rx+r[2]+G
   end
 end
 
@@ -723,7 +737,7 @@ function M.auto_rows(im,ctx,app,x,y,fonts,host,compact)
     host.dropdown('atune_ref',mxx+mw/2,fy,items,true) -- список поднимается над кнопкой (панель у нижнего края окна)
   end
   if mc then
-    if not ref then e:set_auto('mode','reference',true);if not cur_row then open_picker() end
+    if not ref then if cur_row then e:set_auto('mode','reference',true) else open_picker() end -- без выбранного трека режим не переключаем: пустой Reference ломал пакет
     else open_picker() end
   end
   bx=mx_meter
@@ -1045,6 +1059,8 @@ function M.body(host,im,ctx,app)
   PitchUI.options.scroll_pos=({.22,.5,.78})[host.settings and host.settings.scroll_pos or 1] or .22
   PitchUI.options.smooth=host.settings==nil or host.settings.smooth~=false -- плавный скролл/зум (отключается в Settings)
   PitchUI.options.fast_motion=host.settings==nil or host.settings.fast_motion~=false -- лёгкая отрисовка во время зума (Settings)
+  PitchUI.options.center_lines=host.settings~=nil and host.settings.center_lines==true -- пунктир по центру строк (Settings)
+  PitchUI.options.tuning_colors=host.settings~=nil and host.settings.tuning_colors==true -- цвет нот по строю (Settings)
   PitchUI.options.icon=host.icon;PitchUI.options.ghost_icon=SP.ghost;PitchUI.options.aim_icons={SP.aim_on,SP.aim_off}
   tip_text=nil
   -- прокси ленивый: каждая функция берётся из im один раз и кладётся в прокси (без лишнего поиска на каждый вызов)
@@ -1142,8 +1158,7 @@ function M.body(host,im,ctx,app)
   if im.IsWindowFocused(ctx,im.FocusedFlags_RootAndChildWindows) and not im.IsAnyItemActive(ctx) and not e:busy() then
     local alt=Hotkeys.alt(im,ctx)
     if e.mode~='poly' then
-      for i=1,#TOOLS do if Hotkeys.pressed(im,ctx,'tool'..i) then e.tool=TOOLS[i][1] end end
-      for _,t in ipairs(MORE) do if not t[3] and Hotkeys.pressed(im,ctx,'tool_'..t[1]) then e.tool=t[1] end end
+      for _,t in ipairs(TOOLS) do if Hotkeys.pressed(im,ctx,t[3]) then e.tool=t[1] end end
     end
     -- W: курсор редактирования (и воспроизведения, если идёт play) — в начало тайм-селекшна
     if Hotkeys.pressed(im,ctx,'cursor_start') then

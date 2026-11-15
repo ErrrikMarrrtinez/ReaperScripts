@@ -32,6 +32,7 @@ end
 function M.sample(s,t)
   local p=s.points;if t<=p[1].t then return p[1].value end;if t>=p[#p].t then return p[#p].value end
   local lo,hi=1,#p;while hi-lo>1 do local mid=(lo+hi)//2;if p[mid].t<=t then lo=mid else hi=mid end end
+  if s.line then local a,b=p[lo],p[hi];return a.value+(b.value-a.value)*(t-a.t)/math.max(1e-9,b.t-a.t) end -- Line: прямые между точками
   local a,b=p[lo],p[hi];local h=b.t-a.t;local u=(t-a.t)/h;local u2,u3=u*u,u*u*u
   return (2*u3-3*u2+1)*a.value+(u3-2*u2+u)*h*tangent(p,lo)+(-2*u3+3*u2)*b.value+(u3-u2)*h*tangent(p,hi)
 end

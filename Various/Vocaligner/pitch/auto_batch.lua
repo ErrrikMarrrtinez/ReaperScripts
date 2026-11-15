@@ -10,6 +10,7 @@ local function copy(t)local out={};for k,v in pairs(t or {})do out[k]=v end;retu
 function M.targets(e,a)
   local r=e.r;local project=r.EnumProjects(-1);local out={}
   local ws=e.workspace
+  if a.mode=='reference' and not a.ref_track then return out end
   for i=0,r.CountSelectedMediaItems(project)-1 do
     local item=r.GetSelectedMediaItem(project,i)
     local entry=ws and ws.by_item[item]

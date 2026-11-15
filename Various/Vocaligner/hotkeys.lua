@@ -8,7 +8,7 @@ local SECTION,KEY='Vocaligner ui','hotkeys'
 M.ACTIONS={
   {'tool1','Tools','Tool: Edit','1'},{'tool2','Tools','Tool: Transition','2'},{'tool3','Tools','Tool: Modulation','3'},
   {'tool4','Tools','Tool: Curve','4'},{'tool5','Tools','Tool: Split','5'},{'tool6','Tools','Tool: Draw','6'},
-  {'tool_drift','Tools','Tool: Drift','none'},{'tool_flatten','Tools','Tool: Flatten','none'},{'tool_vibrato','Tools','Tool: Vibrato','none'},
+  {'tool_line','Tools','Tool: Line','7'},{'tool_drift','Tools','Tool: Drift','8'},{'tool_flatten','Tools','Tool: Flatten','9'},{'tool_vibrato','Tools','Tool: Vibrato','0'},
   {'tool_toggle','Tools','Toggle Edit / Curve','C'},{'split','Tools','Split the note at the cursor','S'},{'join','Tools','Join the note with the next one','J'},
   {'fit','View','Focus the note; again: fit everything','F'},{'cursor_start','View','Edit cursor to the start of the time selection / take','W'},
   {'clear','View','Clear time selection, then note selection','Escape'},

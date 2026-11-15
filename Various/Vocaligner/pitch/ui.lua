@@ -1,5 +1,5 @@
 -- @noindex
-local import=...;local Hotkeys=import('hotkeys');local Notes=import('pitch/notes');local Curve=import('pitch/curve');local Link=import('pitch/link');local FX=import('pitch/fx');local Scale=import('pitch/scale');local Expression=import('pitch/expression');local Progress=import('progress');local Contour=import('pitch/contour');local Draw=import('pitch/draw');local Wave=import('pitch/waveform');local Algorithm=import('pitch/algorithm');local Workspace=import('pitch/workspace');local Glyph=import('pitch/glyph');local Transport=import('transport');local Audio=import('audio');local Poly=import('pitch/polyline');local Analysis=import('pitch/analysis');local Check=import('pitch/check');local M={}
+local import=...;local Hotkeys=import('hotkeys');local Notes=import('pitch/notes');local Curve=import('pitch/curve');local Link=import('pitch/link');local FX=import('pitch/fx');local Scale=import('pitch/scale');local Expression=import('pitch/expression');local Progress=import('progress');local Contour=import('pitch/contour');local Draw=import('pitch/draw');local Wave=import('pitch/waveform');local Algorithm=import('pitch/algorithm');local Workspace=import('pitch/workspace');local Glyph=import('pitch/glyph');local Transport=import('transport');local Audio=import('audio');local Poly=import('pitch/polyline');local Analysis=import('pitch/analysis');local Check=import('pitch/check');local Line=import('pitch/line');local M={}
 local colors={bg=0x121212FF,black=0x151515FF,row=0x1F1F1EFF,row_scale=0x232323FF,line=0x161616FF,beat=0x2C2C2CFF,text=0xD6DBE5FF,muted=0x7E8695FF,
   blue=0x4269DFFF,purple=0x9D4EDCFF,selected=0xDC77E9FF,curve=0xF6F3FFFF,raw=0xAAAAAF60,accent=0x7FCCCBFF}
 local black={[1]=true,[3]=true,[6]=true,[8]=true,[10]=true}
@@ -50,7 +50,7 @@ end
 local function raw_at(e,t) return Contour.sample(e.data,t) or Expression.sample(e.data,t) end
 local function snap_shift(e,n,value,alt,shift,original) return Scale.shift(e,n,value,alt,not shift,original) end
 local tools={{'notes','Notes'},{'curve','Curve'},{'draw','Draw'},{'transition','Transition'},{'modulation','Modulation'},
-  {'drift','Drift'},{'flatten','Flatten'},{'vibrato','Vibrato'},{'bounds','Bounds'},{'split','Split'}}
+  {'drift','Drift'},{'flatten','Flatten'},{'vibrato','Vibrato'},{'bounds','Bounds'},{'split','Split'},{'line','Line'}}
 local tooltips={notes='Drag: relative semitones. Shift / Alt: fine pitch. Double-click: original pitch.',
   curve='Drag to edit pitch points. Selected notes receive the same pitch change at matching relative times. Double-click a point to remove it. Ctrl+C/V: copy/paste shape.',
   draw='Draw the final pitch. Selected notes receive the same relative shape. Cyan marks the painted span; noise breaks the stroke. Alt+double-click: erase drawings.',
@@ -60,7 +60,8 @@ local tooltips={notes='Drag: relative semitones. Shift / Alt: fine pitch. Double
   flatten='Drag up to pull the whole selection towards one pitch. 100% = flat on reliable voiced sections; uncertain gaps stay untouched. Alt: free target.',
   vibrato='Drag up: vibrato depth. Horizontal: rate. Modulation can remove the old vibrato first.',
   bounds='Drag note edges in time. S: split, J: join next. Noise is not automatically made into a voiced note.',
-  split='Double-click a note to cut it at the cursor (the same as S). A single click only selects.'}
+  split='Double-click a note to cut it at the cursor (the same as S). A single click only selects.',
+  line='Drag to place a straight correction line (two points); the voice follows it exactly. Drag a point to move it, click a line to add a point, double-click a point to delete it (double-click a line: delete the line). Shift+click: continue the last line. Magnet snaps points to the key, Alt: free.'}
 -- Параметры оформления для нового интерфейса (ui2/pitch.lua); по умолчанию оригинальный вид не меняется.
 -- ghost_button: вместо кнопок +/- над клавишами — кнопка «ghost» (список фоновых дорожек рисует оболочка ui2).
 M.options={ghost_button=false,smooth=false,autoscroll=false}
@@ -177,6 +178,19 @@ local function update_drag(e,mx,my,alt,shift)
       end
       end
       if d.invalid then d.valid=false;e.notes=Notes.copy(d.before.notes);e.state.notes=e.notes end
+    elseif d.kind=='line' then
+      local pts=Notes.copy(d.points);local i=d.index
+      local t=d.t0+(mx-d.x)*d.seconds
+      if d.new then t=clamp(t,0,d.len) else
+        local lo=pts[i-1] and pts[i-1].t+Line.MIN_GAP or 0;local hi=pts[i+1] and pts[i+1].t-Line.MIN_GAP or d.len
+        t=clamp(t,lo,math.max(lo,hi))
+      end
+      pts[i]={t=t,value=clamp(Scale.pitch(e,d.p0-(my-d.y)*d.semitones,alt),0,150)}
+      if d.new then table.sort(pts,function(a,b) return a.t<b.t end) end
+      e.state.curve_version=4
+      local ok,why=Line.place(e.notes,d.id,pts,d.len)
+      d.valid=ok;d.why=why
+      if not ok then e.notes=Notes.copy(d.before.notes);e.state.notes=e.notes end
     elseif d.kind=='transition' then
       for i,n in ipairs(e.notes)do if (n.id==d.note or grouped and e.selected[n.id]) and Curve.can_link(e.notes[i-1],n)then
         local link=Link.edit_tilt(e.notes[i-1],n,e.data);local dy=my-d.y;local dx=mx-d.x
@@ -205,6 +219,7 @@ local function update_drag(e,mx,my,alt,shift)
     if d.kind=='notes' then
       d.changed=false;for i,n in ipairs(e.notes)do if n.shift~=(d.base or d.before.notes)[i].shift then d.changed=true;break end end
     end
+    if d.kind=='line' then d.changed=d.valid==true end
   end
 end
 -- Упрощённая огибающая item для нижней полосы: из нативных пиков REAPER, кэш по item/take/позиции/длине.
@@ -533,6 +548,9 @@ function M.canvas(im,ctx,e,w,h)
         else im.DrawList_AddRectFilled(dl,x+1,yy,x+3,zz,0x6E6868FF) end
       end
       im.DrawList_AddLine(dl,x+1,zz,right,zz,colors.line,0.5)
+      if M.options.center_lines then -- пунктир по центру строки = точная высота ноты (как в ReaTune)
+        local cy=py(p);if cy>top and cy<bottom then for dx=left,right,9 do im.DrawList_AddLine(dl,dx,cy,math.min(dx+4,right),cy,0xFFFFFF26,1) end end
+      end
       if (p%12==0 or height/v.rows>=20) and py(p)>=top+7 and py(p)<=bottom-7 then
         im.DrawList_AddText(dl,x+5,py(p)-6,p%12==0 and colors.text or colors.muted,name(p))
       end
@@ -707,7 +725,7 @@ function M.canvas(im,ctx,e,w,h)
   if e.poly_draw then e.poly_draw(im,dl,ctx,{tx=tx,py=py,left=left,right=right,top=top,bottom=bottom,v=v,width=width,height=height}) end
   local anim_now=e.r.time_precise()
   e.glyphs=e.glyphs or {};local glyph_used={};local badge;local last_label_right=-1e9;local hi_y,lo_y
-  local hit,index,transition,boundary,anchor_hit
+  local hit,index,transition,boundary,anchor_hit,line_hit
   -- видимые ноты — бинарным поиском по отсортированному списку; их число выбирает упрощённый режим
   local notes_all=e.notes or {};local n0,n1=Poly.range(notes_all,v.start,v.start+v.span)
   local dense=M.dense(n1-n0+1,moving)
@@ -727,7 +745,7 @@ function M.canvas(im,ctx,e,w,h)
     if data and yy+half>=top and yy-half<=bottom then
       glyph_used[n.id]=true
       if not hi_y or yy-half<hi_y then hi_y=yy-half end;if not lo_y or yy+half>lo_y then lo_y=yy+half end
-      local col=Glyph.color(center,selected,bypassed and 80 or 255)
+      local col=(M.options.tuning_colors and Glyph.tuning or Glyph.color)(center,selected,bypassed and 80 or 255)
       local shape=Glyph.shape(e.glyphs,n.id,data,n.start,n.finish,v.start,v.span,width,lite)
       local glow=near or dnote==n.id;local outline=selected and (bypassed and 0xDCC8A280 or 0xDCC8A2FF) or nil -- выделение: тёплая песочная обводка в тон теме
       -- выделенные ноты (клик или правая рамка) — с жирной обводкой
@@ -923,6 +941,22 @@ function M.canvas(im,ctx,e,w,h)
       if math.abs(mx-ax)<9 and math.abs(my-ay)<9 then anchor_hit={note=n,index=j,target=e.state.curve_version==4} end
     end
   end end end end
+  if e.tool=='line' and not bypassed then
+    local lines=Line.collect(e.notes)
+    if hovered and not e.drag then line_hit=Line.hit(lines,mx,my,tx,py) end
+    local active=e.drag and e.drag.kind=='line' and e.drag.id
+    for _,l in ipairs(lines) do
+      local hl=(line_hit and line_hit.line.id==l.id) or active==l.id
+      local col=hl and 0x8FB2FFFF or 0x4F7DF0FF
+      for i=2,#l.points do local a,b=l.points[i-1],l.points[i];im.DrawList_AddLine(dl,tx(a.t),py(a.value),tx(b.t),py(b.value),col,hl and 2.4 or 1.8) end
+      for i,p in ipairs(l.points) do
+        local on=line_hit and line_hit.line.id==l.id and line_hit.index==i
+        im.DrawList_AddCircleFilled(dl,tx(p.t),py(p.value),on and 5.5 or 4.2,on and 0xFFFFFFFF or 0x1A1A1AFF)
+        im.DrawList_AddCircle(dl,tx(p.t),py(p.value),on and 5.5 or 4.2,col,0,1.6)
+      end
+    end
+    if line_hit and line_hit.index then im.SetMouseCursor(ctx,im.MouseCursor_Hand) end
+  end
   if e.drag and e.drag.kind=='select' then
     local d=e.drag;im.DrawList_AddRectFilled(dl,math.min(mx,d.x),math.min(my,d.y),math.max(mx,d.x),math.max(my,d.y),0x7FCCCB22)
     im.DrawList_AddRect(dl,math.min(mx,d.x),math.min(my,d.y),math.max(mx,d.x),math.max(my,d.y),colors.accent)
@@ -1055,6 +1089,47 @@ function M.canvas(im,ctx,e,w,h)
           if ts_a then if math.abs(mx-tx(ts_a))<=7 then edge='a' elseif math.abs(mx-tx(ts_b))<=7 then edge='b' end end
           e.drag={kind='tsel',button=0,x=mx,y=my,edge=edge,time=clamp(mt,lower,upper),a=ts_a,b=ts_b,seconds=v.span/width,lower=lower,upper=upper}
         end
+      elseif e.tool=='line' and e.data and not e.stale and not e.no_selection then
+        local lines=Line.collect(e.notes);local h=line_hit
+        local dbl=im.IsMouseDoubleClicked(ctx,0)
+        local base={x=mx,y=my,seconds=v.span/width,semitones=v.rows/height,len=e.data.len}
+        if h and (dbl or (alt and h.index)) then
+          -- даблклик по точке (или Alt+клик) — удалить точку; даблклик по отрезку — удалить линию
+          local before=e:begin_edit()
+          if before then
+            local pts=Notes.copy(h.line.points)
+            if h.index and #pts>2 then table.remove(pts,h.index) else pts={} end
+            e.state.curve_version=4;local ok,why=Line.place(e.notes,h.line.id,pts,e.data.len)
+            if ok then e.display=nil;e:commit(before,h.index and 'delete line point' or 'delete line') else e.state=before;e.notes=before.notes;e:fail(why) end
+          end
+        elseif h then
+          local before=e:begin_edit()
+          if before then
+            local pts=Notes.copy(h.line.points);local idx=h.index
+            if not idx then table.insert(pts,h.segment,{t=h.t,value=h.value});idx=h.segment end -- клик по отрезку: новая точка
+            base.kind='line';base.before=before;base.id=h.line.id;base.points=pts;base.index=idx;base.t0=pts[idx].t;base.p0=pts[idx].value
+            if not h.index then e.state.curve_version=4;base.valid=Line.place(e.notes,base.id,pts,e.data.len);base.changed=base.valid;e.display=nil end
+            e.drag=base;e.line_last=h.line.id
+          end
+        else
+          local p=clamp(v.top-(my-top)/height*v.rows,0,150);local value=Scale.pitch(e,p,alt)
+          local before=e:begin_edit()
+          if before then
+            base.kind='line';base.before=before;base.p0=p;base.t0=mt
+            local last
+            if shift and e.line_last then for _,l in ipairs(lines) do if l.id==e.line_last then last=l end end end
+            if last then
+              -- Shift+клик: продолжить последнюю линию новой точкой (к ближайшему по времени концу)
+              local pts=Notes.copy(last.points)
+              if mt>=pts[#pts].t then pts[#pts+1]={t=mt,value=value};base.index=#pts else table.insert(pts,1,{t=mt,value=value});base.index=1 end
+              base.id=last.id;base.points=pts;base.extend=true
+              e.state.curve_version=4;base.valid=Line.place(e.notes,base.id,pts,e.data.len);base.changed=base.valid;e.display=nil
+            else
+              base.id=Line.next_id(e.notes);base.points={{t=mt,value=value},{t=mt,value=value}};base.index=2;base.new=true
+            end
+            e.drag=base;e.line_last=base.id
+          end
+        end
       elseif transition then
         local n=transition.note;selection(e,n.id,false);local before=e:begin_edit()
         if before then
@@ -1185,7 +1260,7 @@ function M.draw(im,ctx,app)
   elseif e.tool=='flatten' then specs={{'Flatten','flatten',0,100,'%.0f%%',100,0}}
   elseif e.tool=='vibrato' then specs={{'Depth','vibrato_depth',0,200,'%.0f ct',100,0},{'Rate','vibrato_rate',.5,12,'%.2f Hz',1,5.5},{'Onset','vibrato_onset',0,100,'%.0f%%',100,.25},{'Release','vibrato_release',5,1000,'%.0f ms',1000,.02},{'Growth','vibrato_growth',-100,100,'%.0f%%',100,0}}
   elseif e.tool=='transition' then specs={{'Amount','link_amount',0,100,'%.0f%%',100,0},{'Width','link_width',20,400,'%.0f ms',1000,.08}}
-  elseif e.tool~='bounds' and e.tool~='draw' then specs={{'Shift','shift',-24,24,'%.2f st',1,0},{'Formant','formant',-12,12,'%.2f st',1,0}} end
+  elseif e.tool~='bounds' and e.tool~='draw' and e.tool~='line' then specs={{'Shift','shift',-24,24,'%.2f st',1,0},{'Formant','formant',-12,12,'%.2f st',1,0}} end
   local toolbar_child=im.BeginChild~=nil
   local function text_width(label)return im.CalcTextSize and im.CalcTextSize(ctx,label) or #label*7 end
   local toolbar_width=92+140+2*(im.GetFrameHeight and im.GetFrameHeight(ctx) or 24)+text_width('Source')+text_width('Check')+8+16+8*4

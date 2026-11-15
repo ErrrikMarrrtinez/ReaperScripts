@@ -1,6 +1,6 @@
 -- @description Ruin Vocals: vocal align, breath&pitch detect and editor, envelope dynamic
 -- @author mrtnz
--- @version 0.18.7
+-- @version 0.18.8
 -- @link Documentation https://github.com/ErrrikMarrrtinez/ReaperScripts/tree/master/Various/Vocaligner
 -- @about
 --   Vocal timing, take-volume cleanup and a vocal pitch editor in one ReaImGui window.
@@ -16,8 +16,10 @@
 --   analysis; restart REAPER afterwards. Without it everything runs on the Lua / EEL engines.
 --   For embedding, load init.lua with dofile.
 -- @changelog
---   Выпадающие списки открываются вверх у нижнего края и не выходят за окно (Pitch: режим)
---   Топбар: плашка BPM без текста и без .0 у целых значений
+--   Pitch: new Line tool (like ReaTune Manual Correction) - drag a straight correction line between points; drag points, click a line to add a point, Shift+click continues the last line, double-click deletes a point or the line
+--   Pitch: all tools on the toolbar (no ... menu), tempo and key moved to the left; default tool hotkeys 1-0 (Line 7, Drift 8, Flatten 9, Vibrato 0), all rebindable in Settings - Hotkeys
+--   Settings - Pitch editor: Note centre lines (dashed) and Note colors: Pitch / Tuning (green within 10 cents, yellow within 25, red beyond)
+--   ATune: no batch run while Reference has no track chosen (fixes 'No analysed reference' and lost edits on other selected items); excluded scale notes now also apply to the other selected items
 -- @provides
 --   [main=main] .
 --   [nomain] align_ui.lua

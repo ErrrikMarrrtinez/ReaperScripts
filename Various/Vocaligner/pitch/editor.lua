@@ -496,7 +496,8 @@ end
 -- ATune на остальные выделенные айтемы (любые треки): после записи открытого — те же настройки на каждый
 function M:queue_auto_batch()
   if not self.job or not self.state then return end
-  local a=Auto.config(self.state);local items=import('pitch/auto_batch').targets(self,a)
+  local a=Auto.config(self.state);if a.mode=='reference' and not a.ref_track then return end
+  local items=import('pitch/auto_batch').targets(self,a)
   if #items>0 then self.auto_batch_pending={items=items,a=a} end
 end
 function M:apply_auto_selected()
@@ -763,7 +764,7 @@ function M:toggle_auto_note(pc)
   if not a.on or a.mode=='reference' then return end
   local before=self:begin_edit();if not before then return end
   self:auto_rebuild(true);self.display=nil
-  self:commit(before,'auto tuning notes')
+  self:commit(before,'auto tuning notes');self:queue_auto_batch()
 end
 function M:set_scale(root,mode,snap)
   if self:busy() or self.gesture then return end

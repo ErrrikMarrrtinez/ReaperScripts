@@ -13,6 +13,14 @@ function M.color(p,selected,alpha)
   if selected then c1,c2,c3=c1+(255-c1)*.23,c2+(255-c2)*.23,c3+(255-c3)*.23 end
   return floor(c1+.5)<<24|floor(c2+.5)<<16|floor(c3+.5)<<8|(alpha or 255)
 end
+-- Color: Tuning (как в JSFX Pitch Meter): отклонение центра ноты от ровного полутона — до 10 ц зелёный, до 25 жёлтый, дальше красный
+function M.tuning(p,selected,alpha)
+  local cents=math.abs(p-floor(p+.5))*100
+  local c=cents<=10 and {92,204,122} or cents<=25 and {235,199,82} or {237,97,87}
+  local c1,c2,c3=c[1],c[2],c[3]
+  if selected then c1,c2,c3=c1+(255-c1)*.23,c2+(255-c2)*.23,c3+(255-c3)*.23 end
+  return floor(c1+.5)<<24|floor(c2+.5)<<16|floor(c3+.5)<<8|(alpha or 255)
+end
 -- уровень зависит только от масштаба вида: один log на кадр, а не на каждую ноту
 local lv_span,lv_width,lv
 local function level_of(span,width)

@@ -147,6 +147,7 @@ function M.read(r,take)
         local previous=-math.huge
         for _,p in ipairs(s.points) do assert(type(p.t)=='number' and p.t>previous and p.t>=s.start and p.t<=s.finish and type(p.value)=='number' and math.abs(p.value)<=200,'Invalid drawing point');previous=p.t end
         assert(s.curve==nil or type(s.curve)=='table' and #s.curve<=8192,'Too many captured Curve points')
+        if s.line~=nil then assert(s.line==true and s.target,'Invalid Line drawing') end
         if s.curve_linear~=nil then assert(s.curve_linear==true and s.target,'Invalid captured Curve interpolation') end
         for _,p in ipairs(s.curve or {})do assert(type(p.t)=='number' and p.t==p.t and type(p.value)=='number' and math.abs(p.value)<=24,'Invalid captured Curve point') end
         if s.curve_notes then
